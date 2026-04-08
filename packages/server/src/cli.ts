@@ -7,6 +7,17 @@ export function getCliCommandName(invokedPath?: string): 'mexus' | 'nexus' {
   return binaryName === 'nexus' ? 'nexus' : 'mexus'
 }
 
+export function shouldRunMain(invokedPath: string | undefined, moduleUrl: string): boolean {
+  if (!invokedPath) return false
+
+  try {
+    const realInvokedPath = fs.realpathSync(invokedPath)
+    return pathToFileURL(realInvokedPath).href === moduleUrl
+  } catch {
+    return pathToFileURL(path.resolve(invokedPath)).href === moduleUrl
+  }
+}
+
 const COMMANDS = ['start', 'init', 'status', 'stop', 'help'] as const
 
 export function getSupportedCommands(): string[] {
@@ -208,9 +219,7 @@ async function main() {
   }
 }
 
-const isEntrypoint = process.argv[1]
-  ? pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url
-  : false
+const isEntrypoint = shouldRunMain(process.argv[1], import.meta.url)
 
 if (isEntrypoint) {
   main().catch((err) => {
