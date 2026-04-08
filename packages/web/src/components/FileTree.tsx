@@ -19,6 +19,15 @@ import {
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import type { FileNode } from '@/types'
 
+type FileTreeActions = {
+  expandAll: () => void
+  collapseAll: () => void
+}
+
+interface FileTreeProps {
+  onActionsReady?: (actions: FileTreeActions) => void
+}
+
 interface FileTreeNodeProps {
   node: FileNode
   depth: number
@@ -31,6 +40,23 @@ interface FileTreeNodeProps {
 
 function shouldAutoExpand(node: FileNode) {
   return node.type === 'directory' && !node.name.startsWith('.')
+}
+
+function collectExpandablePaths(nodes: FileNode[]): Set<string> {
+  const expanded = new Set<string>()
+
+  function visit(items: FileNode[]) {
+    for (const node of items) {
+      if (node.type !== 'directory') continue
+      expanded.add(node.path)
+      if (node.children?.length) {
+        visit(node.children)
+      }
+    }
+  }
+
+  visit(nodes)
+  return expanded
 }
 
 function getFileIcon(name: string): LucideIcon {
@@ -141,7 +167,7 @@ function FileTreeNode({ node, depth, expanded, onToggle, onSelect, openFilePaths
   )
 }
 
-export function FileTree() {
+export function FileTree({ onActionsReady }: FileTreeProps) {
   const { fileTree, tabs, activeTabId, openFileTab } = useWorkspaceStore()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const initializedRef = useRef(false)
@@ -189,6 +215,22 @@ export function FileTree() {
   const handleSelect = useCallback((path: string) => {
     openFileTab(path)
   }, [openFileTab])
+
+  const handleExpandAll = useCallback(() => {
+    setExpanded(collectExpandablePaths(fileTree))
+  }, [fileTree])
+
+  const handleCollapseAll = useCallback(() => {
+    setExpanded(new Set())
+  }, [])
+
+  useEffect(() => {
+    if (!onActionsReady) return
+    onActionsReady({
+      expandAll: handleExpandAll,
+      collapseAll: handleCollapseAll,
+    })
+  }, [onActionsReady, handleExpandAll, handleCollapseAll])
 
   if (fileTree.length === 0) {
     return (

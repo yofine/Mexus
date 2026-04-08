@@ -1,0 +1,172 @@
+{
+  "schema_version": "1.0.0",
+  "observation_id": "obs-2026-04-05T01-53-00+08-00",
+  "observed_at": "2026-04-05T01:53:00+08:00",
+  "observer": {
+    "agent": "codex",
+    "mode": "passive"
+  },
+  "scope": {
+    "workspace": "/root/workspace/Nexus",
+    "write_policy": "append_only_files_under_observer_logs"
+  },
+  "summary": {
+    "headline": "Runtime state and history persistence contain inconsistencies.",
+    "overall_risk": "high",
+    "finding_count": 4
+  },
+  "findings": [
+    {
+      "id": "F-001",
+      "severity": "high",
+      "category": "runtime-state",
+      "title": "agents.yaml reports running panes whose recorded PIDs no longer exist",
+      "affected_entities": [
+        "pane-72",
+        "pane-73",
+        "pane-74",
+        ".nexus/agents.yaml"
+      ],
+      "evidence": [
+        {
+          "type": "file",
+          "path": ".nexus/agents.yaml",
+          "detail": "pane-72, pane-73, and pane-74 are marked status=running with recorded PIDs 559748, 567291, and 680856"
+        },
+        {
+          "type": "command",
+          "command": "ps -fp 559748,567291,680856",
+          "detail": "No matching live processes were returned"
+        }
+      ],
+      "impact": "Consumers of runtime state may believe panes are still active and make incorrect UI or orchestration decisions.",
+      "confidence": "high",
+      "suggested_follow_up": "Investigate pane exit handling and stale runtime-state cleanup."
+    },
+    {
+      "id": "F-002",
+      "severity": "medium",
+      "category": "history-index",
+      "title": "sessions.json contains duplicate session IDs",
+      "affected_entities": [
+        ".nexus/history/sessions.json"
+      ],
+      "evidence": [
+        {
+          "type": "file",
+          "path": ".nexus/history/sessions.json",
+          "detail": "Multiple identical session IDs appear more than once with slightly different endedAt and totalDurationMs values"
+        }
+      ],
+      "impact": "Session lists and aggregates can double count or display duplicate history rows.",
+      "confidence": "high",
+      "suggested_follow_up": "Check session finalization and index append logic for idempotency."
+    },
+    {
+      "id": "F-003",
+      "severity": "high",
+      "category": "history-persistence",
+      "title": "A recent history directory contains turns without session metadata",
+      "affected_entities": [
+        ".nexus/history/s-1775232523301"
+      ],
+      "evidence": [
+        {
+          "type": "file-system",
+          "path": ".nexus/history/s-1775232523301",
+          "detail": "Directory contains many turn-*.json files but no session.json"
+        }
+      ],
+      "impact": "History replay and session-level inspection can fail or become partial after interrupted writes.",
+      "confidence": "high",
+      "suggested_follow_up": "Review ordering and durability guarantees between turn persistence and session metadata persistence."
+    },
+    {
+      "id": "F-004",
+      "severity": "medium",
+      "category": "coordination-risk",
+      "title": "Long-lived panes are configured to share the same workspace",
+      "affected_entities": [
+        "pane-72",
+        "pane-73",
+        "pane-74",
+        ".nexus/config.yaml"
+      ],
+      "evidence": [
+        {
+          "type": "file",
+          "path": ".nexus/config.yaml",
+          "detail": "pane-72, pane-73, and pane-74 are configured with isolation=shared"
+        },
+        {
+          "type": "command",
+          "command": "git status --short --branch",
+          "detail": "The workspace already contains uncommitted changes"
+        }
+      ],
+      "impact": "Concurrent agents can interfere with each other's assumptions and edits in the shared worktree.",
+      "confidence": "medium",
+      "suggested_follow_up": "Prefer isolated worktrees for long-running or overlapping tasks when coordination is weak."
+    }
+  ],
+  "entities": [
+    {
+      "id": "pane-72",
+      "name": "自动更新",
+      "agent": "codex",
+      "observed_state": "stale-running"
+    },
+    {
+      "id": "pane-73",
+      "name": "观察者",
+      "agent": "codex",
+      "observed_state": "stale-running"
+    },
+    {
+      "id": "pane-74",
+      "name": "docsite",
+      "agent": "codex",
+      "observed_state": "recent-activity-then-idle"
+    }
+  ],
+  "activity_notes": [
+    {
+      "entity_id": "pane-74",
+      "note": "Observed creation of a documentation design spec and subsequent transition to idle."
+    },
+    {
+      "entity_id": "pane-72",
+      "note": "Observed prompt interaction and a SKILL.md read, with no file edit activity in inspected turns."
+    },
+    {
+      "entity_id": "pane-73",
+      "note": "Did not find matching recent turn evidence despite runtime state marking it as running."
+    }
+  ],
+  "sources": [
+    {
+      "type": "file",
+      "path": ".nexus/agents.yaml"
+    },
+    {
+      "type": "file",
+      "path": ".nexus/config.yaml"
+    },
+    {
+      "type": "file",
+      "path": ".nexus/history/sessions.json"
+    },
+    {
+      "type": "directory",
+      "path": ".nexus/history/s-1775232523301"
+    },
+    {
+      "type": "command",
+      "command": "ps -fp 559748,567291,680856"
+    },
+    {
+      "type": "command",
+      "command": "git status --short --branch"
+    }
+  ]
+}

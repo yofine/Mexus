@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "dev": "pnpm run build:web && NEXUS_PROJECT_DIR=$PWD tsx packages/server/src/cli.ts",
-    "dev:full": "NEXUS_PROJECT_DIR=$PWD pnpm -r --parallel dev",
+    "dev:full": "NEXUS_PROJECT_DIR=$PWD pnpm -r --filter @nexus/server --filter @nexus/web --parallel dev",
     "build:web": "pnpm --filter @nexus/web build",
     "build:server": "pnpm --filter @nexus/server build",
     "build": "pnpm run build:web && pnpm run build:server",

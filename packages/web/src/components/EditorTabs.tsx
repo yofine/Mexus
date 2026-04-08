@@ -1,4 +1,4 @@
-import { X, File, GitBranch, Shield, Activity, History, Eye, EyeOff, RotateCcw } from 'lucide-react'
+import { X, File, GitBranch, Shield, Activity, History, Eye, EyeOff } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import type { EditorTab } from '@/stores/workspaceStore'
 import { FileViewer } from './FileViewer'
@@ -11,7 +11,6 @@ interface EditorTabsProps {
   send: (event: ClientEvent) => void
   isMaximized?: boolean
   onToggleMaximize?: () => void
-  onResetLayout?: () => void
 }
 
 function TabButton({ tab, isActive, onActivate, onClose }: {
@@ -81,7 +80,7 @@ function TabButton({ tab, isActive, onActivate, onClose }: {
   )
 }
 
-export function EditorTabs({ send, isMaximized = false, onToggleMaximize, onResetLayout }: EditorTabsProps) {
+export function EditorTabs({ send, isMaximized = false, onToggleMaximize }: EditorTabsProps) {
   const { tabs, activeTabId, setActiveTab, closeTab } = useWorkspaceStore()
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
@@ -113,11 +112,6 @@ export function EditorTabs({ send, isMaximized = false, onToggleMaximize, onRese
           ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', flexShrink: 0 }}>
-          {onResetLayout && (
-            <button className="pane-action-btn" title="Reset layout" onClick={onResetLayout}>
-              <RotateCcw className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
-            </button>
-          )}
           {onToggleMaximize && (
             <button
               className="pane-action-btn"

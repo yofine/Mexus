@@ -152,6 +152,72 @@ User Request
 - 享有当前执行期的最高指挥权
 - 所有控制动作必须进入审计日志
 
+#### 4.3.1 Observer 观察日志设计
+
+观察员除了读取实时环境上下文，还必须把每一轮观察结论落成机器可读的结构化记录，供后续审计、时间线回放、问题聚合和可视化面板消费。
+
+日志设计原则：
+
+- 每次观察只写一个新文件，不原地覆盖旧记录
+- 使用 JSON 作为唯一日志格式，避免 Markdown 再解析
+- 日志目录独立，避免和业务产物、spec、history 混放
+- 单条观察记录既要保留摘要，也要保留结构化 findings
+- schema 版本显式化，便于后续演进
+
+推荐目录结构：
+
+```text
+observer_logs/
+  2026-04-05T01-53-00+08-00.json
+  2026-04-05T02-10-30+08-00.json
+  2026-04-05T02-25-12+08-00.json
+```
+
+文件命名约束：
+
+- 使用观察完成时间的 ISO 风格时间戳
+- 文件名本身即可作为时间线排序键
+- 不额外维护可变索引文件，避免一次观察需要写多个文件
+
+单文件 JSON 顶层建议字段：
+
+- `schema_version`
+- `observation_id`
+- `observed_at`
+- `observer`
+- `scope`
+- `summary`
+- `findings`
+- `entities`
+- `activity_notes`
+- `sources`
+
+其中 `findings` 是后续可视化的核心数组，每条 finding 至少包含：
+
+- `id`
+- `severity`
+- `category`
+- `title`
+- `affected_entities`
+- `evidence`
+- `impact`
+- `confidence`
+- `suggested_follow_up`
+
+设计约束：
+
+- observer 的日志记录是“观察结论”，不是完整终端转储
+- 原始终端、activity、history 仍留在现有 `.nexus/history` 与活动流中
+- observer_logs 只保留高价值归纳结果和证据引用
+- 可视化层优先读取 `findings`、`summary.overall_risk`、`entities`、`observed_at`
+
+这样可以支持后续直接构建：
+
+- 按时间排序的观察时间线
+- 按 `severity` 和 `category` 聚合的问题面板
+- 按 pane / agent / file 维度过滤的观察视图
+- 面向一次编排任务的阶段性风险摘要
+
 ### 4.4 Reviewer Agent
 
 除 Planner / Worker / Observer 外，建议补入一个轻量 Reviewer 角色，用于收尾阶段的发布审查。
