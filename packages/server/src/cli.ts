@@ -1,234 +1,16 @@
 import path from 'node:path'
 import fs from 'node:fs'
-import { spawn } from 'node:child_process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { startServer } from './index.ts'
-
-type RunCommandResult = {
-  exitCode: number
-  stdout: string
-  stderr: string
-}
-
-type SelfUpdateCommandOptions = {
-  packageName: string
-  currentVersion: string
-  runCommand?: (command: string, args: string[]) => Promise<RunCommandResult>
-}
-
-type LaunchBackgroundSelfUpdateOptions = {
-  cliPath: string
-  execPath: string
-  env: NodeJS.ProcessEnv
-  spawnProcess?: (command: string, args: string[], env: NodeJS.ProcessEnv) => Promise<boolean>
-}
-
-type MaybeStartBackgroundSelfUpdateOptions = {
-  command: string
-  alreadyUpdated: boolean
-  now: number
-  lastRunAt?: number | null
-  throttleMs: number
-  cliPath: string
-  execPath: string
-  env: NodeJS.ProcessEnv
-  readLastRunAt?: () => Promise<number | null>
-  writeLastRunAt?: (timestamp: number) => Promise<void>
-  spawnProcess?: (command: string, args: string[], env: NodeJS.ProcessEnv) => Promise<boolean>
-}
-
-type SelfUpdateResult = {
-  action: 'skipped' | 'updated'
-}
-
-const SELF_UPDATED_ENV = 'NEXUS_SELF_UPDATED'
-const ROOT_PACKAGE_JSON = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../package.json')
-const SELF_UPDATE_COMMAND = '__self-update'
-const SELF_UPDATE_THROTTLE_MS = 10 * 60 * 1000
-const SELF_UPDATE_STATE_FILE = path.join(
-  process.env.HOME || process.env.USERPROFILE || '.',
-  '.nexus',
-  'self-update-check.json',
-)
-
-function loadPublishedPackageMeta(): { name: string; version: string } {
-  const raw = fs.readFileSync(ROOT_PACKAGE_JSON, 'utf-8')
-  const pkg = JSON.parse(raw) as { name?: string; version?: string }
-  return {
-    name: pkg.name || 'nexus-console',
-    version: pkg.version || '0.0.0',
-  }
-}
-
 export function getCliCommandName(invokedPath?: string): 'mexus' | 'nexus' {
   const binaryName = invokedPath ? path.basename(invokedPath).toLowerCase() : ''
   return binaryName === 'nexus' ? 'nexus' : 'mexus'
 }
 
-async function runCommand(command: string, args: string[]): Promise<RunCommandResult> {
-  return await new Promise((resolve) => {
-    const child = spawn(command, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: process.env,
-    })
+const COMMANDS = ['start', 'init', 'status', 'stop', 'help'] as const
 
-    let stdout = ''
-    let stderr = ''
-
-    child.stdout?.on('data', (chunk) => {
-      stdout += String(chunk)
-    })
-    child.stderr?.on('data', (chunk) => {
-      stderr += String(chunk)
-    })
-    child.on('error', (error) => {
-      resolve({ exitCode: 1, stdout, stderr: error.message })
-    })
-    child.on('close', (exitCode) => {
-      resolve({ exitCode: exitCode ?? 1, stdout, stderr })
-    })
-  })
-}
-
-async function spawnDetachedProcess(command: string, args: string[], env: NodeJS.ProcessEnv): Promise<boolean> {
-  return await new Promise((resolve) => {
-    const child = spawn(command, args, {
-      stdio: 'ignore',
-      env,
-      detached: true,
-    })
-
-    child.on('error', () => resolve(false))
-    child.unref()
-    resolve(true)
-  })
-}
-
-function parseLatestVersion(stdout: string): string | null {
-  const trimmed = stdout.trim()
-  if (!trimmed) return null
-
-  try {
-    const parsed = JSON.parse(trimmed) as string
-    return typeof parsed === 'string' ? parsed : null
-  } catch {
-    return trimmed.replace(/^"+|"+$/g, '')
-  }
-}
-
-async function readSelfUpdateLastRunAt(): Promise<number | null> {
-  try {
-    const raw = await fs.promises.readFile(SELF_UPDATE_STATE_FILE, 'utf-8')
-    const parsed = JSON.parse(raw) as { lastRunAt?: number }
-    return typeof parsed.lastRunAt === 'number' ? parsed.lastRunAt : null
-  } catch {
-    return null
-  }
-}
-
-async function writeSelfUpdateLastRunAt(timestamp: number): Promise<void> {
-  await fs.promises.mkdir(path.dirname(SELF_UPDATE_STATE_FILE), { recursive: true })
-  await fs.promises.writeFile(
-    SELF_UPDATE_STATE_FILE,
-    JSON.stringify({ lastRunAt: timestamp }),
-    'utf-8',
-  )
-}
-
-export function compareVersions(current: string, latest: string): number {
-  const currentParts = current.split('.').map((part) => parseInt(part, 10) || 0)
-  const latestParts = latest.split('.').map((part) => parseInt(part, 10) || 0)
-  const length = Math.max(currentParts.length, latestParts.length)
-
-  for (let index = 0; index < length; index++) {
-    const left = currentParts[index] ?? 0
-    const right = latestParts[index] ?? 0
-    if (left !== right) return left - right
-  }
-
-  return 0
-}
-
-export function shouldScheduleBackgroundSelfUpdate(input: {
-  command: string
-  alreadyUpdated: boolean
-}): boolean {
-  return input.command === 'start' && !input.alreadyUpdated
-}
-
-export function shouldRunBackgroundSelfUpdate(input: {
-  now: number
-  lastRunAt: number | null
-  throttleMs: number
-}): boolean {
-  if (input.lastRunAt == null) return true
-  return input.now - input.lastRunAt >= input.throttleMs
-}
-
-export async function launchBackgroundSelfUpdate(
-  options: LaunchBackgroundSelfUpdateOptions,
-): Promise<boolean> {
-  const spawnProcess = options.spawnProcess ?? spawnDetachedProcess
-  return await spawnProcess(
-    options.execPath,
-    [options.cliPath, SELF_UPDATE_COMMAND],
-    {
-      ...options.env,
-      [SELF_UPDATED_ENV]: '1',
-    },
-  )
-}
-
-export async function maybeStartBackgroundSelfUpdate(
-  options: MaybeStartBackgroundSelfUpdateOptions,
-): Promise<boolean> {
-  if (!shouldScheduleBackgroundSelfUpdate({
-    command: options.command,
-    alreadyUpdated: options.alreadyUpdated,
-  })) {
-    return false
-  }
-
-  const readLastRunAt = options.readLastRunAt ?? readSelfUpdateLastRunAt
-  const writeLastRunAt = options.writeLastRunAt ?? writeSelfUpdateLastRunAt
-  const lastRunAt = options.lastRunAt ?? await readLastRunAt()
-  if (!shouldRunBackgroundSelfUpdate({
-    now: options.now,
-    lastRunAt,
-    throttleMs: options.throttleMs,
-  })) {
-    return false
-  }
-
-  await writeLastRunAt(options.now)
-  return await launchBackgroundSelfUpdate({
-    cliPath: options.cliPath,
-    execPath: options.execPath,
-    env: options.env,
-    spawnProcess: options.spawnProcess,
-  })
-}
-
-export async function runSelfUpdateCommand(
-  options: SelfUpdateCommandOptions,
-): Promise<SelfUpdateResult> {
-  const execRunCommand = options.runCommand ?? runCommand
-  const latestResult = await execRunCommand('npm', ['view', options.packageName, 'version', '--json'])
-  if (latestResult.exitCode !== 0) {
-    return { action: 'skipped' }
-  }
-
-  const latestVersion = parseLatestVersion(latestResult.stdout)
-  if (!latestVersion || compareVersions(options.currentVersion, latestVersion) >= 0) {
-    return { action: 'skipped' }
-  }
-
-  const installResult = await execRunCommand('npm', ['install', '-g', `${options.packageName}@latest`])
-  if (installResult.exitCode !== 0) {
-    return { action: 'skipped' }
-  }
-
-  return { action: 'updated' }
+export function getSupportedCommands(): string[] {
+  return [...COMMANDS]
 }
 
 // Check Node.js version — node-pty requires Node 22+
@@ -323,11 +105,10 @@ function resolveProjectDir(dirArg?: string): string {
   return findProjectRoot(process.cwd())
 }
 
-const COMMANDS = new Set(['start', 'init', 'status', 'stop', 'help', SELF_UPDATE_COMMAND])
+const COMMAND_SET = new Set(getSupportedCommands())
 
 async function main() {
   const args = process.argv.slice(2)
-  const packageMeta = loadPublishedPackageMeta()
   const commandName = getCliCommandName(process.argv[1])
 
   // Parse command and directory argument
@@ -339,7 +120,7 @@ async function main() {
     command = 'start'
   } else if (args[0] === '--help' || args[0] === '-h') {
     command = 'help'
-  } else if (COMMANDS.has(args[0])) {
+  } else if (COMMAND_SET.has(args[0])) {
     command = args[0]
     dirArg = args[1]
   } else {
@@ -353,29 +134,12 @@ async function main() {
     return
   }
 
-  if (command === SELF_UPDATE_COMMAND) {
-    await runSelfUpdateCommand({
-      packageName: packageMeta.name,
-      currentVersion: packageMeta.version,
-    })
-    return
-  }
-
   const projectDir = resolveProjectDir(dirArg)
 
   switch (command) {
     case 'start': {
       const port = parseInt(process.env.NEXUS_PORT || String(DEFAULT_PORT), 10)
       await startServer(port, projectDir)
-      void maybeStartBackgroundSelfUpdate({
-        command,
-        alreadyUpdated: process.env[SELF_UPDATED_ENV] === '1',
-        now: Date.now(),
-        throttleMs: SELF_UPDATE_THROTTLE_MS,
-        cliPath: fileURLToPath(import.meta.url),
-        execPath: process.execPath,
-        env: process.env,
-      }).catch(() => {})
 
       // Auto-open browser (non-blocking, failure is ok)
       const url = `http://localhost:${port}`
