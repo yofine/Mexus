@@ -1,42 +1,81 @@
 /**
- * postinstall script for nexus-console
+ * postinstall script for mexus-cli
  *
  * node-pty ships prebuilt binaries including a `spawn-helper` executable.
- * npm strips execute permissions from files during pack/publish, so
+ * Package managers can strip execute permissions during publish/install, so
  * `spawn-helper` arrives as 0644. Without +x, pty.spawn() fails with
  * "posix_spawnp failed" on macOS/Linux.
  *
- * This script restores the execute permission.
+ * This script restores the execute permission for the actual installed copy of
+ * node-pty, including pnpm's nested global installation layout.
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const nodeModules = path.resolve(__dirname, '..', 'node_modules', 'node-pty')
+function defaultResolveNodePtyPackageJson() {
+  const require = createRequire(import.meta.url)
+  return require.resolve('node-pty/package.json')
+}
 
-// Fix prebuilds/{platform}-{arch}/spawn-helper
-const prebuildsDir = path.join(nodeModules, 'prebuilds')
-if (fs.existsSync(prebuildsDir)) {
-  for (const entry of fs.readdirSync(prebuildsDir)) {
-    const helper = path.join(prebuildsDir, entry, 'spawn-helper')
-    if (fs.existsSync(helper)) {
-      try {
-        fs.chmodSync(helper, 0o755)
-      } catch {
-        // may fail on Windows, that's fine
+export function resolveNodePtyDirectory(resolvePackageJson = defaultResolveNodePtyPackageJson) {
+  return path.dirname(resolvePackageJson())
+}
+
+export function collectSpawnHelpers(nodePtyDir, filesystem = fs) {
+  const helpers = []
+  const prebuildsDir = path.join(nodePtyDir, 'prebuilds')
+
+  if (filesystem.existsSync(prebuildsDir)) {
+    for (const entry of filesystem.readdirSync(prebuildsDir)) {
+      const helper = path.join(prebuildsDir, entry, 'spawn-helper')
+      if (filesystem.existsSync(helper)) {
+        helpers.push(helper)
       }
+    }
+  }
+
+  const buildHelper = path.join(nodePtyDir, 'build', 'Release', 'spawn-helper')
+  if (filesystem.existsSync(buildHelper)) {
+    helpers.push(buildHelper)
+  }
+
+  return helpers
+}
+
+export function fixNodePtySpawnHelpers(nodePtyDir, filesystem = fs) {
+  for (const helper of collectSpawnHelpers(nodePtyDir, filesystem)) {
+    try {
+      filesystem.chmodSync(helper, 0o755)
+    } catch {
+      // chmod may fail on unsupported platforms; installation should continue.
     }
   }
 }
 
-// Also fix build/Release/spawn-helper if it exists (node-gyp rebuild case)
-const buildHelper = path.join(nodeModules, 'build', 'Release', 'spawn-helper')
-if (fs.existsSync(buildHelper)) {
+export function runPostinstall(resolvePackageJson = defaultResolveNodePtyPackageJson, filesystem = fs) {
   try {
-    fs.chmodSync(buildHelper, 0o755)
+    const nodePtyDir = resolveNodePtyDirectory(resolvePackageJson)
+    fixNodePtySpawnHelpers(nodePtyDir, filesystem)
   } catch {
-    // ignore
+    // If node-pty is absent or cannot be resolved, keep install non-fatal.
   }
+}
+
+export function shouldRunAsScript(argv1, moduleUrl) {
+  if (!argv1) {
+    return false
+  }
+
+  try {
+    return fs.realpathSync(argv1) === fileURLToPath(moduleUrl)
+  } catch {
+    return path.resolve(argv1) === fileURLToPath(moduleUrl)
+  }
+}
+
+if (shouldRunAsScript(process.argv[1], import.meta.url)) {
+  runPostinstall()
 }
