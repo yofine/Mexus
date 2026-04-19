@@ -4,18 +4,81 @@ import { watch, type FSWatcher } from 'chokidar'
 import type { FileNode, FileActivity } from '../types.ts'
 
 const IGNORED_DIRS = new Set([
-  'node_modules',
+  // VCS / editor
   '.git',
+  '.svn',
+  '.hg',
+  '.idea',
+  '.vscode',
+  // Nexus runtime
   '.nexus',
-  'dist',
-  '.cache',
+  // JS / TS ecosystem
+  'node_modules',
+  '.pnpm',
+  '.yarn',
+  '.npm',
   '.turbo',
+  '.next',
+  '.nuxt',
+  '.svelte-kit',
+  '.astro',
+  '.vercel',
+  '.netlify',
+  '.parcel-cache',
+  '.vite',
+  '.rollup.cache',
+  '.webpack',
+  // Build / output
+  'dist',
+  'build',
+  'out',
+  '.output',
+  'coverage',
+  '.nyc_output',
+  // Generic caches
+  '.cache',
+  'tmp',
+  '.tmp',
+  'temp',
+  '.temp',
+  'logs',
+  // Python
   '__pycache__',
+  '.pytest_cache',
+  '.mypy_cache',
+  '.ruff_cache',
+  '.tox',
+  '.venv',
+  'venv',
+  'env',
+  '.eggs',
+  // Rust / Go / Java
+  'target',
+  '.gradle',
+  '.mvn',
+  // iOS / Android
+  'Pods',
+  'DerivedData',
+  '.xcodeproj',
+  '.build',
+  // Examples / fixtures / vendored
+  'demo',
+  'demos',
+  'example',
+  'examples',
+  'fixtures',
+  '__fixtures__',
+  '__snapshots__',
+  'vendor',
+  'third_party',
+  'storybook-static',
 ])
 
 const IGNORED_FILES = new Set([
   '.DS_Store',
   'Thumbs.db',
+  'desktop.ini',
+  '.env.local',
 ])
 
 export class FsWatcher {
@@ -37,11 +100,19 @@ export class FsWatcher {
     this.notifyListeners()
 
     // Watch top-level directory only (depth 0) for structural changes
-    // Use function-based ignored to reliably filter out heavy directories
+    // Use function-based ignored to reliably filter out heavy directories.
+    // Check every path segment so nested matches (e.g. apps/foo/.turbo/cookies/x)
+    // are pruned before chokidar descends and exhausts file descriptors.
     this.watcher = watch(this.projectDir, {
       ignored: (filePath: string) => {
         const basename = path.basename(filePath)
-        return IGNORED_DIRS.has(basename) || IGNORED_FILES.has(basename)
+        if (IGNORED_FILES.has(basename)) return true
+        const rel = path.relative(this.projectDir, filePath)
+        if (!rel || rel.startsWith('..')) return false
+        for (const seg of rel.split(path.sep)) {
+          if (IGNORED_DIRS.has(seg)) return true
+        }
+        return false
       },
       persistent: true,
       ignoreInitial: true,
