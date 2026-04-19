@@ -42,6 +42,10 @@ export function App() {
 
         case 'terminal.output':
           writeToTerminal(event.paneId, event.data)
+          // Notify shell readiness for pending command dispatch
+          if (event.paneId.startsWith('__shell__')) {
+            window.dispatchEvent(new CustomEvent('shell-output', { detail: { paneId: event.paneId } }))
+          }
           break
 
         case 'conversation.event':

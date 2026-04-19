@@ -91,6 +91,10 @@ interface WorkspaceStore {
   // Review state tracking (transient, not persisted)
   reviewedFiles: Record<string, number>  // file path → hunks hash when marked reviewed
 
+  // Shell terminal instances (separate from agent panes)
+  shellPanes: PaneState[]
+  activeShellPaneId: string | null
+
   // Tab system
   tabs: EditorTab[]
   activeTabId: string | null
@@ -125,6 +129,9 @@ interface WorkspaceStore {
   openReplayTab: (sessionId?: string) => void
   closeTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void
+  addShellPane: (pane: PaneState) => void
+  removeShellPane: (paneId: string) => void
+  setActiveShellPaneId: (paneId: string | null) => void
 }
 
 export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
@@ -146,6 +153,8 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
   paneCurrentFile: {},
   depGraph: null,
   reviewedFiles: {},
+  shellPanes: [],
+  activeShellPaneId: null,
   tabs: [
     { id: 'tab:activity', type: 'activity', label: 'Activity', pinned: true },
     { id: 'review:workspace', type: 'review', label: 'Review', pinned: true },
@@ -155,6 +164,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
   setWorkspace: (name, description, projectDir, panes) =>
     set((state) => {
       const visible = panes.filter((p) => p.agent !== '__shell__')
+      const shells = panes.filter((p) => p.agent === '__shell__')
       const conversationByPane = { ...state.conversationByPane }
       for (const pane of visible) {
         conversationByPane[pane.id] = conversationByPane[pane.id] || []
@@ -164,6 +174,8 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
         description,
         projectDir,
         panes: visible,
+        shellPanes: shells,
+        activeShellPaneId: shells.length > 0 ? shells[shells.length - 1].id : state.activeShellPaneId,
         conversationByPane,
         activePaneId: state.activePaneId || (visible.length > 0 ? visible[0].id : null),
       }
@@ -173,7 +185,14 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
 
   addPane: (pane) =>
     set((state) => {
-      if (pane.agent === '__shell__') return state
+      if (pane.agent === '__shell__') {
+        // Route to shell pane list
+        if (state.shellPanes.some((p) => p.id === pane.id)) return state
+        return {
+          shellPanes: [...state.shellPanes, pane],
+          activeShellPaneId: pane.id,
+        }
+      }
       const panes = upsertPaneById(state.panes, pane)
       return {
         panes,
@@ -187,6 +206,17 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
 
   removePane: (paneId) =>
     set((state) => {
+      // Handle shell pane removal
+      if (state.shellPanes.some((p) => p.id === paneId)) {
+        const nextShells = state.shellPanes.filter((p) => p.id !== paneId)
+        return {
+          shellPanes: nextShells,
+          activeShellPaneId:
+            state.activeShellPaneId === paneId
+              ? (nextShells.length > 0 ? nextShells[nextShells.length - 1].id : null)
+              : state.activeShellPaneId,
+        }
+      }
       const { [paneId]: _, ...restPaneDiffs } = state.paneDiffs
       const { [paneId]: __, ...restConversations } = state.conversationByPane
       const reviewTabId = `review:${paneId}`
@@ -471,4 +501,24 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
     }),
 
   setActiveTab: (tabId) => set({ activeTabId: tabId }),
+
+  addShellPane: (pane) =>
+    set((state) => ({
+      shellPanes: [...state.shellPanes, pane],
+      activeShellPaneId: pane.id,
+    })),
+
+  removeShellPane: (paneId) =>
+    set((state) => {
+      const next = state.shellPanes.filter((p) => p.id !== paneId)
+      return {
+        shellPanes: next,
+        activeShellPaneId:
+          state.activeShellPaneId === paneId
+            ? (next.length > 0 ? next[next.length - 1].id : null)
+            : state.activeShellPaneId,
+      }
+    }),
+
+  setActiveShellPaneId: (paneId) => set({ activeShellPaneId: paneId }),
 }))

@@ -149,7 +149,7 @@ export class WorkspaceManager {
 
   async createPane(createConfig: PaneCreateConfig): Promise<PaneState> {
     const isShell = createConfig.agent === '__shell__'
-    const id = isShell ? '__shell__' : nextPaneId()
+    const id = isShell ? `__shell__-${++paneCounter}` : nextPaneId()
     const isolation = createConfig.isolation || 'shared'
 
     // Extract cols/rows (transient, not persisted in PaneConfig)
