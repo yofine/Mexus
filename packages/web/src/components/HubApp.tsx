@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { FolderPlus, Play, Power, Server, Settings, Trash2, X } from 'lucide-react'
 import { WorkspaceApp } from './WorkspaceApp'
-import { BrandMark } from './BrandMark'
+import { BrandLockup } from './BrandMark'
 import { SettingsDialog } from './SettingsDialog'
 import { hubApi } from '@/lib/apiBase'
 import {
@@ -260,8 +260,7 @@ export function HubApp() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
       <div style={{ height: 40, display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', overflow: 'hidden' }}>
         <div style={brandAreaStyle}>
-          <BrandMark size={22} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Mexus</span>
+          <BrandLockup subtitle="Operator console" />
         </div>
         <div style={tabRailStyle}>
         <button onClick={() => setActiveTabId(DASHBOARD_TAB)} style={tabStyle(activeTabId === DASHBOARD_TAB)}>
@@ -328,7 +327,7 @@ export function HubApp() {
             <div style={{ padding: 20, overflow: 'auto' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 4 }}>Local execution servers</div>
+                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0, color: 'var(--text-secondary)', marginBottom: 4 }}>Local execution servers</div>
                   <div style={{ fontSize: 24, fontWeight: 600 }}>{instances.length} tracked instances</div>
                 </div>
                 <button onClick={openSettingsTab} title="Mexus Settings" style={settingsButtonStyle}>
@@ -390,7 +389,7 @@ export function HubApp() {
             </div>
 
             <div style={{ borderLeft: '1px solid var(--border-subtle)', padding: 20, background: 'var(--bg-surface)', overflow: 'auto' }}>
-              <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 8 }}>New execution server</div>
+              <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0, color: 'var(--text-secondary)', marginBottom: 8 }}>New execution server</div>
               <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 18 }}>Start execution server</div>
               <label style={labelStyle}>
                 Project path
@@ -462,7 +461,7 @@ function tabStyle(active: boolean): CSSProperties {
 }
 
 const brandAreaStyle: CSSProperties = {
-  width: 184,
+  width: 210,
   flexShrink: 0,
   display: 'flex',
   alignItems: 'center',

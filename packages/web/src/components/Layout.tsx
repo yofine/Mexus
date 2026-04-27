@@ -9,7 +9,7 @@ import { ResizeHandle } from './ResizeHandle'
 import { FileTree } from './FileTree'
 import { EditorTabs } from './EditorTabs'
 import { BottomTerminal } from './BottomTerminal'
-import { BrandMark } from './BrandMark'
+import { BrandLockup } from './BrandMark'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import type { ClientEvent } from '@/types'
@@ -175,10 +175,12 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
             boxSizing: 'border-box',
           }}
         >
-          <BrandMark size={20} />
-          <span style={{ fontSize: 'var(--font-md)', fontWeight: 600, color: 'var(--text-primary)' }}>
-            {name || 'Mexus'}
-          </span>
+          <BrandLockup subtitle="Multi-agent execution" />
+          {name && (
+            <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: 'var(--text-secondary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {name}
+            </span>
+          )}
           <div
             style={{
               marginLeft: 'auto',
