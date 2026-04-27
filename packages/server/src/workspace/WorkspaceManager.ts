@@ -14,10 +14,10 @@ import type {
 } from '../types.ts'
 import type { GitDiffResult } from '../git/GitService.ts'
 import { PtyManager } from '../pty/PtyManager.ts'
-import { AcpRuntime } from '../runtime/AcpRuntime.ts'
 import { ConfigManager } from './ConfigManager.ts'
 import { WorktreeManager } from '../git/WorktreeManager.ts'
 import { GitService } from '../git/GitService.ts'
+import { resolveAgentRuntime } from './runtimeSelection.ts'
 
 let paneCounter = 0
 
@@ -44,7 +44,6 @@ type ListenerKey = keyof EventHandlers
 export class WorkspaceManager {
   private panes = new Map<string, PaneState>()
   private ptyManager: PtyManager
-  private acpRuntime: AcpRuntime
   private configManager: ConfigManager
   private worktreeManager: WorktreeManager
   private perPaneGitServices = new Map<string, GitService>()
@@ -72,7 +71,6 @@ export class WorkspaceManager {
   constructor(configManager: ConfigManager) {
     this.configManager = configManager
     this.ptyManager = new PtyManager(configManager)
-    this.acpRuntime = new AcpRuntime(configManager)
     this.worktreeManager = new WorktreeManager(configManager.getProjectDir())
   }
 
@@ -152,12 +150,13 @@ export class WorkspaceManager {
     const id = isShell ? `__shell__-${++paneCounter}` : nextPaneId()
     const isolation = createConfig.isolation || 'shared'
 
-    // Extract cols/rows (transient, not persisted in PaneConfig)
-    const { cols, rows, ...rest } = createConfig
+    // Extract transient/client-only fields. Pane ids are server-owned; clients may
+    // send stale ids from UI state, but must never be allowed to override them.
+    const { cols, rows, id: _clientId, ...rest } = createConfig as PaneCreateConfig & { id?: string }
 
     const config: PaneConfig = {
-      id,
       ...rest,
+      id,
       yolo: rest.yolo || false,
       isolation,
       sessionId: rest.sessionId,
@@ -200,11 +199,7 @@ export class WorkspaceManager {
 
   async closePane(paneId: string): Promise<void> {
     const pane = this.panes.get(paneId)
-    if (pane?.runtime === 'acp') {
-      this.acpRuntime.kill(paneId)
-    } else {
-      this.ptyManager.kill(paneId)
-    }
+    this.ptyManager.kill(paneId)
 
     // Clean up worktree resources
     if (pane?.isolation === 'worktree') {
@@ -221,11 +216,7 @@ export class WorkspaceManager {
     const existingState = this.panes.get(paneId)
     if (!existingState) return
 
-    if (existingState.runtime === 'acp') {
-      this.acpRuntime.kill(paneId)
-    } else {
-      this.ptyManager.kill(paneId)
-    }
+    this.ptyManager.kill(paneId)
 
     // For resume mode, use the provided sessionId or fall back to the last known one
     const resolvedSessionId = mode === 'resume'
@@ -285,19 +276,12 @@ export class WorkspaceManager {
   writeToPane(paneId: string, data: string): void {
     const pane = this.panes.get(paneId)
     if (!pane) return
-    if (pane.runtime === 'acp') {
-      this.acpRuntime.write(paneId, data)
-      return
-    }
     this.ptyManager.write(paneId, data)
   }
 
   sendConversationToPane(paneId: string, text: string): Promise<void> {
     const pane = this.panes.get(paneId)
     if (!pane) return Promise.resolve()
-    if (pane.runtime === 'acp') {
-      return this.acpRuntime.sendPrompt(paneId, text)
-    }
     this.ptyManager.write(paneId, text + '\r')
     return Promise.resolve()
   }
@@ -305,19 +289,13 @@ export class WorkspaceManager {
   resizePane(paneId: string, cols: number, rows: number): void {
     const pane = this.panes.get(paneId)
     if (!pane) return
-    if (pane.runtime === 'acp') {
-      this.acpRuntime.resize(paneId, cols, rows)
-      return
-    }
     this.ptyManager.resize(paneId, cols, rows)
   }
 
   getScrollback(paneId: string): string {
     const pane = this.panes.get(paneId)
     if (!pane) return ''
-    return pane.runtime === 'acp'
-      ? this.acpRuntime.getScrollback(paneId)
-      : this.ptyManager.getScrollback(paneId)
+    return this.ptyManager.getScrollback(paneId)
   }
 
   // ─── Event Registration (multi-client safe) ────────────────
@@ -387,9 +365,7 @@ export class WorkspaceManager {
 
   private spawnPane(config: PaneConfig, cols?: number, rows?: number): PaneState {
     const runtime = this.resolveRuntime(config.agent)
-    const pid = runtime === 'acp'
-      ? this.acpRuntime.spawn(config.id, config)
-      : this.ptyManager.spawn(config.id, config, cols || 80, rows || 24)
+    const pid = this.ptyManager.spawn(config.id, config, cols || 80, rows || 24)
 
     const pane: PaneState = {
       id: config.id,
@@ -413,7 +389,7 @@ export class WorkspaceManager {
     this.panes.set(config.id, pane)
     this.emit('onPaneAdded', pane)
 
-    const runtimeAdapter = runtime === 'acp' ? this.acpRuntime : this.ptyManager
+    const runtimeAdapter = this.ptyManager
 
     runtimeAdapter.onData(config.id, (data) => {
       this.emit('onTerminalData', config.id, data)
@@ -444,19 +420,11 @@ export class WorkspaceManager {
       this.emit('onPaneActivity', config.id, activity)
     })
 
-    if (runtime === 'acp') {
-      this.acpRuntime.onConversation(config.id, (event) => {
-        this.emit('onConversationEvent', config.id, event)
-      })
-    }
-
     return pane
   }
 
   private resolveRuntime(agentType: PaneState['agent']): PaneState['runtime'] {
-    if (agentType === '__shell__') return 'pty'
-    const def = this.configManager.getAgentDefinition(agentType)
-    return def?.transport || 'pty'
+    return resolveAgentRuntime(agentType, this.configManager.getAgentDefinition(agentType))
   }
 
   private async startPaneGitService(paneId: string, worktreePath: string): Promise<void> {
@@ -564,7 +532,6 @@ export class WorkspaceManager {
 
   async shutdown(): Promise<void> {
     this.ptyManager.killAll()
-    this.acpRuntime.killAll()
     // Close per-pane git services (worktree directories are preserved for restore)
     for (const [paneId] of this.perPaneGitServices) {
       this.stopPaneGitService(paneId)

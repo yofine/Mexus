@@ -1,120 +1,58 @@
-import { useCallback, useEffect } from 'react'
-import { useWebSocket } from '@/hooks/useWebSocket'
-import { useWorkspaceStore } from '@/stores/workspaceStore'
-import { writeToTerminal, clearAllHistories } from '@/stores/terminalRegistry'
-import { Layout } from '@/components/Layout'
-import type { ServerEvent } from '@/types'
+import { useEffect, useState } from 'react'
+import { WorkspaceApp } from '@/components/WorkspaceApp'
+import { HubApp } from '@/components/HubApp'
+import { hubApi } from '@/lib/apiBase'
+import { useConnectionStore } from '@/stores/connectionStore'
+import type { ConnectionTarget } from '@/types'
+
+type AppMode = 'loading' | 'hub' | 'workspace'
+
+function makeDefaultTarget(): ConnectionTarget {
+  return {
+    serverId: 'local-current-origin',
+    label: window.location.host,
+    httpBaseUrl: window.location.origin,
+    wsBaseUrl: window.location.origin,
+  }
+}
 
 export function App() {
-  const {
-    setWorkspace,
-    addPane,
-    removePane,
-    updatePaneStatus,
-    updatePaneMeta,
-    setConnectionStatus,
-    setFileTree,
-    setGitAllDiffs,
-    setGitBranchInfo,
-    setPaneDiffs,
-    addActivity,
-    addFileActivity,
-    setMergeResult,
-    clearMergeResult,
-    applyConversationEvent,
-  } = useWorkspaceStore()
+  const [mode, setMode] = useState<AppMode>('loading')
 
-  const handleMessage = useCallback(
-    (event: ServerEvent) => {
-      switch (event.type) {
-        case 'workspace.state':
-          // Clear client-side history before server replays scrollback,
-          // preventing duplicate output on WebSocket reconnect
-          clearAllHistories()
-          setWorkspace(
-            event.state.name,
-            event.state.description || '',
-            event.state.projectDir,
-            event.state.panes,
-          )
-          setConnectionStatus('connected')
-          break
-
-        case 'terminal.output':
-          writeToTerminal(event.paneId, event.data)
-          // Notify shell readiness for pending command dispatch
-          if (event.paneId.startsWith('__shell__')) {
-            window.dispatchEvent(new CustomEvent('shell-output', { detail: { paneId: event.paneId } }))
-          }
-          break
-
-        case 'conversation.event':
-          applyConversationEvent(event.paneId, event.event)
-          break
-
-        case 'pane.status':
-          updatePaneStatus(event.paneId, event.status)
-          break
-
-        case 'pane.meta':
-          updatePaneMeta(event.paneId, event.meta)
-          break
-
-        case 'pane.added':
-          addPane(event.pane)
-          break
-
-        case 'pane.removed':
-          removePane(event.paneId)
-          break
-
-        case 'fs.tree':
-          setFileTree(event.tree)
-          break
-
-        case 'git.diff':
-          setGitAllDiffs(event.unstaged, event.staged || [])
-          break
-
-        case 'git.branchInfo':
-          setGitBranchInfo({ branch: event.branch, remote: event.remote, ahead: event.ahead, behind: event.behind })
-          break
-
-        case 'git.result':
-          // Commit/push results — UI updates via diff refresh automatically
-          if (!event.success) {
-            console.error(`git.${event.action} failed:`, event.message)
-          }
-          break
-
-        case 'pane.diff':
-          setPaneDiffs(event.paneId, event.diffs)
-          break
-
-        case 'pane.activity':
-          addActivity(event.paneId, event.activity)
-          break
-
-        case 'file.activity':
-          addFileActivity(event.activity)
-          break
-
-        case 'pane.merge.result':
-          setMergeResult(event.paneId, { success: event.success, message: event.message })
-          // Auto-clear after 5s
-          setTimeout(() => clearMergeResult(event.paneId), 5000)
-          break
-      }
-    },
-    [setWorkspace, addPane, removePane, updatePaneStatus, updatePaneMeta, setConnectionStatus, setFileTree, setGitAllDiffs, setGitBranchInfo, setPaneDiffs, addActivity, addFileActivity, setMergeResult, clearMergeResult, applyConversationEvent],
-  )
-
-  const { send, status } = useWebSocket({ onMessage: handleMessage })
-
-  // Sync connection status via effect to avoid render-loop
   useEffect(() => {
-    setConnectionStatus(status)
-  }, [status, setConnectionStatus])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(hubApi('/api/hub/status'), { cache: 'no-store' })
+        const contentType = res.headers.get('content-type') || ''
+        const data = res.ok && contentType.includes('application/json')
+          ? await res.json().catch(() => null) as { mode?: string } | null
+          : null
+        if (!cancelled && data?.mode === 'hub') {
+          useConnectionStore.getState().setHubMode(true)
+          setMode('hub')
+          return
+        }
+      } catch { /* ignore */ }
+      if (!cancelled) {
+        useConnectionStore.getState().setHubMode(false)
+        setMode('workspace')
+      }
+    })()
 
-  return <Layout send={send} />
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (mode === 'loading') {
+    return (
+      <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-secondary)' }}>
+        Loading Mexus…
+      </div>
+    )
+  }
+
+  if (mode === 'hub') return <HubApp />
+  return <WorkspaceApp target={makeDefaultTarget()} />
 }

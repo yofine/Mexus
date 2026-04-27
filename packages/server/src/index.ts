@@ -14,12 +14,23 @@ import { setupWsHandlers } from './ws/handlers.ts'
 import { DependencyAnalyzer } from './deps/DependencyAnalyzer.ts'
 import { SessionRecorder } from './history/SessionRecorder.ts'
 import { SessionDiscovery } from './workspace/SessionDiscovery.ts'
-import type { GlobalConfig } from './types.ts'
+import { register as registerInstance, markStoppedByPid } from './hub/InstanceRegistry.ts'
+import { testModelProviderConnection } from './models/ModelConnectionTester.ts'
+import type { GlobalConfig, ModelDefinition, ModelProviderConfig } from './types.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export async function startServer(port: number, projectDir: string) {
   const fastify = Fastify({ logger: false })
+
+  fastify.addHook('onRequest', async (request, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*')
+    reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+    reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    if (request.method === 'OPTIONS') {
+      reply.code(204).send()
+    }
+  })
 
   // Managers
   const configManager = new ConfigManager(projectDir)
@@ -115,7 +126,13 @@ export async function startServer(port: number, projectDir: string) {
 
   // Health check
   fastify.get('/api/health', async () => {
-    return { status: 'ok' }
+    return { status: 'ok', pid: process.pid, port, projectDir, projectName: wsConfig?.name || path.basename(projectDir) }
+  })
+
+  // Remote shutdown (used by Mexus Hub)
+  fastify.post('/api/shutdown', async () => {
+    setTimeout(() => shutdown(), 50)
+    return { ok: true }
   })
 
   // Agent availability endpoint
@@ -136,6 +153,16 @@ export async function startServer(port: number, projectDir: string) {
     } catch (err) {
       reply.code(400)
       return { error: 'Invalid config' }
+    }
+  })
+
+  fastify.post('/api/models/test-connection', async (request, reply) => {
+    try {
+      const body = request.body as { provider?: ModelProviderConfig; model?: ModelDefinition } | ModelProviderConfig
+      return await testModelProviderConnection('provider' in body ? body.provider as ModelProviderConfig : body, 'model' in body ? body.model : undefined)
+    } catch (err) {
+      reply.code(400)
+      return { ok: false, message: (err as Error).message }
     }
   })
 
@@ -323,6 +350,7 @@ export async function startServer(port: number, projectDir: string) {
   // Graceful shutdown
   const shutdown = async () => {
     console.log('\nShutting down...')
+    markStoppedByPid(process.pid)
     recorder.flush()
     agentsWriter.flush(workspaceManager.getPanes())
     fsWatcher.close()
@@ -346,6 +374,14 @@ export async function startServer(port: number, projectDir: string) {
     }
     throw err
   }
+  registerInstance({
+    pid: process.pid,
+    port,
+    cwd: projectDir,
+    projectName: wsConfig?.name || path.basename(projectDir),
+    startedAt: Date.now(),
+  })
+
   console.log(`Nexus server running at http://localhost:${port}`)
   console.log(`  Project dir: ${projectDir}`)
   console.log(`  File tree: ${fsWatcher.getTree().length} top-level entries`)

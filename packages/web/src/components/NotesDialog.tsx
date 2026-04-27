@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, StickyNote, Plus, Trash2, Check } from 'lucide-react'
+import { api } from '@/lib/apiBase'
 
 interface NoteItem {
   id: string
@@ -10,7 +11,7 @@ interface NoteItem {
 
 async function fetchNotes(): Promise<NoteItem[]> {
   try {
-    const res = await fetch('/api/notes')
+    const res = await fetch(api('/api/notes'))
     const data = await res.json()
     return data.notes || []
   } catch {
@@ -20,7 +21,7 @@ async function fetchNotes(): Promise<NoteItem[]> {
 
 async function saveNotes(notes: NoteItem[]) {
   try {
-    await fetch('/api/notes', {
+    await fetch(api('/api/notes'), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes }),

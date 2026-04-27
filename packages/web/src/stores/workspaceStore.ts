@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { ConversationEvent, PaneState, PaneMeta, PaneStatus, FileNode, FileDiff, FileActivity, FileAction, DepGraph } from '@/types'
+import { debugLog, summarizeShells } from '@/lib/debugLog'
 import { upsertPaneById } from './paneStoreUtils'
 
 // Simple djb2 hash for review stale detection
@@ -101,6 +102,7 @@ interface WorkspaceStore {
 
   // Actions
   setWorkspace: (name: string, description: string, projectDir: string, panes: PaneState[]) => void
+  resetWorkspace: () => void
   setPanes: (panes: PaneState[]) => void
   addPane: (pane: PaneState) => void
   removePane: (paneId: string) => void
@@ -126,6 +128,7 @@ interface WorkspaceStore {
   addFileActivity: (activity: FileActivity) => void
   openFileTab: (path: string) => void
   openReviewTab: (paneId?: string, paneName?: string) => void
+  ensureReplayTabPinned: () => void
   openReplayTab: (sessionId?: string) => void
   closeTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void
@@ -134,32 +137,50 @@ interface WorkspaceStore {
   setActiveShellPaneId: (paneId: string | null) => void
 }
 
-export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
-  name: '',
-  description: '',
-  projectDir: '',
-  panes: [],
-  activePaneId: null,
-  connectionStatus: 'disconnected',
-  fileTree: [],
-  gitDiffs: [],
-  gitStagedDiffs: [],
-  gitBranchInfo: null,
-  paneDiffs: {},
-  mergeResults: {},
-  conversationByPane: {},
-  diffViewPaneId: null,
-  activities: [],
-  paneCurrentFile: {},
-  depGraph: null,
-  reviewedFiles: {},
-  shellPanes: [],
-  activeShellPaneId: null,
-  tabs: [
+function getInitialTabs(): EditorTab[] {
+  return [
     { id: 'tab:activity', type: 'activity', label: 'Activity', pinned: true },
     { id: 'review:workspace', type: 'review', label: 'Review', pinned: true },
-  ],
-  activeTabId: 'tab:activity',
+  ]
+}
+
+function getInitialWorkspaceState(): Omit<WorkspaceStore,
+  'setWorkspace' | 'resetWorkspace' | 'setPanes' | 'addPane' | 'removePane' | 'updatePaneStatus' |
+  'updatePaneMeta' | 'setActivePaneId' | 'setConnectionStatus' | 'setFileTree' | 'setGitDiffs' |
+  'setGitStagedDiffs' | 'setGitAllDiffs' | 'setGitBranchInfo' | 'setPaneDiffs' | 'removePaneDiffs' |
+  'setMergeResult' | 'clearMergeResult' | 'applyConversationEvent' | 'setDiffViewPaneId' |
+  'setDepGraph' | 'toggleFileReviewed' | 'clearReviewedFiles' | 'addActivity' | 'addFileActivity' |
+  'openFileTab' | 'openReviewTab' | 'ensureReplayTabPinned' | 'openReplayTab' | 'closeTab' | 'setActiveTab' |
+  'addShellPane' | 'removeShellPane' | 'setActiveShellPaneId'
+> {
+  return {
+    name: '',
+    description: '',
+    projectDir: '',
+    panes: [],
+    activePaneId: null,
+    connectionStatus: 'disconnected',
+    fileTree: [],
+    gitDiffs: [],
+    gitStagedDiffs: [],
+    gitBranchInfo: null,
+    paneDiffs: {},
+    diffViewPaneId: null,
+    activities: [],
+    paneCurrentFile: {},
+    mergeResults: {},
+    conversationByPane: {},
+    depGraph: null,
+    reviewedFiles: {},
+    shellPanes: [],
+    activeShellPaneId: null,
+    tabs: getInitialTabs(),
+    activeTabId: 'tab:activity',
+  }
+}
+
+export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
+  ...getInitialWorkspaceState(),
 
   setWorkspace: (name, description, projectDir, panes) =>
     set((state) => {
@@ -169,17 +190,29 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
       for (const pane of visible) {
         conversationByPane[pane.id] = conversationByPane[pane.id] || []
       }
+      const nextActiveShellPaneId =
+        state.activeShellPaneId && shells.some((pane) => pane.id === state.activeShellPaneId)
+          ? state.activeShellPaneId
+          : (shells.length > 0 ? shells[shells.length - 1].id : null)
+      debugLog('workspace-store', 'setWorkspace', {
+        panes: visible.length,
+        incomingShells: summarizeShells(shells),
+        prevActiveShellPaneId: state.activeShellPaneId,
+        nextActiveShellPaneId,
+      })
       return {
         name,
         description,
         projectDir,
         panes: visible,
         shellPanes: shells,
-        activeShellPaneId: shells.length > 0 ? shells[shells.length - 1].id : state.activeShellPaneId,
+        activeShellPaneId: nextActiveShellPaneId,
         conversationByPane,
         activePaneId: state.activePaneId || (visible.length > 0 ? visible[0].id : null),
       }
     }),
+
+  resetWorkspace: () => set(getInitialWorkspaceState()),
 
   setPanes: (panes) => set({ panes: panes.filter((p) => p.agent !== '__shell__') }),
 
@@ -187,10 +220,27 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
     set((state) => {
       if (pane.agent === '__shell__') {
         // Route to shell pane list
-        if (state.shellPanes.some((p) => p.id === pane.id)) return state
+        if (state.shellPanes.some((p) => p.id === pane.id)) {
+          debugLog('workspace-store', 'addPane:shell-duplicate-ignored', {
+            paneId: pane.id,
+            name: pane.name,
+            shells: summarizeShells(state.shellPanes),
+          })
+          return state
+        }
+        const nextShells = [...state.shellPanes, pane]
+        const nextActiveShellPaneId = pane.id
+        debugLog('workspace-store', 'addPane:shell', {
+          paneId: pane.id,
+          name: pane.name,
+          prevShells: summarizeShells(state.shellPanes),
+          nextShells: summarizeShells(nextShells),
+          prevActiveShellPaneId: state.activeShellPaneId,
+          nextActiveShellPaneId,
+        })
         return {
-          shellPanes: [...state.shellPanes, pane],
-          activeShellPaneId: pane.id,
+          shellPanes: nextShells,
+          activeShellPaneId: nextActiveShellPaneId,
         }
       }
       const panes = upsertPaneById(state.panes, pane)
@@ -209,12 +259,20 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
       // Handle shell pane removal
       if (state.shellPanes.some((p) => p.id === paneId)) {
         const nextShells = state.shellPanes.filter((p) => p.id !== paneId)
+        const nextActiveShellPaneId =
+          state.activeShellPaneId === paneId
+            ? (nextShells.length > 0 ? nextShells[nextShells.length - 1].id : null)
+            : state.activeShellPaneId
+        debugLog('workspace-store', 'removePane:shell', {
+          paneId,
+          prevShells: summarizeShells(state.shellPanes),
+          nextShells: summarizeShells(nextShells),
+          prevActiveShellPaneId: state.activeShellPaneId,
+          nextActiveShellPaneId,
+        })
         return {
           shellPanes: nextShells,
-          activeShellPaneId:
-            state.activeShellPaneId === paneId
-              ? (nextShells.length > 0 ? nextShells[nextShells.length - 1].id : null)
-              : state.activeShellPaneId,
+          activeShellPaneId: nextActiveShellPaneId,
         }
       }
       const { [paneId]: _, ...restPaneDiffs } = state.paneDiffs
@@ -467,6 +525,32 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
       return { tabs: [...state.tabs, tab], activeTabId: tab.id }
     }),
 
+  ensureReplayTabPinned: () =>
+    set((state) => {
+      const existing = state.tabs.find((t) => t.id === 'tab:replay')
+      if (existing) {
+        if (existing.pinned && existing.label === 'Replay') return state
+        return {
+          tabs: state.tabs.map((tab) => (
+            tab.id === 'tab:replay'
+              ? { ...tab, label: 'Replay', pinned: true }
+              : tab
+          )),
+        }
+      }
+
+      const replayTab: EditorTab = { id: 'tab:replay', type: 'replay', label: 'Replay', pinned: true }
+      const reviewIndex = state.tabs.findIndex((tab) => tab.id === 'review:workspace')
+      if (reviewIndex === -1) return { tabs: [...state.tabs, replayTab] }
+      return {
+        tabs: [
+          ...state.tabs.slice(0, reviewIndex + 1),
+          replayTab,
+          ...state.tabs.slice(reviewIndex + 1),
+        ],
+      }
+    }),
+
   openReplayTab: (sessionId?: string) =>
     set((state) => {
       const tabId = sessionId ? `replay:${sessionId}` : 'tab:replay'
@@ -503,10 +587,22 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
   setActiveTab: (tabId) => set({ activeTabId: tabId }),
 
   addShellPane: (pane) =>
-    set((state) => ({
-      shellPanes: [...state.shellPanes, pane],
-      activeShellPaneId: pane.id,
-    })),
+    set((state) => {
+      const nextShells = [...state.shellPanes, pane]
+      const nextActiveShellPaneId = pane.id
+      debugLog('workspace-store', 'addShellPane', {
+        paneId: pane.id,
+        name: pane.name,
+        prevShells: summarizeShells(state.shellPanes),
+        nextShells: summarizeShells(nextShells),
+        prevActiveShellPaneId: state.activeShellPaneId,
+        nextActiveShellPaneId,
+      })
+      return {
+        shellPanes: nextShells,
+        activeShellPaneId: nextActiveShellPaneId,
+      }
+    }),
 
   removeShellPane: (paneId) =>
     set((state) => {

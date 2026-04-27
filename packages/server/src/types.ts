@@ -5,6 +5,8 @@ export type RestoreMode = 'continue' | 'restart' | 'manual' | 'resume'
 export type AgentType = 'claudecode' | 'codex' | 'opencode' | 'kimi-cli' | 'qodercli' | '__shell__'
 export type IsolationMode = 'shared' | 'worktree'
 export type AgentTransport = 'pty' | 'acp'
+export type ModelProviderType = '' | 'openai' | 'anthropic'
+export type ModelProxyMode = '' | 'openai' | 'anthropic'
 
 export interface PaneMeta {
   model?: string
@@ -98,6 +100,7 @@ export type ServerEvent =
   | { type: 'pane.status'; paneId: string; status: PaneStatus }
   | { type: 'pane.meta'; paneId: string; meta: PaneMeta }
   | { type: 'pane.added'; pane: PaneState }
+  | { type: 'pane.create.failed'; message: string }
   | { type: 'pane.removed'; paneId: string }
   | { type: 'fs.tree'; tree: FileNode[] }
   | { type: 'git.diff'; unstaged: FileDiff[]; staged: FileDiff[] }
@@ -185,12 +188,14 @@ export interface GlobalConfig {
     theme: string
   }
   agents: Record<string, AgentDefinition>
+  models: ModelConfig
 }
 
 export interface AgentDefinition {
   bin: string
   continue_flag: string
   resume_flag?: string
+  resume_command?: string
   yolo_flag?: string
   statusline: boolean
   transport?: AgentTransport
@@ -201,6 +206,33 @@ export interface AgentAvailability {
   installed: boolean
   bin: string
   installHint: string
+}
+
+export interface ModelConfig {
+  defaults: {
+    tool_model: string
+  }
+  providers: Record<string, ModelProviderConfig>
+}
+
+export interface ModelProviderConfig {
+  name: string
+  type: ModelProviderType
+  enabled: boolean
+  base_url: string
+  api_key: string
+  models: ModelDefinition[]
+  proxy: {
+    enabled: boolean
+    mode: ModelProxyMode
+    port: number
+  }
+}
+
+export interface ModelDefinition {
+  id: string
+  name: string
+  enabled: boolean
 }
 
 export interface WorkspaceConfig {

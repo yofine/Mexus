@@ -3,6 +3,7 @@ import { GitBranch, Share2, Zap, History, Plus, Loader2, X, FolderOpen, MessageS
 import { AgentIcon, getAgentDisplayName } from './AgentIcon'
 import type { ClientEvent, AgentType, RestoreMode, IsolationMode, AgentAvailability, DiscoveredSession } from '@/types'
 import { loadLayoutPreferences } from '@/lib/layoutPreferences'
+import { api } from '@/lib/apiBase'
 
 const AGENT_TYPES: AgentType[] = ['claudecode', 'codex', 'opencode', 'kimi-cli', 'qodercli']
 
@@ -63,7 +64,7 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
 
   useEffect(() => {
     if (!isOpen) return
-    fetch('/api/agents')
+    fetch(api('/api/agents'))
       .then(res => res.json())
       .then(data => {
         setAgentAvailability(data)
@@ -80,7 +81,7 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
     setSessionsLoading(true)
     setSessions([])
     setSelectedSessionId(null)
-    fetch(`/api/sessions?agent=${agent}`)
+    fetch(api(`/api/sessions?agent=${agent}`))
       .then(res => res.json())
       .then((data: DiscoveredSession[]) => setSessions(data))
       .catch(() => setSessions([]))
@@ -102,8 +103,8 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
       config: {
         name: name.trim(),
         agent,
-        workdir: submitRestoreMode === 'resume' ? undefined : (workdir.trim() || undefined),
-        task: submitRestoreMode === 'resume' ? undefined : (task.trim() || undefined),
+        workdir: workdir.trim() || undefined,
+        task: task.trim() || undefined,
         restore: submitRestoreMode,
         isolation,
         yolo: yolo || undefined,
@@ -246,42 +247,40 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
                 })}
               </div>
             </div>
-          ) : (
-            /* New session fields */
-            <>
-              <div className="apd-section">
-                <label className="apd-label" htmlFor="apd-workdir">
-                  <FolderOpen size={12} />
-                  Work Directory
-                  <span className="apd-label-hint">optional</span>
-                </label>
-                <input
-                  id="apd-workdir"
-                  type="text"
-                  value={workdir}
-                  onChange={(e) => setWorkdir(e.target.value)}
-                  placeholder="e.g. src/auth"
-                  className="apd-input"
-                />
-              </div>
+          ) : null}
 
-              <div className="apd-section">
-                <label className="apd-label" htmlFor="apd-task">
-                  <MessageSquare size={12} />
-                  Task
-                  <span className="apd-label-hint">optional</span>
-                </label>
-                <textarea
-                  id="apd-task"
-                  value={task}
-                  onChange={(e) => setTask(e.target.value)}
-                  placeholder="Describe what this agent should work on..."
-                  rows={3}
-                  className="apd-input apd-textarea"
-                />
-              </div>
-            </>
-          )}
+          {/* Session startup context */}
+          <div className="apd-section">
+            <label className="apd-label" htmlFor="apd-workdir">
+              <FolderOpen size={12} />
+              Work Directory
+              <span className="apd-label-hint">optional</span>
+            </label>
+            <input
+              id="apd-workdir"
+              type="text"
+              value={workdir}
+              onChange={(e) => setWorkdir(e.target.value)}
+              placeholder="e.g. src/auth"
+              className="apd-input"
+            />
+          </div>
+
+          <div className="apd-section">
+            <label className="apd-label" htmlFor="apd-task">
+              <MessageSquare size={12} />
+              Task
+              <span className="apd-label-hint">optional</span>
+            </label>
+            <textarea
+              id="apd-task"
+              value={task}
+              onChange={(e) => setTask(e.target.value)}
+              placeholder="Describe what this agent should work on..."
+              rows={3}
+              className="apd-input apd-textarea"
+            />
+          </div>
 
           {/* Options row */}
           <div className="apd-options">

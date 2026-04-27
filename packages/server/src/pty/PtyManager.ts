@@ -1,14 +1,15 @@
 import * as pty from 'node-pty'
 import fs from 'node:fs'
 import os from 'node:os'
-import path from 'node:path'
-import type { PaneConfig, PaneStatus, PaneMeta, AgentDefinition, FileActivity } from '../types.ts'
+import type { PaneConfig, PaneStatus, PaneMeta, FileActivity } from '../types.ts'
 import { StatuslineParser } from '../comm/StatuslineParser.ts'
 import { ShellReadyDetector } from '../comm/ShellReadyDetector.ts'
-import { AgentReadyDetector } from '../comm/AgentReadyDetector.ts'
+import type { AgentReadyDetector } from '../comm/AgentReadyDetector.ts'
 import { OutputStateAnalyzer } from '../comm/OutputStateAnalyzer.ts'
 import { ActivityParser } from './ActivityParser.ts'
 import type { ConfigManager } from '../workspace/ConfigManager.ts'
+import { buildAgentCommand } from './agentCommand.ts'
+import { resolvePaneCwd } from '../workspace/panePaths.ts'
 
 const MAX_SCROLLBACK_BYTES = 512 * 1024 // 512KB per pane
 
@@ -46,13 +47,7 @@ export class PtyManager {
     const shell = this.configManager.getShell()
     console.log(`[PTY] Using shell: ${shell} for pane ${paneId}`)
     const projectDir = this.configManager.getProjectDir()
-    // Worktree panes use worktreePath as base; shared panes use projectDir
-    const basePath = (config.isolation === 'worktree' && config.worktreePath)
-      ? config.worktreePath
-      : projectDir
-    let cwd = config.workdir
-      ? path.resolve(basePath, config.workdir)
-      : basePath
+    let cwd = resolvePaneCwd(projectDir, config)
 
     // Validate cwd exists — posix_spawnp fails if cwd is invalid
     if (!fs.existsSync(cwd)) {
@@ -71,6 +66,7 @@ export class PtyManager {
 
     const agentDef = this.configManager.getAgentDefinition(config.agent)
     const isAgent = agentDef && config.agent !== '__shell__'
+    const agentCommand = isAgent ? buildAgentCommand(config, agentDef) : null
 
     // Build environment from agent definition
     // Filter out all Claude-related env vars to prevent nested session detection
@@ -237,7 +233,7 @@ export class PtyManager {
 
     // Shell ready → Agent command → Agent ready → Task
     if (isAgent && shellDetector) {
-      this.startAgentSequence(paneId, config, agentDef!, shellDetector)
+      this.startAgentSequence(paneId, config, agentCommand!, shellDetector)
     }
 
     return term.pid
@@ -250,7 +246,7 @@ export class PtyManager {
   private async startAgentSequence(
     paneId: string,
     config: PaneConfig,
-    agentDef: AgentDefinition,
+    agentCommand: string,
     shellDetector: ShellReadyDetector,
   ): Promise<void> {
     const entry = this.entries.get(paneId)
@@ -263,44 +259,14 @@ export class PtyManager {
     console.log(`[PTY] Shell ready for ${paneId}: detected=${shellResult.detected} (${shellResult.elapsedMs}ms)`)
 
     // Step 2: Send agent command
-    this.sendAgentCommand(paneId, config, agentDef)
+    this.sendAgentCommand(paneId, agentCommand)
 
-    // Step 3: If there's a task, wait for agent to be ready before sending
-    if (config.task && config.restore !== 'manual') {
-      const agentDetector = new AgentReadyDetector({
-        quiescenceMs: 3000,
-        hardTimeoutMs: 15000,
-      })
-      entry.agentDetector = agentDetector
-
-      const agentResult = await agentDetector.start()
-      if (!this.entries.has(paneId)) return // pane was killed while waiting
-
-      console.log(`[PTY] Agent ready for ${paneId}: reason=${agentResult.reason} (${agentResult.elapsedMs}ms)`)
-
-      // Send the task
-      entry.pty.write(config.task + '\r')
-    }
+    // Initial workdir/task context is passed as CLI prompt args in buildAgentCommand.
   }
 
-  private sendAgentCommand(paneId: string, config: PaneConfig, agentDef: AgentDefinition): void {
+  private sendAgentCommand(paneId: string, cmd: string): void {
     const entry = this.entries.get(paneId)
     if (!entry) return
-
-    let cmd = agentDef.bin
-
-    // Add resume flag with specific session ID
-    if (config.restore === 'resume' && config.sessionId && agentDef.resume_flag) {
-      cmd += ` ${agentDef.resume_flag} ${config.sessionId}`
-    } else if (config.restore === 'continue' && agentDef.continue_flag) {
-      // Add continue flag to resume latest session
-      cmd += ` ${agentDef.continue_flag}`
-    }
-
-    // Add yolo flag if enabled
-    if (config.yolo && agentDef.yolo_flag) {
-      cmd += ` ${agentDef.yolo_flag}`
-    }
 
     // Send the command to start the agent
     entry.pty.write(cmd + '\r')

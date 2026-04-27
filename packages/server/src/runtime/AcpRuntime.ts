@@ -1,7 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
-import path from 'node:path'
 import type {
   AgentDefinition,
   ConversationEvent,
@@ -11,6 +10,8 @@ import type {
   PaneStatus,
 } from '../types.ts'
 import type { ConfigManager } from '../workspace/ConfigManager.ts'
+import { buildInitialPrompt } from '../pty/agentCommand.ts'
+import { resolvePaneCwd } from '../workspace/panePaths.ts'
 
 const MAX_SCROLLBACK_BYTES = 512 * 1024
 
@@ -81,12 +82,7 @@ export class AcpRuntime {
     }
 
     const projectDir = this.configManager.getProjectDir()
-    const basePath = (config.isolation === 'worktree' && config.worktreePath)
-      ? config.worktreePath
-      : projectDir
-    let cwd = config.workdir
-      ? path.resolve(basePath, config.workdir)
-      : basePath
+    let cwd = resolvePaneCwd(projectDir, config)
 
     if (!fs.existsSync(cwd)) {
       cwd = fs.existsSync(projectDir) ? projectDir : os.homedir()
@@ -177,8 +173,9 @@ export class AcpRuntime {
     this.emitConversation(paneId, { type: 'status', status: 'idle' })
     this.setStatus(paneId, 'idle')
 
-    if (config.task && config.restore !== 'manual') {
-      await this.sendPrompt(paneId, config.task)
+    const initialPrompt = config.restore !== 'manual' ? buildInitialPrompt(config) : null
+    if (initialPrompt) {
+      await this.sendPrompt(paneId, initialPrompt)
     }
   }
 

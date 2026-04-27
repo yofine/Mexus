@@ -1,9 +1,11 @@
+import { api } from '@/lib/apiBase'
+
 interface PdfPreviewProps {
   filePath: string
 }
 
 export function PdfPreview({ filePath }: PdfPreviewProps) {
-  const src = `/api/file/raw?path=${encodeURIComponent(filePath)}`
+  const src = api(`/api/file/raw?path=${encodeURIComponent(filePath)}`)
 
   return (
     <embed

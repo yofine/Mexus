@@ -21,6 +21,7 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { AgentIcon, getAgentColor } from './AgentIcon'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { api } from '@/lib/apiBase'
 import type {
   ReplaySessionSummary,
   ReplaySession,
@@ -99,7 +100,7 @@ function SessionListView({ onSelectSession }: { onSelectSession: (id: string) =>
 
   const loadSessions = useCallback(() => {
     setLoading(true)
-    fetch('/api/replay/sessions')
+    fetch(api('/api/replay/sessions'))
       .then(r => r.json())
       .then(setSessions)
       .catch(() => {})
@@ -111,14 +112,14 @@ function SessionListView({ onSelectSession }: { onSelectSession: (id: string) =>
   const deleteSession = useCallback(async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation()
     try {
-      await fetch(`/api/replay/sessions/${sessionId}`, { method: 'DELETE' })
+      await fetch(api(`/api/replay/sessions/${sessionId}`), { method: 'DELETE' })
       setSessions(prev => prev.filter(s => s.id !== sessionId))
     } catch { /* ignore */ }
   }, [])
 
   const clearAllSessions = useCallback(async () => {
     try {
-      await fetch('/api/replay/sessions', { method: 'DELETE' })
+      await fetch(api('/api/replay/sessions'), { method: 'DELETE' })
       setSessions([])
     } catch { /* ignore */ }
     setConfirmClearAll(false)
@@ -216,7 +217,7 @@ function SessionDetailView({ sessionId }: { sessionId: string }) {
   const { openReplayTab } = useWorkspaceStore()
 
   useEffect(() => {
-    fetch(`/api/replay/sessions/${sessionId}`)
+    fetch(api(`/api/replay/sessions/${sessionId}`))
       .then(r => r.json())
       .then(setSession)
       .catch(() => {})
@@ -225,7 +226,7 @@ function SessionDetailView({ sessionId }: { sessionId: string }) {
   const loadTurn = useCallback(async (turnId: string) => {
     setLoadingTurn(true)
     try {
-      const res = await fetch(`/api/replay/sessions/${sessionId}/turns/${turnId}`)
+      const res = await fetch(api(`/api/replay/sessions/${sessionId}/turns/${turnId}`))
       const turn: ReplayTurn = await res.json()
       setActiveTurn(turn)
     } catch { /* ignore */ }

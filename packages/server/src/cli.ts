@@ -18,7 +18,7 @@ export function shouldRunMain(invokedPath: string | undefined, moduleUrl: string
   }
 }
 
-const COMMANDS = ['start', 'init', 'status', 'stop', 'help'] as const
+const COMMANDS = ['start', 'init', 'status', 'stop', 'hub', 'help'] as const
 
 export function getSupportedCommands(): string[] {
   return [...COMMANDS]
@@ -38,6 +38,7 @@ delete process.env.CLAUDE_CODE
 delete process.env.CLAUDE_CODE_ENTRYPOINT
 
 const DEFAULT_PORT = 7700
+const DEFAULT_HUB_PORT = 7600
 
 function printUsage(commandName: string) {
   console.log(`
@@ -48,12 +49,14 @@ function printUsage(commandName: string) {
     init  [dir]    Initialize .nexus/ config in a project
     status [dir]   Show workspace status
     stop           Stop the running server
+    hub            Start the Hub dashboard to manage all instances
 
   Arguments:
     dir            Path to the project directory (defaults to cwd)
 
   Environment:
     NEXUS_PORT     Server port (default: ${DEFAULT_PORT})
+    NEXUS_HUB_PORT Hub dashboard port (default: ${DEFAULT_HUB_PORT})
 
   Examples:
     ${commandName}                        # Start in current directory
@@ -142,6 +145,15 @@ async function main() {
 
   if (command === 'help') {
     printUsage(commandName)
+    return
+  }
+
+  if (command === 'hub') {
+    const hubPort = parseInt(process.env.NEXUS_HUB_PORT || String(DEFAULT_HUB_PORT), 10)
+    const { startHub } = await import('./hub/index.ts')
+    await startHub(hubPort, process.argv[1] || '')
+    const url = `http://localhost:${hubPort}`
+    import('open').then((mod) => mod.default(url)).catch(() => {})
     return
   }
 

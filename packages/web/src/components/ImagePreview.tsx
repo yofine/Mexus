@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { api } from '@/lib/apiBase'
 
 interface ImagePreviewProps {
   filePath: string
@@ -7,7 +8,7 @@ interface ImagePreviewProps {
 export function ImagePreview({ filePath }: ImagePreviewProps) {
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null)
   const [error, setError] = useState(false)
-  const src = `/api/file/raw?path=${encodeURIComponent(filePath)}`
+  const src = api(`/api/file/raw?path=${encodeURIComponent(filePath)}`)
 
   if (error) {
     return (

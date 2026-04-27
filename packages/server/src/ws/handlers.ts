@@ -128,6 +128,7 @@ export function setupWsHandlers(
       case 'pane.create':
         workspaceManager.createPane(event.config).catch((err) => {
           console.error('pane.create failed:', err)
+          send({ type: 'pane.create.failed', message: err instanceof Error ? err.message : String(err) })
         })
         break
 

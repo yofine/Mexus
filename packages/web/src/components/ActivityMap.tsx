@@ -8,6 +8,7 @@ import { ConflictsPanel } from './ConflictsPanel'
 import { TimelineSwimlane } from './TimelineSwimlane'
 import { Eye, Pencil, FilePlus, FileX, FileCode2, Filter, GitFork, FolderTree, FileStack, Users, AlertTriangle, List, Rows3 } from 'lucide-react'
 import { FilesPanel } from './FilesPanel'
+import { api } from '@/lib/apiBase'
 import type { FileAction, DepGraph } from '@/types'
 
 // ── Helpers ──
@@ -122,7 +123,7 @@ export function ActivityMap() {
   const fetchDepGraph = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/deps')
+      const res = await fetch(api('/api/deps'))
       if (res.ok) {
         const graph: DepGraph = await res.json()
         setDepGraph(graph)

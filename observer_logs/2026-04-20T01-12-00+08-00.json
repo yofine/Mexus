@@ -1,0 +1,243 @@
+{
+  "schema_version": "1.0.0",
+  "observation_id": "obs-2026-04-20T01-12-00+08-00",
+  "observed_at": "2026-04-20T01:12:00+08:00",
+  "observer": {
+    "agent": "claudecode",
+    "mode": "passive"
+  },
+  "scope": {
+    "workspace": "/root/workspace/Nexus",
+    "target_pane": "pane-83",
+    "target_role": "执行者",
+    "write_policy": "append_only_files_under_observer_logs"
+  },
+  "summary": {
+    "headline": "Executor is scaffolding a spec-driven orchestration subsystem but has not yet wired it into the app.",
+    "overall_risk": "medium",
+    "finding_count": 5
+  },
+  "findings": [
+    {
+      "id": "F-001",
+      "severity": "medium",
+      "category": "work-in-progress",
+      "title": "Executor added SpecManager module plus 455 lines of orchestration types but no integration points",
+      "affected_entities": [
+        "packages/server/src/spec/SpecManager.ts",
+        "packages/server/src/types.ts",
+        "packages/web/src/types.ts"
+      ],
+      "evidence": [
+        {
+          "type": "command",
+          "command": "git status --short --branch",
+          "detail": "Untracked: packages/server/src/spec/ ; Modified: packages/server/src/types.ts, packages/web/src/types.ts"
+        },
+        {
+          "type": "command",
+          "command": "git diff --stat HEAD",
+          "detail": "packages/server/src/types.ts +256, packages/web/src/types.ts +199 (net 455 additions, 0 deletions)"
+        },
+        {
+          "type": "file",
+          "path": "packages/server/src/spec/SpecManager.ts",
+          "detail": "New 311-line class managing .nexus/specs/<id>/ layout (request.md, spec.vN.md/json, feedback, approval, meta)"
+        },
+        {
+          "type": "command",
+          "command": "grep -R SpecManager packages/server/src",
+          "detail": "Only self-references inside SpecManager.ts — not imported by index.ts, ws/handlers.ts, or any other module yet"
+        }
+      ],
+      "impact": "The subsystem is currently dead code. If the executor moves on before wiring SpecManager into the server, these types and the class will drift out of sync with the rest of the codebase.",
+      "confidence": "high",
+      "suggested_follow_up": "Watch for follow-up edits that register SpecManager in index.ts and handle the new OrchestrationClientEvent/OrchestrationServerEvent message types in ws/handlers.ts."
+    },
+    {
+      "id": "F-002",
+      "severity": "medium",
+      "category": "protocol-drift",
+      "title": "New WebSocket orchestration events are declared in types.ts on both sides but neither side handles them",
+      "affected_entities": [
+        "packages/server/src/types.ts:526-559",
+        "packages/web/src/types.ts"
+      ],
+      "evidence": [
+        {
+          "type": "file",
+          "path": "packages/server/src/types.ts",
+          "detail": "OrchestrationClientEvent (spec.generate/revise/approve/cancel/list, plan.*, observer.*) and OrchestrationServerEvent added at lines 526–559"
+        },
+        {
+          "type": "command",
+          "command": "grep -R \"spec\\.(generated|revised|approved)\" packages/server/src",
+          "detail": "Only appearances are the type declarations themselves — no emit sites, no ws handler case arms"
+        }
+      ],
+      "impact": "Clients sending any spec.* / plan.* / observer.* event will get no response; the declared protocol cannot be exercised end-to-end.",
+      "confidence": "high",
+      "suggested_follow_up": "Check subsequent turns for ws/handlers.ts changes that add case arms for these event types."
+    },
+    {
+      "id": "F-003",
+      "severity": "low",
+      "category": "internal-inconsistency",
+      "title": "SpecManager constructor creates .nexus/specs/ but the directory is not yet present on disk",
+      "affected_entities": [
+        "packages/server/src/spec/SpecManager.ts",
+        ".nexus/"
+      ],
+      "evidence": [
+        {
+          "type": "file",
+          "path": "packages/server/src/spec/SpecManager.ts",
+          "detail": "Constructor calls fs.mkdirSync(this.specsDir, { recursive: true }) on instantiation"
+        },
+        {
+          "type": "command",
+          "command": "ls /root/workspace/Nexus/.nexus/specs/",
+          "detail": "Returned: No such file or directory"
+        }
+      ],
+      "impact": "Confirms SpecManager has never been instantiated in this workspace — consistent with F-001's 'not yet wired' observation.",
+      "confidence": "high",
+      "suggested_follow_up": "Once SpecManager is instantiated by the server bootstrap, .nexus/specs/ should appear; ensure it is added to .gitignore alongside .nexus/agents.yaml and .nexus/history/."
+    },
+    {
+      "id": "F-004",
+      "severity": "low",
+      "category": "runtime-state-hygiene",
+      "title": "agents.yaml lists three Claude Code panes as running/idle but the recorded PIDs are the parent shells, not Claude CLIs",
+      "affected_entities": [
+        ".nexus/agents.yaml",
+        "pane-82",
+        "pane-83",
+        "pane-84"
+      ],
+      "evidence": [
+        {
+          "type": "file",
+          "path": ".nexus/agents.yaml",
+          "detail": "pane-82 (观察者) pid=2323922 status=running, pane-83 (执行者) pid=2324100 status=running, pane-84 (审查者) pid=2324252 status=idle"
+        },
+        {
+          "type": "command",
+          "command": "ps -fp 2323922,2324100,2324252",
+          "detail": "All three PIDs resolve to /usr/bin/zsh processes (the shell wrapper), not claude CLIs"
+        }
+      ],
+      "impact": "This is the documented 'shell套壳启动' pattern (CLAUDE.md decision 1), so it is expected — but it means PID-based liveness checks cannot distinguish 'agent running' from 'agent exited, shell alive'. Worth flagging because the previous observation log (2026-04-05) treated analogous stale PIDs as a bug.",
+      "confidence": "medium",
+      "suggested_follow_up": "Clarify in runtime-state docs that pid is the shell pid; liveness of the agent itself requires a separate signal (statusline heartbeat or output idle time)."
+    },
+    {
+      "id": "F-005",
+      "severity": "medium",
+      "category": "coordination-risk",
+      "title": "All three active panes share the same workdir with isolation=shared and the worktree has uncommitted changes",
+      "affected_entities": [
+        ".nexus/config.yaml",
+        "pane-82",
+        "pane-83",
+        "pane-84"
+      ],
+      "evidence": [
+        {
+          "type": "file",
+          "path": ".nexus/config.yaml",
+          "detail": "All three panes (观察者/执行者/审查者) declared isolation: shared"
+        },
+        {
+          "type": "command",
+          "command": "git status --short",
+          "detail": "M packages/server/src/types.ts, M packages/web/src/types.ts, ?? packages/server/src/spec/ — uncommitted work from the executor is visible to all panes"
+        }
+      ],
+      "impact": "With the executor mid-edit on types.ts and a new spec/ directory, any write by the reviewer or observer into the same files would conflict. Current roles suggest this is intentional (reviewer needs to see the executor's changes), but the hot files are not claimed in any mechanism visible here.",
+      "confidence": "medium",
+      "suggested_follow_up": "If the newly-declared FileClaim / TaskStatusEntry types get wired up, verify that the executor's in-flight edits register claims on types.ts and spec/."
+    }
+  ],
+  "entities": [
+    {
+      "id": "pane-82",
+      "name": "观察者",
+      "agent": "claudecode",
+      "observed_state": "running (shell-level)"
+    },
+    {
+      "id": "pane-83",
+      "name": "执行者",
+      "agent": "claudecode",
+      "observed_state": "active-editing",
+      "notes": "Authored SpecManager.ts and types.ts additions within the last ~6 minutes (mtimes 01:06:45 → 01:08:35)"
+    },
+    {
+      "id": "pane-84",
+      "name": "审查者",
+      "agent": "claudecode",
+      "observed_state": "idle"
+    }
+  ],
+  "activity_notes": [
+    {
+      "entity_id": "pane-83",
+      "note": "Executor is scaffolding a spec-driven orchestration subsystem: types (SpecDoc/SpecJson/SpecStatus/SpecTaskDraft, ExecutionPlan, ObservationContext, ObserverAlert/Command/Finding, OrchestrationClientEvent/ServerEvent) + SpecManager class with versioned spec persistence, markdown/json cross-validation, approval flow, and feedback threading."
+    },
+    {
+      "entity_id": "pane-83",
+      "note": "File mtimes indicate types.ts was edited first (server 01:06:45, web 01:07:19), then SpecManager.ts was written last (01:08:35) — consistent with a types-first → implementation workflow."
+    },
+    {
+      "entity_id": "pane-83",
+      "note": "No test file, no integration site, no .gitignore update for .nexus/specs/ observed yet. Scaffolding appears to be at the 'compile-clean skeleton' stage."
+    }
+  ],
+  "sources": [
+    {
+      "type": "file",
+      "path": ".nexus/agents.yaml"
+    },
+    {
+      "type": "file",
+      "path": ".nexus/config.yaml"
+    },
+    {
+      "type": "file",
+      "path": "packages/server/src/spec/SpecManager.ts"
+    },
+    {
+      "type": "file",
+      "path": "packages/server/src/types.ts"
+    },
+    {
+      "type": "file",
+      "path": "packages/web/src/types.ts"
+    },
+    {
+      "type": "command",
+      "command": "git status --short --branch"
+    },
+    {
+      "type": "command",
+      "command": "git diff --stat HEAD"
+    },
+    {
+      "type": "command",
+      "command": "ps -fp 2323922,2324100,2324252"
+    },
+    {
+      "type": "command",
+      "command": "ls /root/workspace/Nexus/.nexus/specs/"
+    },
+    {
+      "type": "command",
+      "command": "grep -R SpecManager packages/server/src"
+    },
+    {
+      "type": "command",
+      "command": "stat -c '%y  %n' <modified files>"
+    }
+  ]
+}

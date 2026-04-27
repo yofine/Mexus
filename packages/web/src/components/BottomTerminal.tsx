@@ -1,9 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { Terminal as TerminalIcon, ChevronDown, ChevronUp, Maximize2, Minimize2, RotateCcw, RefreshCw, Square, Eraser, Plus, X } from 'lucide-react'
+import { useState, useCallback, useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
+import { Terminal as TerminalIcon, ChevronDown, ChevronUp, Maximize2, Minimize2, RotateCcw, RefreshCw, Square, Eraser, Plus, X, GitBranch, GitCompare, Folder } from 'lucide-react'
 import { Terminal } from './Terminal'
-import type { ClientEvent } from '@/types'
+import type { ClientEvent, PaneState } from '@/types'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
-import { clearTerminalHistory, pauseTerminal, resumeTerminal, refitTerminal } from '@/stores/terminalRegistry'
+import { clearTerminalHistory, resumeTerminal, refitTerminal } from '@/stores/terminalRegistry'
+import { api } from '@/lib/apiBase'
+import { debugLog, summarizeShells } from '@/lib/debugLog'
 import {
   DEFAULT_TERMINAL_HEIGHTS,
   LAYOUT_EVENT,
@@ -20,11 +22,51 @@ interface BottomTerminalProps {
 }
 
 const STATIC_COMMANDS = ['pwd', 'ls', 'git status', 'git diff --stat', 'git push']
+const TERMINAL_COMMAND_BAR_HEIGHT = 42
 
-let shellCounter = 0
+function getNextShellName(shells: PaneState[]): string {
+  let max = 0
+  for (const pane of shells) {
+    const match = pane.name.match(/^Shell (\d+)$/)
+    if (match) {
+      max = Math.max(max, parseInt(match[1], 10))
+    }
+  }
+  return `Shell ${max + 1}`
+}
 
-function getNextShellName(): string {
-  return `Shell ${++shellCounter}`
+function basename(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] || path || 'workspace'
+}
+
+function AirSegment({
+  children,
+  color = 'var(--text-muted)',
+  title,
+}: {
+  children: ReactNode
+  color?: string
+  title?: string
+}) {
+  return (
+    <span
+      title={title}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        color,
+        fontFamily: 'var(--font-mono)',
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: 0.1,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </span>
+  )
 }
 
 export function BottomTerminal({ send }: BottomTerminalProps) {
@@ -35,6 +77,7 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [projectCommands, setProjectCommands] = useState<string[]>([])
   const [lastCommand, setLastCommand] = useState<string | null>(null)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   // Pending commands: when a shell is created with a command, we wait for shell output before sending
   const pendingCommandRef = useRef<{ name: string; command: string } | null>(null)
@@ -44,27 +87,29 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
   const shellPanes = useWorkspaceStore((s) => s.shellPanes)
   const activeShellPaneId = useWorkspaceStore((s) => s.activeShellPaneId)
   const setActiveShellPaneId = useWorkspaceStore((s) => s.setActiveShellPaneId)
+  const projectDir = useWorkspaceStore((s) => s.projectDir)
+  const gitBranchInfo = useWorkspaceStore((s) => s.gitBranchInfo)
+  const gitDiffs = useWorkspaceStore((s) => s.gitDiffs)
+  const gitStagedDiffs = useWorkspaceStore((s) => s.gitStagedDiffs)
+  const connectionStatus = useWorkspaceStore((s) => s.connectionStatus)
 
-  // Initialize shell counter from existing shells (e.g., after reconnect)
+  // Mark restored shells as ready (they've already been outputting).
   useEffect(() => {
+    debugLog('bottom-terminal', 'shellPanes:changed', {
+      activeShellPaneId,
+      connectionStatus,
+      shells: summarizeShells(shellPanes),
+    })
     for (const pane of shellPanes) {
-      const match = pane.name.match(/^Shell (\d+)$/)
-      if (match) {
-        const num = parseInt(match[1], 10)
-        if (num > shellCounter) shellCounter = num
-      }
-      // Mark existing shells as ready (they've already been outputting)
       readyShellsRef.current.add(pane.id)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeShellPaneId, connectionStatus, shellPanes])
 
-  // Pause/resume terminals when switching active instance
+  // Keep inactive shell output buffered instead of pausing the PTY view.
+  // Creating a new shell should not make the previous command look interrupted.
   const prevActiveRef = useRef<string | null>(null)
   useEffect(() => {
     const prev = prevActiveRef.current
-    if (prev && prev !== activeShellPaneId) {
-      pauseTerminal(prev)
-    }
     if (activeShellPaneId && activeShellPaneId !== prev) {
       resumeTerminal(activeShellPaneId)
       // Refit after a tick to ensure dimensions are correct
@@ -91,7 +136,7 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
 
   // Load project commands
   useEffect(() => {
-    fetch('/api/file?path=package.json')
+    fetch(api('/api/file?path=package.json'))
       .then((res) => res.ok ? res.json() : null)
       .then((data: { content: string } | null) => {
         if (!data?.content) return
@@ -123,8 +168,31 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
     return () => window.removeEventListener('shell-output', handleShellOutput)
   }, [send])
 
+  useEffect(() => {
+    const handleCreateFailed = (e: Event) => {
+      const { message } = (e as CustomEvent<{ message: string }>).detail
+      setCreateError(message || 'Failed to create shell')
+    }
+    window.addEventListener('nexus-pane-create-failed', handleCreateFailed)
+    return () => window.removeEventListener('nexus-pane-create-failed', handleCreateFailed)
+  }, [])
+
   const createShellPane = useCallback((command?: string) => {
-    const name = getNextShellName()
+    const currentShells = useWorkspaceStore.getState().shellPanes
+    const name = getNextShellName(currentShells)
+    debugLog('bottom-terminal', 'createShellPane:requested', {
+      name,
+      command: command || null,
+      connectionStatus,
+      activeShellPaneId: useWorkspaceStore.getState().activeShellPaneId,
+      shells: summarizeShells(currentShells),
+    })
+    setCreateError(null)
+    if (connectionStatus !== 'connected') {
+      debugLog('bottom-terminal', 'createShellPane:blocked-disconnected', { name, connectionStatus })
+      setCreateError(`Cannot create shell while server is ${connectionStatus}`)
+      return
+    }
     if (command) {
       pendingCommandRef.current = { name, command }
     }
@@ -136,8 +204,20 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
         restore: 'manual',
       },
     })
+    debugLog('bottom-terminal', 'createShellPane:sent', { name })
     setIsOpen(true)
-  }, [send])
+  }, [connectionStatus, send])
+
+  const handleCreateShellClick = useCallback((event?: MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault()
+    event?.stopPropagation()
+    debugLog('bottom-terminal', 'new-button:click', {
+      connectionStatus,
+      activeShellPaneId: useWorkspaceStore.getState().activeShellPaneId,
+      shells: summarizeShells(useWorkspaceStore.getState().shellPanes),
+    })
+    createShellPane()
+  }, [createShellPane])
 
   const runCommand = useCallback((command: string) => {
     if (!activeShellPaneId || shellPanes.length === 0) {
@@ -190,17 +270,148 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
   }, [])
 
   const commandButtons = [...STATIC_COMMANDS, ...projectCommands]
-  const terminalHeight = isMaximized ? 'calc(100vh - var(--header-height) * 2)' : `${heightPct}vh`
+  const terminalHeight = isMaximized ? 'calc(100% - var(--header-height))' : `${heightPct}%`
+  const activeShell = shellPanes.find((pane) => pane.id === activeShellPaneId)
+  const changeCount = gitDiffs.length + gitStagedDiffs.length
+  const separator = <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>/</span>
+  const renderAirline = () => (
+    <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, overflow: 'hidden', gap: 8 }}>
+      <AirSegment color="var(--accent-primary)" title="Active terminal">
+        <TerminalIcon style={{ width: 12, height: 12 }} />
+        {activeShell?.name || 'Shell'}
+      </AirSegment>
+      {separator}
+      <AirSegment color="var(--text-secondary)" title={projectDir || 'Workspace'}>
+        <Folder style={{ width: 12, height: 12 }} />
+        {basename(projectDir)}
+      </AirSegment>
+      {separator}
+      <AirSegment color="var(--status-running)" title={gitBranchInfo?.remote ? `${gitBranchInfo.branch} -> ${gitBranchInfo.remote}` : gitBranchInfo?.branch || 'No git branch'}>
+        <GitBranch style={{ width: 12, height: 12 }} />
+        {gitBranchInfo?.branch || 'no-git'}
+        {gitBranchInfo && gitBranchInfo.ahead > 0 && <span>+{gitBranchInfo.ahead}</span>}
+        {gitBranchInfo && gitBranchInfo.behind > 0 && <span>-{gitBranchInfo.behind}</span>}
+      </AirSegment>
+      {separator}
+      <AirSegment color={changeCount > 0 ? 'var(--status-waiting)' : 'var(--text-muted)'} title={`${gitStagedDiffs.length} staged, ${gitDiffs.length} unstaged`}>
+        <GitCompare style={{ width: 12, height: 12 }} />
+        {changeCount} changes
+      </AirSegment>
+    </div>
+  )
+  const renderShellList = () => (
+    <div
+      style={{
+        width: 160,
+        flexShrink: 0,
+        borderRight: '1px solid var(--border-subtle)',
+        background: 'var(--bg-surface)',
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      <div
+        style={{
+          height: TERMINAL_COMMAND_BAR_HEIGHT,
+          minHeight: TERMINAL_COMMAND_BAR_HEIGHT,
+          padding: '0 12px',
+          fontSize: 'var(--font-xs)',
+          color: 'var(--text-muted)',
+          borderBottom: '1px solid var(--border-subtle)',
+          boxSizing: 'border-box',
+          fontWeight: 500,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span>Instances</span>
+        <button
+          type="button"
+          title="New terminal"
+          onMouseDown={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+          onClick={handleCreateShellClick}
+          disabled={connectionStatus !== 'connected'}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            padding: 2,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: connectionStatus === 'connected' ? 'pointer' : 'not-allowed',
+            opacity: connectionStatus === 'connected' ? 1 : 0.45,
+          }}
+        >
+          <Plus style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
+        </button>
+      </div>
+      {shellPanes.length === 0 ? (
+        <div
+          style={{
+            padding: '12px',
+            fontSize: 'var(--font-xs)',
+            color: 'var(--text-muted)',
+            lineHeight: 1.5,
+          }}
+        >
+          No shells yet
+        </div>
+      ) : (
+        shellPanes.map((pane) => (
+          <div
+            key={pane.id}
+            onClick={() => setActiveShellPaneId(pane.id)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '7px 12px',
+              cursor: 'pointer',
+              fontSize: 'var(--font-xs)',
+              color: activeShellPaneId === pane.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+              background: activeShellPaneId === pane.id ? 'var(--bg-elevated)' : 'transparent',
+              borderLeft: activeShellPaneId === pane.id ? '2px solid var(--accent-primary)' : '2px solid transparent',
+            }}
+          >
+            <TerminalIcon style={{ width: 12, height: 12, flexShrink: 0 }} />
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {pane.name}
+            </span>
+            <button
+              type="button"
+              className="pane-action-btn"
+              title="Close terminal"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleCloseShell(pane.id)
+              }}
+              style={{ padding: 2, opacity: 0.6 }}
+            >
+              <X style={{ width: 10, height: 10 }} />
+            </button>
+          </div>
+        ))
+      )}
+      {createError && (
+        <div style={{ margin: 8, padding: 8, borderRadius: 6, color: 'var(--status-error)', background: 'color-mix(in srgb, var(--status-error) 10%, transparent)', fontSize: 'var(--font-xs)', lineHeight: 1.4 }}>
+          {createError}
+        </div>
+      )}
+    </div>
+  )
 
   // Collapsed bar
   if (!isOpen) {
     return (
       <div
         style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 'var(--sidebar-width)',
-          right: 0,
+          flexShrink: 0,
+          width: '100%',
           height: 'var(--header-height)',
           background: 'var(--bg-surface)',
           borderTop: '1px solid var(--border-subtle)',
@@ -208,19 +419,16 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
           alignItems: 'center',
           padding: '0 var(--space-lg)',
           gap: 'var(--space-md)',
-          zIndex: 10,
           cursor: 'pointer',
         }}
         onClick={handleOpen}
       >
         <TerminalIcon className="icon-sm" style={{ color: 'var(--text-secondary)' }} />
         <span style={{ fontSize: 'var(--font-sm)', color: 'var(--text-secondary)' }}>Terminal</span>
-        {shellPanes.length > 0 && (
-          <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
-            ({shellPanes.length})
-          </span>
-        )}
-        <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>{heightPct}vh</span>
+        <div style={{ marginLeft: 'var(--space-lg)', minWidth: 0 }}>
+          {renderAirline()}
+        </div>
+        <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>{shellPanes.length} shell{shellPanes.length === 1 ? '' : 's'}</span>
         <ChevronUp className="icon-sm" style={{ color: 'var(--text-muted)', marginLeft: 'auto' }} />
       </div>
     )
@@ -230,16 +438,14 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
   return (
     <div
       style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 'var(--sidebar-width)',
-        right: 0,
+        flexShrink: 0,
+        width: '100%',
         height: terminalHeight,
+        minHeight: 'var(--header-height)',
         background: 'var(--bg-base)',
         borderTop: '1px solid var(--border-subtle)',
         display: 'flex',
         flexDirection: 'column',
-        zIndex: 10,
       }}
     >
       {/* Header bar */}
@@ -256,178 +462,109 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
       >
         <TerminalIcon className="icon-sm" style={{ color: 'var(--text-secondary)' }} />
         <span style={{ fontSize: 'var(--font-sm)', color: 'var(--text-secondary)', fontWeight: 500 }}>Terminal</span>
-        <button className="pane-action-btn" title={`Height ${heightPct}vh`} onClick={handleCycleHeight}>
-          <span style={{ fontSize: 11, color: 'var(--text-secondary)', minWidth: 28 }}>{heightPct}vh</span>
+        <button type="button" className="pane-action-btn" title="Cycle terminal height" onClick={handleCycleHeight}>
+          <ChevronUp className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
         </button>
-        <button className="pane-action-btn" title="Reset height" onClick={handleResetHeight}>
+        <button type="button" className="pane-action-btn" title="Reset height" onClick={handleResetHeight}>
           <RotateCcw className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
         </button>
         {activeShellPaneId && (
           <>
-            <button className="pane-action-btn" title="Interrupt current command" onClick={() => send({ type: 'terminal.input', paneId: activeShellPaneId, data: '\u0003' })}>
+            <button type="button" className="pane-action-btn" title="Interrupt current command" onClick={() => send({ type: 'terminal.input', paneId: activeShellPaneId, data: '\u0003' })}>
               <Square className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
             </button>
-            <button className="pane-action-btn" title="Clear terminal" onClick={() => send({ type: 'terminal.input', paneId: activeShellPaneId, data: 'clear\r' })}>
+            <button type="button" className="pane-action-btn" title="Clear terminal" onClick={() => send({ type: 'terminal.input', paneId: activeShellPaneId, data: 'clear\r' })}>
               <Eraser className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
             </button>
           </>
         )}
-        <button className="pane-action-btn" title="Retry last command" onClick={() => lastCommand && runCommand(lastCommand)} disabled={!lastCommand}>
+        <button type="button" className="pane-action-btn" title="Retry last command" onClick={() => lastCommand && runCommand(lastCommand)} disabled={!lastCommand}>
           <RefreshCw className="icon-xs" style={{ color: lastCommand ? 'var(--text-secondary)' : 'var(--text-muted)' }} />
         </button>
-        <button className="pane-action-btn" title="New terminal" onClick={() => createShellPane()}>
-          <Plus className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
-        </button>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-xs)' }}>
-          <button className="pane-action-btn" title={isMaximized ? 'Restore terminal' : 'Maximize terminal'} onClick={handleToggleMaximize}>
+          <button type="button" className="pane-action-btn" title={isMaximized ? 'Restore terminal' : 'Maximize terminal'} onClick={handleToggleMaximize}>
             {isMaximized ? (
               <Minimize2 className="icon-xs" style={{ color: 'var(--accent-primary)' }} />
             ) : (
               <Maximize2 className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
             )}
           </button>
-          <button className="pane-action-btn" title="Minimize terminal" onClick={handleClose}>
+          <button type="button" className="pane-action-btn" title="Minimize terminal" onClick={handleClose}>
             <ChevronDown className="icon-sm" style={{ color: 'var(--text-muted)' }} />
           </button>
         </div>
       </div>
 
-      {/* Command chips */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '6px 12px',
-          borderBottom: '1px solid var(--border-subtle)',
-          background: 'var(--bg-elevated)',
-          overflowX: 'auto',
-          flexShrink: 0,
-        }}
-      >
-        {commandButtons.map((command) => (
-          <button
-            key={command}
-            className="terminal-chip"
-            onClick={() => runCommand(command)}
-          >
-            {command}
-          </button>
-        ))}
-        <button className="terminal-chip" onClick={() => activeShellPaneId && send({ type: 'terminal.input', paneId: activeShellPaneId, data: '--help' })}>
-          --help
-        </button>
-        <button className="terminal-chip" onClick={() => activeShellPaneId && send({ type: 'terminal.input', paneId: activeShellPaneId, data: '--watch' })}>
-          --watch
-        </button>
-      </div>
-
-      {/* Main content: terminal + instance list */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        {/* Terminal area */}
-        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-          {shellPanes.map((pane) => (
-            <div
-              key={pane.id}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: activeShellPaneId === pane.id ? 'block' : 'none',
-              }}
-            >
-              <Terminal
-                paneId={pane.id}
-                onData={(data) => send({ type: 'terminal.input', paneId: pane.id, data })}
-                onResize={(cols, rows) => send({ type: 'terminal.resize', paneId: pane.id, cols, rows })}
-              />
-            </div>
-          ))}
-          {shellPanes.length === 0 && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                color: 'var(--text-muted)',
-                fontSize: 'var(--font-sm)',
-              }}
-            >
-              No terminal instances
-            </div>
-          )}
-        </div>
-
-        {/* Instance list (right side) */}
-        {shellPanes.length > 0 && (
+        {renderShellList()}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* Command chips */}
           <div
             style={{
-              width: 160,
-              flexShrink: 0,
-              borderLeft: '1px solid var(--border-subtle)',
-              background: 'var(--bg-surface)',
-              overflowY: 'auto',
               display: 'flex',
-              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 6,
+              height: TERMINAL_COMMAND_BAR_HEIGHT,
+              minHeight: TERMINAL_COMMAND_BAR_HEIGHT,
+              padding: '6px 12px',
+              borderBottom: '1px solid var(--border-subtle)',
+              boxSizing: 'border-box',
+              background: 'var(--bg-elevated)',
+              overflowX: 'auto',
+              flexShrink: 0,
             }}
           >
-            <div
-              style={{
-                padding: '6px 8px',
-                fontSize: 'var(--font-xs)',
-                color: 'var(--text-muted)',
-                borderBottom: '1px solid var(--border-subtle)',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <span>Instances</span>
+            {commandButtons.map((command) => (
               <button
-                className="pane-action-btn"
-                title="New terminal"
-                onClick={() => createShellPane()}
-                style={{ padding: 2 }}
+                key={command}
+                className="terminal-chip"
+                onClick={() => runCommand(command)}
               >
-                <Plus style={{ width: 12, height: 12, color: 'var(--text-muted)' }} />
+                {command}
               </button>
-            </div>
+            ))}
+            <button className="terminal-chip" onClick={() => activeShellPaneId && send({ type: 'terminal.input', paneId: activeShellPaneId, data: '--help' })}>
+              --help
+            </button>
+            <button className="terminal-chip" onClick={() => activeShellPaneId && send({ type: 'terminal.input', paneId: activeShellPaneId, data: '--watch' })}>
+              --watch
+            </button>
+          </div>
+
+          {/* Terminal area */}
+          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
             {shellPanes.map((pane) => (
               <div
                 key={pane.id}
-                onClick={() => setActiveShellPaneId(pane.id)}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: activeShellPaneId === pane.id ? 'block' : 'none',
+                }}
+              >
+                <Terminal
+                  paneId={pane.id}
+                  onData={(data) => send({ type: 'terminal.input', paneId: pane.id, data })}
+                  onResize={(cols, rows) => send({ type: 'terminal.resize', paneId: pane.id, cols, rows })}
+                />
+              </div>
+            ))}
+            {shellPanes.length === 0 && (
+              <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 8px',
-                  cursor: 'pointer',
-                  fontSize: 'var(--font-xs)',
-                  color: activeShellPaneId === pane.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  background: activeShellPaneId === pane.id ? 'var(--bg-elevated)' : 'transparent',
-                  borderLeft: activeShellPaneId === pane.id ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                  justifyContent: 'center',
+                  height: '100%',
+                  color: 'var(--text-muted)',
+                  fontSize: 'var(--font-sm)',
                 }}
               >
-                <TerminalIcon style={{ width: 12, height: 12, flexShrink: 0 }} />
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {pane.name}
-                </span>
-                <button
-                  className="pane-action-btn"
-                  title="Close terminal"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleCloseShell(pane.id)
-                  }}
-                  style={{ padding: 2, opacity: 0.6 }}
-                >
-                  <X style={{ width: 10, height: 10 }} />
-                </button>
+                No terminal instances
               </div>
-            ))}
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import { HtmlPreview } from './HtmlPreview'
 import { CsvTable } from './CsvTable'
 import { PdfPreview } from './PdfPreview'
 import { JsonTree } from './JsonTree'
+import { api } from '@/lib/apiBase'
 
 interface FileViewerProps {
   filePath: string
@@ -92,7 +93,7 @@ export function FileViewer({ filePath }: FileViewerProps) {
     setHighlightedHtml(null)
     setViewRaw(false)
 
-    fetch(`/api/file?path=${encodeURIComponent(filePath)}`)
+    fetch(api(`/api/file?path=${encodeURIComponent(filePath)}`))
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load file')
         return res.json()

@@ -1,0 +1,164 @@
+import { useCallback, useEffect } from 'react'
+import { useWebSocket } from '@/hooks/useWebSocket'
+import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { useConnectionStore } from '@/stores/connectionStore'
+import { writeToTerminal, clearAllHistories } from '@/stores/terminalRegistry'
+import { Layout } from '@/components/Layout'
+import { debugLog, summarizeShells } from '@/lib/debugLog'
+import type { ConnectionTarget, ServerEvent } from '@/types'
+
+const PANE_CREATE_FAILED_EVENT = 'nexus-pane-create-failed'
+
+interface WorkspaceAppProps {
+  target: ConnectionTarget
+  hideHeader?: boolean
+  hubMode?: boolean
+}
+
+export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: WorkspaceAppProps) {
+  const {
+    setWorkspace,
+    resetWorkspace,
+    addPane,
+    removePane,
+    updatePaneStatus,
+    updatePaneMeta,
+    setConnectionStatus,
+    setFileTree,
+    setGitAllDiffs,
+    setGitBranchInfo,
+    setPaneDiffs,
+    addActivity,
+    addFileActivity,
+    setMergeResult,
+    clearMergeResult,
+    applyConversationEvent,
+    ensureReplayTabPinned,
+  } = useWorkspaceStore()
+
+  useEffect(() => {
+    debugLog('workspace-app', 'mount-target', { serverId: target.serverId, hubMode, hideHeader })
+    useConnectionStore.getState().setActiveTarget(target)
+    clearAllHistories()
+    resetWorkspace()
+    if (hubMode) ensureReplayTabPinned()
+    return () => {
+      debugLog('workspace-app', 'unmount-target', { serverId: target.serverId, hubMode })
+      clearAllHistories()
+      resetWorkspace()
+    }
+  }, [target, resetWorkspace, hubMode, ensureReplayTabPinned])
+
+  const handleMessage = useCallback(
+    (event: ServerEvent) => {
+      switch (event.type) {
+        case 'workspace.state':
+          debugLog('workspace-app', 'event:workspace.state', {
+            serverId: target.serverId,
+            panes: event.state.panes.length,
+            shells: summarizeShells(event.state.panes.filter((pane) => pane.agent === '__shell__')),
+          })
+          clearAllHistories()
+          setWorkspace(
+            event.state.name,
+            event.state.description || '',
+            event.state.projectDir,
+            event.state.panes,
+          )
+          setConnectionStatus('connected')
+          break
+
+        case 'terminal.output':
+          if (event.paneId.startsWith('__shell__')) {
+            debugLog('workspace-app', 'event:terminal.output:shell', {
+              serverId: target.serverId,
+              paneId: event.paneId,
+              bytes: event.data.length,
+            })
+          }
+          writeToTerminal(event.paneId, event.data)
+          if (event.paneId.startsWith('__shell__')) {
+            window.dispatchEvent(new CustomEvent('shell-output', { detail: { paneId: event.paneId } }))
+          }
+          break
+
+        case 'conversation.event':
+          applyConversationEvent(event.paneId, event.event)
+          break
+
+        case 'pane.status':
+          updatePaneStatus(event.paneId, event.status)
+          break
+
+        case 'pane.meta':
+          updatePaneMeta(event.paneId, event.meta)
+          break
+
+        case 'pane.added':
+          debugLog('workspace-app', 'event:pane.added', {
+            serverId: target.serverId,
+            paneId: event.pane.id,
+            name: event.pane.name,
+            agent: event.pane.agent,
+          })
+          addPane(event.pane)
+          break
+
+        case 'pane.create.failed':
+          debugLog('workspace-app', 'event:pane.create.failed', { serverId: target.serverId, message: event.message })
+          window.dispatchEvent(new CustomEvent(PANE_CREATE_FAILED_EVENT, { detail: { message: event.message } }))
+          break
+
+        case 'pane.removed':
+          debugLog('workspace-app', 'event:pane.removed', { serverId: target.serverId, paneId: event.paneId })
+          removePane(event.paneId)
+          break
+
+        case 'fs.tree':
+          setFileTree(event.tree)
+          break
+
+        case 'git.diff':
+          setGitAllDiffs(event.unstaged, event.staged || [])
+          break
+
+        case 'git.branchInfo':
+          setGitBranchInfo({ branch: event.branch, remote: event.remote, ahead: event.ahead, behind: event.behind })
+          break
+
+        case 'git.result':
+          if (!event.success) {
+            console.error(`git.${event.action} failed:`, event.message)
+          }
+          break
+
+        case 'pane.diff':
+          setPaneDiffs(event.paneId, event.diffs)
+          break
+
+        case 'pane.activity':
+          addActivity(event.paneId, event.activity)
+          break
+
+        case 'file.activity':
+          addFileActivity(event.activity)
+          break
+
+        case 'pane.merge.result':
+          setMergeResult(event.paneId, { success: event.success, message: event.message })
+          setTimeout(() => clearMergeResult(event.paneId), 5000)
+          break
+      }
+    },
+    [target.serverId, setWorkspace, addPane, removePane, updatePaneStatus, updatePaneMeta, setConnectionStatus, setFileTree, setGitAllDiffs, setGitBranchInfo, setPaneDiffs, addActivity, addFileActivity, setMergeResult, clearMergeResult, applyConversationEvent],
+  )
+
+  const { send, status } = useWebSocket({ onMessage: handleMessage, target })
+
+  useEffect(() => {
+    debugLog('workspace-app', 'status:update', { serverId: target.serverId, status })
+    setConnectionStatus(status)
+  }, [target.serverId, status, setConnectionStatus])
+
+  return <Layout send={send} hideHeader={hideHeader} hubMode={hubMode} />
+}

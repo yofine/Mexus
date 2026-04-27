@@ -1,9 +1,11 @@
+import { api } from '@/lib/apiBase'
+
 interface HtmlPreviewProps {
   filePath: string
 }
 
 export function HtmlPreview({ filePath }: HtmlPreviewProps) {
-  const src = `/api/file/raw?path=${encodeURIComponent(filePath)}`
+  const src = api(`/api/file/raw?path=${encodeURIComponent(filePath)}`)
 
   return (
     <iframe

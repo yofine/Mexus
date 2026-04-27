@@ -5,6 +5,7 @@ import {
   GitBranch,
   GitMerge,
   RotateCcw,
+  Square,
   X,
   Play,
 } from 'lucide-react'
@@ -115,6 +116,11 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
   const handleMerge = (e: React.MouseEvent) => {
     e.stopPropagation()
     send({ type: 'pane.merge', paneId: pane.id })
+  }
+
+  const handleInterrupt = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    send({ type: 'terminal.input', paneId: pane.id, data: '\u0003' })
   }
 
   const hasSessionId = canResumePane(pane)
@@ -253,6 +259,13 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
                 <Play size={13} fill="currentColor" />
               </button>
             )}
+            <button
+              onClick={handleInterrupt}
+              title="Send Ctrl+C (interrupt)"
+              className="pane-action-btn"
+            >
+              <Square className="icon-sm" style={{ color: 'var(--text-muted)' }} />
+            </button>
             <button
               onClick={handleRestart}
               title="Restart (new session)"

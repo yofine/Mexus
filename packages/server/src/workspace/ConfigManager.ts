@@ -4,12 +4,19 @@ import os from 'node:os'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import yaml from 'js-yaml'
-import type { GlobalConfig, WorkspaceConfig, AgentDefinition, AgentAvailability } from '../types.ts'
+import type { GlobalConfig, WorkspaceConfig, AgentDefinition, AgentAvailability, ModelProviderConfig } from '../types.ts'
 
 const execFileAsync = promisify(execFile)
 
 const GLOBAL_DIR = path.join(os.homedir(), '.nexus')
-const GLOBAL_CONFIG_PATH = path.join(GLOBAL_DIR, 'config.yaml')
+
+function getGlobalDir(): string {
+  return process.env.NEXUS_GLOBAL_CONFIG_DIR || GLOBAL_DIR
+}
+
+function getGlobalConfigPath(): string {
+  return path.join(getGlobalDir(), 'config.yaml')
+}
 
 const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   version: '1',
@@ -33,6 +40,7 @@ const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
     codex: {
       bin: 'codex',
       continue_flag: '',
+      resume_command: 'resume',
       resume_flag: '',
       yolo_flag: '',
       statusline: false,
@@ -45,7 +53,7 @@ const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
       resume_flag: '',
       yolo_flag: '--yolo',
       statusline: false,
-      transport: 'acp',
+      transport: 'pty',
       env: {},
     },
     'kimi-cli': {
@@ -67,6 +75,104 @@ const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
       env: {},
     },
   },
+  models: {
+    defaults: {
+      tool_model: '',
+    },
+    providers: {},
+  },
+}
+
+function cloneDefaultGlobalConfig(): GlobalConfig {
+  return structuredClone(DEFAULT_GLOBAL_CONFIG)
+}
+
+function defaultProviderForType(type: ModelProviderConfig['type']): ModelProviderConfig {
+  return {
+    name: '',
+    type,
+    enabled: true,
+    base_url: '',
+    api_key: '',
+    models: [],
+    proxy: {
+      enabled: false,
+      mode: type,
+      port: 0,
+    },
+  }
+}
+
+function mergeModelProvider(provider: Partial<ModelProviderConfig>, fallback: ModelProviderConfig): ModelProviderConfig {
+  const type = provider.type === 'anthropic' || provider.type === 'openai' ? provider.type : ''
+  const typeFallback = defaultProviderForType(type)
+  return {
+    name: provider.name ?? fallback.name,
+    type,
+    enabled: provider.enabled ?? fallback.enabled,
+    base_url: provider.base_url ?? typeFallback.base_url,
+    api_key: provider.api_key ?? '',
+    models: Array.isArray(provider.models)
+      ? provider.models.map((model) => ({
+        id: model.id,
+        name: model.name || model.id,
+        enabled: model.enabled ?? true,
+      })).filter((model) => model.id)
+      : [],
+    proxy: {
+      enabled: provider.proxy?.enabled ?? false,
+      mode: provider.proxy?.mode === 'anthropic' || provider.proxy?.mode === 'openai' ? provider.proxy.mode : type,
+      port: provider.proxy?.port ?? typeFallback.proxy.port,
+    },
+  }
+}
+
+function mergeMissingGlobalConfig(config: GlobalConfig): boolean {
+  let updated = false
+
+  for (const [key, def] of Object.entries(DEFAULT_GLOBAL_CONFIG.agents)) {
+    if (!config.agents[key]) {
+      config.agents[key] = structuredClone(def)
+      updated = true
+    } else {
+      const existing = config.agents[key]
+      for (const [field, value] of Object.entries(def)) {
+        if (!(field in existing)) {
+          (existing as Record<string, unknown>)[field] = value
+          updated = true
+        }
+      }
+    }
+  }
+
+  if (!config.models) {
+    config.models = structuredClone(DEFAULT_GLOBAL_CONFIG.models)
+    return true
+  }
+
+  if (!config.models.defaults) {
+    config.models.defaults = structuredClone(DEFAULT_GLOBAL_CONFIG.models.defaults)
+    updated = true
+  } else if (!config.models.defaults.tool_model) {
+    config.models.defaults.tool_model = DEFAULT_GLOBAL_CONFIG.models.defaults.tool_model
+    updated = true
+  }
+
+  if (!config.models.providers) {
+    config.models.providers = {}
+    updated = true
+  }
+
+  for (const [key, provider] of Object.entries(config.models.providers)) {
+    const fallback = DEFAULT_GLOBAL_CONFIG.models.providers[key] || defaultProviderForType(provider.type)
+    const merged = mergeModelProvider(provider, fallback)
+    if (JSON.stringify(merged) !== JSON.stringify(provider)) {
+      config.models.providers[key] = merged
+      updated = true
+    }
+  }
+
+  return updated
 }
 
 export class ConfigManager {
@@ -81,31 +187,17 @@ export class ConfigManager {
   loadGlobalConfig(): GlobalConfig {
     if (this.globalConfig) return this.globalConfig
 
-    if (fs.existsSync(GLOBAL_CONFIG_PATH)) {
-      const content = fs.readFileSync(GLOBAL_CONFIG_PATH, 'utf-8')
+    const globalConfigPath = getGlobalConfigPath()
+    if (fs.existsSync(globalConfigPath)) {
+      const content = fs.readFileSync(globalConfigPath, 'utf-8')
       this.globalConfig = yaml.load(content) as GlobalConfig
       // Merge in any default agents or missing fields from the saved config
-      let updated = false
-      for (const [key, def] of Object.entries(DEFAULT_GLOBAL_CONFIG.agents)) {
-        if (!this.globalConfig.agents[key]) {
-          this.globalConfig.agents[key] = def
-          updated = true
-        } else {
-          // Merge missing fields from defaults into existing agent definition
-          const existing = this.globalConfig.agents[key]
-          for (const [field, value] of Object.entries(def)) {
-            if (!(field in existing)) {
-              (existing as Record<string, unknown>)[field] = value
-              updated = true
-            }
-          }
-        }
-      }
+      const updated = mergeMissingGlobalConfig(this.globalConfig)
       if (updated) {
         this.saveGlobalConfig(this.globalConfig)
       }
     } else {
-      this.globalConfig = { ...DEFAULT_GLOBAL_CONFIG }
+      this.globalConfig = cloneDefaultGlobalConfig()
       // Agent detection is async now — save defaults first, detect in background
       this.saveGlobalConfig(this.globalConfig)
       this.detectAgentsAsync().then((detected) => {
@@ -120,8 +212,8 @@ export class ConfigManager {
   }
 
   private saveGlobalConfig(config: GlobalConfig): void {
-    fs.mkdirSync(GLOBAL_DIR, { recursive: true })
-    fs.writeFileSync(GLOBAL_CONFIG_PATH, yaml.dump(config, { lineWidth: -1 }))
+    fs.mkdirSync(getGlobalDir(), { recursive: true })
+    fs.writeFileSync(getGlobalConfigPath(), yaml.dump(config, { lineWidth: -1 }))
   }
 
   loadWorkspaceConfig(): WorkspaceConfig | null {
@@ -174,10 +266,10 @@ export class ConfigManager {
   private async detectAgentsAsync(): Promise<Record<string, AgentDefinition>> {
     const agents: Record<string, AgentDefinition> = {}
 
-    const agentBins: Array<{ key: string; bin: string; flag: string; statusline: boolean; transport: 'pty' | 'acp' }> = [
+    const agentBins: Array<{ key: string; bin: string; flag: string; resumeCommand?: string; statusline: boolean; transport: 'pty' | 'acp' }> = [
       { key: 'claudecode', bin: 'claude', flag: '--continue', statusline: true, transport: 'pty' },
-      { key: 'codex', bin: 'codex', flag: '', statusline: false, transport: 'pty' },
-      { key: 'opencode', bin: 'opencode', flag: '--continue', statusline: false, transport: 'acp' },
+      { key: 'codex', bin: 'codex', flag: '', resumeCommand: 'resume', statusline: false, transport: 'pty' },
+      { key: 'opencode', bin: 'opencode', flag: '--continue', statusline: false, transport: 'pty' },
       { key: 'kimi-cli', bin: 'kimi', flag: '--continue', statusline: false, transport: 'pty' },
       { key: 'qodercli', bin: 'qodercli', flag: '-c', statusline: false, transport: 'pty' },
     ]
@@ -195,6 +287,7 @@ export class ConfigManager {
         agents[agent.key] = {
           bin: agent.bin,
           continue_flag: agent.flag,
+          resume_command: 'resumeCommand' in agent ? agent.resumeCommand : undefined,
           statusline: agent.statusline,
           transport: agent.transport,
           env: {},

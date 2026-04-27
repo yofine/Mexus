@@ -13,16 +13,34 @@ import {
   AlertCircle,
   LoaderCircle,
   Save,
+  KeyRound,
+  Plus,
+  Trash2,
+  Server,
 } from 'lucide-react'
 import { AgentIcon } from './AgentIcon'
-import type { GlobalConfig, AgentDefinition, AgentAvailability } from '@/types'
+import { Button } from './ui/button'
+import { Card } from './ui/card'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
+import { Select } from './ui/select'
+import type { GlobalConfig, AgentDefinition, AgentAvailability, ModelDefinition, ModelProviderConfig, ModelProviderType } from '@/types'
+import { api, hubApi } from '@/lib/apiBase'
 
 interface SettingsDialogProps {
   isOpen: boolean
   onClose: () => void
+  scope?: 'server' | 'hub'
+  mode?: 'dialog' | 'page'
 }
 
-type SettingsTab = 'general' | 'shortcuts' | 'agents'
+type SettingsTab = 'general' | 'shortcuts' | 'agents' | 'models'
+
+type ModelConnectionResult = {
+  ok: boolean
+  status?: number
+  message: string
+}
 
 const THEMES = [
   { id: 'dark-ide', name: 'Dark IDE', desc: 'Deep purple accents' },
@@ -63,7 +81,21 @@ const AGENT_DISPLAY: Record<string, { name: string; desc: string }> = {
   qodercli: { name: 'Qoder CLI', desc: 'Qoder coding agent' },
 }
 
-export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
+async function readJsonResponse<T>(response: Response, label: string): Promise<T> {
+  const contentType = response.headers.get('content-type') || ''
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`${label} (${response.status})${detail ? `: ${detail}` : ''}`)
+  }
+  if (!contentType.includes('application/json')) {
+    const detail = await response.text().catch(() => '')
+    const shortDetail = detail.trim().slice(0, 120)
+    throw new Error(`${label}: expected JSON but received ${contentType || 'unknown content type'}${shortDetail ? `: ${shortDetail}` : ''}`)
+  }
+  return response.json() as Promise<T>
+}
+
+export function SettingsDialog({ isOpen, onClose, scope = 'server', mode = 'dialog' }: SettingsDialogProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [config, setConfig] = useState<GlobalConfig | null>(null)
   const [initialConfig, setInitialConfig] = useState<GlobalConfig | null>(null)
@@ -90,26 +122,23 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
       setInitialFont(currentFont)
       setFontValue(currentFont)
 
+      const configPath = scope === 'hub' ? '/api/hub/config' : '/api/config'
+      const agentsPath = scope === 'hub' ? '/api/hub/agents' : '/api/agents'
+      const resolveApi = scope === 'hub' ? hubApi : api
       Promise.all([
-        fetch('/api/config').then(async (r) => {
-          if (!r.ok) throw new Error('Failed to load settings')
-          return r.json()
-        }),
-        fetch('/api/agents').then(async (r) => {
-          if (!r.ok) throw new Error('Failed to load agent availability')
-          return r.json()
-        }).catch(() => ({})),
+        fetch(resolveApi(configPath)).then((r) => readJsonResponse<GlobalConfig>(r, 'Failed to load settings')),
+        fetch(resolveApi(agentsPath)).then((r) => readJsonResponse<Record<string, AgentAvailability>>(r, 'Failed to load agent availability')).catch(() => ({})),
       ]).then(([nextConfig, nextAvailability]) => {
         setConfig(nextConfig)
         setInitialConfig(nextConfig)
         setAvailability(nextAvailability)
-      }).catch(() => {
-        setLoadError('Failed to load settings.')
+      }).catch((err) => {
+        setLoadError((err as Error).message || 'Failed to load settings.')
       }).finally(() => {
         setLoading(false)
       })
     }
-  }, [isOpen])
+  }, [isOpen, scope])
 
   useEffect(() => {
     if (!savedFeedback) return
@@ -150,26 +179,35 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     onClose()
   }, [applyFontPreview, applyThemePreview, initialFont, initialTheme, onClose])
 
-  const handleSave = useCallback(async () => {
-    if (!config) return
+  const persistConfig = useCallback(async (nextConfig: GlobalConfig) => {
     setSaving(true)
     setSaveError(null)
     try {
-      const response = await fetch('/api/config', {
+      const response = await fetch((scope === 'hub' ? hubApi : api)(scope === 'hub' ? '/api/hub/config' : '/api/config'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
+        body: JSON.stringify(nextConfig),
       })
       if (!response.ok) throw new Error('Failed to save settings')
+      setConfig(nextConfig)
       setSavedFeedback(true)
-      setInitialConfig(config)
-      setInitialTheme(config.defaults.theme)
+      setInitialConfig(nextConfig)
+      setInitialTheme(nextConfig.defaults.theme)
       setInitialFont(fontValue)
+      return true
     } catch {
       setSaveError('Failed to save settings.')
+      return false
     }
-    setSaving(false)
-  }, [config, fontValue])
+    finally {
+      setSaving(false)
+    }
+  }, [fontValue, scope])
+
+  const handleSave = useCallback(async () => {
+    if (!config) return
+    await persistConfig(config)
+  }, [config, persistConfig])
 
   const handleThemeChange = useCallback((themeId: string) => {
     applyThemePreview(themeId)
@@ -220,6 +258,24 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
     })
   }, [config])
 
+  const handleModelsSave = useCallback(async (models: GlobalConfig['models']) => {
+    if (!config) return false
+    return persistConfig({
+      ...config,
+      models,
+    })
+  }, [config, persistConfig])
+
+  const handleProviderTestConnection = useCallback(async (provider: ModelProviderConfig, model: ModelDefinition): Promise<ModelConnectionResult> => {
+    const path = scope === 'hub' ? '/api/hub/models/test-connection' : '/api/models/test-connection'
+    const response = await fetch((scope === 'hub' ? hubApi : api)(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, model }),
+    })
+    return readJsonResponse<ModelConnectionResult>(response, 'Failed to test model provider')
+  }, [scope])
+
   if (!isOpen) return null
 
   const currentTheme = config?.defaults.theme || document.documentElement.getAttribute('data-theme') || 'dark-ide'
@@ -231,39 +287,45 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
 
   const tabs: Array<{ id: SettingsTab; label: string; icon: React.ReactNode }> = [
     { id: 'general', label: 'General', icon: <Settings size={16} /> },
+    { id: 'models', label: 'Models', icon: <Server size={16} /> },
     { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={16} /> },
     { id: 'agents', label: 'Agents', icon: <Bot size={16} /> },
   ]
 
-  return (
-    <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}>
-      <div className="settings-dialog" onClick={(e) => e.stopPropagation()}>
+  const content = (
+    <div className={`settings-dialog ${mode === 'page' ? 'settings-dialog--page' : ''}`} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="settings-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', minWidth: 0 }}>
             <Settings className="icon-md" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 'var(--font-xl)', fontWeight: 600 }}>Settings</div>
+              <div style={{ fontSize: 'var(--font-xl)', fontWeight: 600 }}>
+                {scope === 'hub' ? 'Mexus Settings' : 'Settings'}
+              </div>
               <div className="settings-subtitle">
                 {loading ? 'Loading settings...'
                   : saveError ? saveError
                     : savedFeedback ? 'Changes saved.'
                       : dirty ? 'Unsaved changes'
-                        : 'System preferences and agent configuration'}
+                        : scope === 'hub'
+                          ? 'Global Mexus preferences and agent configuration'
+                          : 'System preferences and agent configuration'}
               </div>
             </div>
           </div>
           <div className="settings-header-actions">
-            <button className="btn btn--secondary settings-header-btn" onClick={handleClose}>
-              Cancel
-            </button>
-            <button className="btn btn--primary settings-header-btn" onClick={handleSave} disabled={!dirty || saving || loading || !config}>
-              {saving ? <LoaderCircle size={14} className="settings-spin" /> : <Save size={14} />}
-              <span>{saving ? 'Saving...' : 'Save'}</span>
-            </button>
-            <button className="pane-action-btn" onClick={handleClose}>
+            <Button className="settings-header-btn" variant="secondary" onClick={handleClose}>
+              {mode === 'page' ? 'Close Tab' : 'Cancel'}
+            </Button>
+            {activeTab !== 'models' && (
+              <Button className="settings-header-btn" variant="primary" onClick={handleSave} disabled={!dirty || saving || loading || !config}>
+                {saving ? <LoaderCircle size={14} className="settings-spin" /> : <Save size={14} />}
+                <span>{saving ? 'Saving...' : 'Save'}</span>
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" onClick={handleClose}>
               <X className="icon-md" style={{ color: 'var(--text-secondary)' }} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -271,8 +333,9 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
           {/* Left menu */}
           <nav className="settings-nav">
             {tabs.map(tab => (
-              <button
+              <Button
                 key={tab.id}
+                variant="ghost"
                 className={`settings-nav-item ${activeTab === tab.id ? 'settings-nav-item--active' : ''}`}
                 onClick={() => { setActiveTab(tab.id); setEditingAgent(null) }}
               >
@@ -280,7 +343,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
                   {tab.icon}
                 </span>
                 <span>{tab.label}</span>
-              </button>
+              </Button>
             ))}
           </nav>
 
@@ -315,6 +378,14 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
               />
             )}
             {!loading && config && activeTab === 'shortcuts' && <ShortcutsTab />}
+            {!loading && config && activeTab === 'models' && (
+              <ModelsTab
+                config={config}
+                saving={saving}
+                onModelsSave={handleModelsSave}
+                onProviderTestConnection={handleProviderTestConnection}
+              />
+            )}
             {!loading && config && activeTab === 'agents' && (
               <AgentsTab
                 config={config}
@@ -327,7 +398,16 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
             )}
           </div>
         </div>
-      </div>
+    </div>
+  )
+
+  if (mode === 'page') {
+    return <div className="settings-page">{content}</div>
+  }
+
+  return (
+    <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}>
+      {content}
     </div>
   )
 }
@@ -407,27 +487,24 @@ function GeneralTab({
         </div>
         <div className="settings-field-list">
           <div className="settings-field">
-            <label className="form-label">Shell</label>
-            <input
-              className="form-input"
+            <Label>Shell</Label>
+            <Input
               value={config?.defaults.shell || ''}
               onChange={(e) => onDefaultsChange('shell', e.target.value)}
               placeholder="/bin/zsh"
             />
           </div>
           <div className="settings-field">
-            <label className="form-label">Scrollback Lines</label>
-            <input
-              className="form-input"
+            <Label>Scrollback Lines</Label>
+            <Input
               type="number"
               value={config?.defaults.scrollback_lines || 5000}
               onChange={(e) => onDefaultsChange('scrollback_lines', parseInt(e.target.value) || 5000)}
             />
           </div>
           <div className="settings-field">
-            <label className="form-label">History Retention (days)</label>
-            <input
-              className="form-input"
+            <Label>History Retention (days)</Label>
+            <Input
               type="number"
               value={config?.defaults.history_retention_days || 30}
               onChange={(e) => onDefaultsChange('history_retention_days', parseInt(e.target.value) || 30)}
@@ -497,6 +574,534 @@ function ShortcutsTab() {
               <kbd className="shortcut-kbd">{shortcut.keys}</kbd>
             </div>
           ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+// ─── Models Tab ──────────────────────────────────────────────
+
+function ModelsTab({
+  config,
+  saving,
+  onModelsSave,
+  onProviderTestConnection,
+}: {
+  config: GlobalConfig
+  saving: boolean
+  onModelsSave: (models: GlobalConfig['models']) => Promise<boolean>
+  onProviderTestConnection: (provider: ModelProviderConfig, model: ModelDefinition) => Promise<ModelConnectionResult>
+}) {
+  const providers = config.models?.providers || {}
+  const providerEntries = Object.entries(providers)
+  const [draftProvider, setDraftProvider] = useState<ModelProviderConfig | null>(null)
+  const [editingProviderId, setEditingProviderId] = useState<string | null>(null)
+  const [editingProvider, setEditingProvider] = useState<ModelProviderConfig | null>(null)
+  const [testResults, setTestResults] = useState<Record<string, ModelConnectionResult>>({})
+  const [testingProvider, setTestingProvider] = useState<string | null>(null)
+  const [testModelIds, setTestModelIds] = useState<Record<string, string>>({})
+  const [toolProviderId, ...toolModelParts] = (config.models.defaults.tool_model || '').split('/')
+  const toolModelId = toolModelParts.join('/')
+  const selectedToolProviderId = toolProviderId && providers[toolProviderId]?.enabled ? toolProviderId : ''
+  const selectedToolProvider = selectedToolProviderId ? providers[selectedToolProviderId] : null
+  const selectedToolModels = selectedToolProvider?.models.filter((model) => model.enabled && model.id.trim()) || []
+
+  const saveModels = async (models: GlobalConfig['models']) => {
+    return onModelsSave(models)
+  }
+
+  const selectToolProvider = (providerId: string) => {
+    const provider = providers[providerId]
+    const firstModel = provider?.models.find((model) => model.enabled && model.id.trim())
+    void saveModels({
+      ...config.models,
+      defaults: {
+        ...config.models.defaults,
+        tool_model: providerId && firstModel ? `${providerId}/${firstModel.id}` : '',
+      },
+    })
+  }
+
+  const selectToolModel = (modelId: string) => {
+    void saveModels({
+      ...config.models,
+      defaults: {
+        ...config.models.defaults,
+        tool_model: selectedToolProviderId && modelId ? `${selectedToolProviderId}/${modelId}` : '',
+      },
+    })
+  }
+
+  const createBlankProvider = (): ModelProviderConfig => ({
+    name: '',
+    type: '',
+    enabled: true,
+    base_url: '',
+    api_key: '',
+    models: [{ id: '', name: '', enabled: true }],
+    proxy: {
+      enabled: false,
+      mode: '',
+      port: 0,
+    },
+  })
+
+  const nextProviderId = () => {
+    let index = providerEntries.length + 1
+    let id = `provider-${index}`
+    while (providers[id]) {
+      index += 1
+      id = `provider-${index}`
+    }
+    return id
+  }
+
+  const updateDraftProvider = (patch: Partial<ModelProviderConfig>) => {
+    setDraftProvider((provider) => provider ? { ...provider, ...patch } : provider)
+  }
+
+  const updateEditingProvider = (patch: Partial<ModelProviderConfig>) => {
+    setEditingProvider((provider) => provider ? { ...provider, ...patch } : provider)
+  }
+
+  const modelAdd = (provider: ModelProviderConfig, update: (patch: Partial<ModelProviderConfig>) => void) => {
+    update({ models: [...provider.models, { id: '', name: '', enabled: true }] })
+  }
+
+  const modelUpdate = (provider: ModelProviderConfig, update: (patch: Partial<ModelProviderConfig>) => void, index: number, patch: Partial<ModelDefinition>) => {
+    update({
+      models: provider.models.map((model, modelIndex) => modelIndex === index ? { ...model, ...patch } : model),
+    })
+  }
+
+  const modelRemove = (provider: ModelProviderConfig, update: (patch: Partial<ModelProviderConfig>) => void, index: number) => {
+    update({ models: provider.models.filter((_, modelIndex) => modelIndex !== index) })
+  }
+
+  const enabledModels = (provider: ModelProviderConfig) => provider.models.filter((model) => model.enabled && model.id.trim())
+
+  const selectedTestModel = (key: string, provider: ModelProviderConfig): ModelDefinition | undefined => {
+    const models = enabledModels(provider)
+    const selectedId = testModelIds[key]
+    return models.find((model) => model.id === selectedId) || models[0]
+  }
+
+  const testProvider = async (key: string, provider: ModelProviderConfig) => {
+    const model = selectedTestModel(key, provider)
+    setTestingProvider(key)
+    try {
+      if (!model) {
+        setTestResults((prev) => ({ ...prev, [key]: { ok: false, message: 'Add a model before testing.' } }))
+        return
+      }
+      const result = await onProviderTestConnection(provider, model)
+      setTestResults((prev) => ({ ...prev, [key]: result }))
+    } catch (err) {
+      setTestResults((prev) => ({
+        ...prev,
+        [key]: { ok: false, message: (err as Error).message || 'Connection test failed.' },
+      }))
+    } finally {
+      setTestingProvider(null)
+    }
+  }
+
+  const saveDraftProvider = async () => {
+    if (!draftProvider) return
+    const providerId = nextProviderId()
+    const saved = await saveModels({
+      ...config.models,
+      providers: {
+        ...providers,
+        [providerId]: draftProvider,
+      },
+    })
+    if (saved) setDraftProvider(null)
+  }
+
+  const startEditingProvider = (providerId: string, provider: ModelProviderConfig) => {
+    setEditingProviderId(providerId)
+    setEditingProvider(structuredClone(provider))
+  }
+
+  const cancelEditingProvider = () => {
+    setEditingProviderId(null)
+    setEditingProvider(null)
+  }
+
+  const saveEditingProvider = async () => {
+    if (!editingProviderId || !editingProvider) return
+    const saved = await saveModels({
+      ...config.models,
+      providers: {
+        ...providers,
+        [editingProviderId]: editingProvider,
+      },
+    })
+    if (saved) cancelEditingProvider()
+  }
+
+  const removeProvider = async (providerId: string) => {
+    const nextProviders = { ...providers }
+    delete nextProviders[providerId]
+    const currentToolModel = config.models.defaults.tool_model
+    await saveModels({
+      ...config.models,
+      defaults: {
+        ...config.models.defaults,
+        tool_model: currentToolModel.startsWith(`${providerId}/`) ? '' : currentToolModel,
+      },
+      providers: nextProviders,
+    })
+  }
+
+  return (
+    <div className="settings-section-list">
+      <section className="settings-section">
+        <div className="settings-section-header settings-section-header--split">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+            <KeyRound className="icon-sm" style={{ color: 'var(--accent-primary)' }} />
+            <h3>Model Providers</h3>
+          </div>
+          <div className="models-toolbar">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setDraftProvider(createBlankProvider())
+              }}
+              disabled={!!draftProvider}
+            >
+              <Plus size={13} />
+              <span>Add Provider</span>
+            </Button>
+          </div>
+        </div>
+
+        {draftProvider && (
+          <Card className="model-provider-form">
+            <div className="model-form-grid">
+              <div className="settings-field">
+                <Label>Name</Label>
+                <Input
+                  value={draftProvider.name}
+                  onChange={(e) => updateDraftProvider({ name: e.target.value })}
+                  placeholder="Display name"
+                />
+              </div>
+              <div className="settings-field">
+                <Label>Provider Format</Label>
+                <Select
+                  value={draftProvider.type}
+                  onChange={(e) => updateDraftProvider({ type: e.target.value as ModelProviderType })}
+                >
+                  <option value="">Select format</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                </Select>
+              </div>
+            </div>
+
+            <div className="settings-field">
+              <Label>Base URL</Label>
+              <Input
+                value={draftProvider.base_url}
+                onChange={(e) => updateDraftProvider({ base_url: e.target.value })}
+                placeholder="https://..."
+              />
+            </div>
+
+            <div className="settings-field">
+              <Label>API Key</Label>
+              <Input
+                type="password"
+                value={draftProvider.api_key}
+                onChange={(e) => updateDraftProvider({ api_key: e.target.value })}
+                placeholder="Stored in local config.yaml"
+              />
+            </div>
+
+            <div className="settings-field settings-field--inline-toggle">
+              <Label>Provider Enabled</Label>
+              <ToggleSwitch
+                checked={draftProvider.enabled}
+                onChange={(enabled) => updateDraftProvider({ enabled })}
+              />
+            </div>
+
+            <div className="models-subsection">
+              <div className="models-subsection__header">
+                <span>Models</span>
+                <Button variant="secondary" size="sm" onClick={() => modelAdd(draftProvider, updateDraftProvider)}>
+                  <Plus size={13} />
+                  <span>Add Model</span>
+                </Button>
+              </div>
+              <div className="model-row-list">
+                {draftProvider.models.map((model, index) => (
+                  <div key={`draft-model-${index}`} className="model-row">
+                    <ToggleSwitch
+                      checked={model.enabled}
+                      onChange={(enabled) => modelUpdate(draftProvider, updateDraftProvider, index, { enabled })}
+                    />
+                    <Input
+                      value={model.id}
+                      onChange={(e) => modelUpdate(draftProvider, updateDraftProvider, index, { id: e.target.value, name: model.name || e.target.value })}
+                      placeholder="model-id"
+                    />
+                    <Input
+                      value={model.name}
+                      onChange={(e) => modelUpdate(draftProvider, updateDraftProvider, index, { name: e.target.value })}
+                      placeholder="Label"
+                    />
+                    <Button variant="ghost" size="icon" onClick={() => modelRemove(draftProvider, updateDraftProvider, index)} title="Remove model">
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {testResults.__draft__ && (
+              <div className={`model-test-result ${testResults.__draft__.ok ? 'model-test-result--ok' : 'model-test-result--error'}`}>
+                {testResults.__draft__.message}
+              </div>
+            )}
+
+            <div className="model-provider-form__actions">
+              {enabledModels(draftProvider).length > 1 && (
+                <Select
+                  className="model-test-model-select"
+                  value={selectedTestModel('__draft__', draftProvider)?.id || ''}
+                  onChange={(e) => setTestModelIds((prev) => ({ ...prev, __draft__: e.target.value }))}
+                >
+                  {enabledModels(draftProvider).map((model) => (
+                    <option key={model.id} value={model.id}>{model.name || model.id}</option>
+                  ))}
+                </Select>
+              )}
+              <Button variant="secondary" size="sm" onClick={() => testProvider('__draft__', draftProvider)} disabled={testingProvider === '__draft__'}>
+                <Zap size={13} />
+                <span>{testingProvider === '__draft__' ? 'Testing...' : 'Test Connection'}</span>
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setDraftProvider(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => void saveDraftProvider()} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Provider'}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        <div className="model-provider-list">
+          {providerEntries.map(([providerId, provider]) => {
+            const isEditing = editingProviderId === providerId && editingProvider
+            const cardProvider = isEditing ? editingProvider : provider
+            return (
+              <Card key={providerId} className="model-provider-card">
+                <div className="model-provider-card__header">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="model-provider-card__title">{provider.name || providerId}</div>
+                    <div className="model-provider-card__meta">
+                      {provider.type || 'format not selected'} · {enabledModels(provider).length} model{enabledModels(provider).length === 1 ? '' : 's'}
+                    </div>
+                  </div>
+                  <div className="model-provider-card__actions">
+                    {isEditing ? (
+                      <>
+                        <Button variant="secondary" size="sm" onClick={cancelEditingProvider}>Cancel</Button>
+                        <Button variant="primary" size="sm" onClick={() => void saveEditingProvider()} disabled={saving}>
+                          {saving ? 'Saving...' : 'Save'}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button variant="secondary" size="sm" onClick={() => startEditingProvider(providerId, provider)}>Edit</Button>
+                        <Button variant="ghost" size="icon" onClick={() => void removeProvider(providerId)} title="Remove provider">
+                          <Trash2 size={14} />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {isEditing && (
+                  <div className="settings-field-list">
+                    <div className="model-provider-card__grid">
+                      <div className="settings-field">
+                        <Label>Name</Label>
+                        <Input
+                          value={cardProvider.name}
+                          onChange={(e) => updateEditingProvider({ name: e.target.value })}
+                        />
+                      </div>
+                      <div className="settings-field">
+                        <Label>Provider Format</Label>
+                        <Select
+                          value={cardProvider.type}
+                          onChange={(e) => updateEditingProvider({ type: e.target.value as ModelProviderType })}
+                        >
+                          <option value="">Select format</option>
+                          <option value="openai">OpenAI</option>
+                          <option value="anthropic">Anthropic</option>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="settings-field">
+                      <Label>Base URL</Label>
+                      <Input
+                        value={cardProvider.base_url}
+                        onChange={(e) => updateEditingProvider({ base_url: e.target.value })}
+                        placeholder="https://..."
+                      />
+                    </div>
+
+                    <div className="settings-field">
+                      <Label>API Key</Label>
+                      <Input
+                        type="password"
+                        value={cardProvider.api_key}
+                        onChange={(e) => updateEditingProvider({ api_key: e.target.value })}
+                        placeholder="Stored in local config.yaml"
+                      />
+                    </div>
+
+                    <div className="settings-field settings-field--inline-toggle">
+                      <Label>Provider Enabled</Label>
+                      <ToggleSwitch
+                        checked={cardProvider.enabled}
+                        onChange={(enabled) => updateEditingProvider({ enabled })}
+                      />
+                    </div>
+
+                    <div className="model-provider-card__proxy">
+                      <div className="settings-field">
+                        <Label>Proxy Mode</Label>
+                        <Select
+                          value={cardProvider.proxy.mode}
+                          onChange={(e) => updateEditingProvider({ proxy: { ...cardProvider.proxy, mode: e.target.value as ModelProviderConfig['proxy']['mode'] } })}
+                        >
+                          <option value="">Select mode</option>
+                          <option value="openai">OpenAI</option>
+                          <option value="anthropic">Anthropic</option>
+                        </Select>
+                      </div>
+                      <div className="settings-field">
+                        <Label>Proxy Port</Label>
+                        <Input
+                          type="number"
+                          value={cardProvider.proxy.port}
+                          onChange={(e) => updateEditingProvider({ proxy: { ...cardProvider.proxy, port: parseInt(e.target.value, 10) || cardProvider.proxy.port } })}
+                        />
+                      </div>
+                      <div className="settings-field settings-field--inline-toggle">
+                        <Label>Proxy Enabled</Label>
+                        <ToggleSwitch
+                          checked={cardProvider.proxy.enabled}
+                          onChange={(enabled) => updateEditingProvider({ proxy: { ...cardProvider.proxy, enabled } })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="models-subsection">
+                      <div className="models-subsection__header">
+                        <span>Models</span>
+                        <Button variant="secondary" size="sm" onClick={() => modelAdd(cardProvider, updateEditingProvider)}>
+                          <Plus size={13} />
+                          <span>Add Model</span>
+                        </Button>
+                      </div>
+                      <div className="model-row-list">
+                        {cardProvider.models.map((model, index) => (
+                          <div key={`${providerId}-${index}`} className="model-row">
+                            <ToggleSwitch
+                              checked={model.enabled}
+                              onChange={(enabled) => modelUpdate(cardProvider, updateEditingProvider, index, { enabled })}
+                            />
+                            <Input
+                              value={model.id}
+                              onChange={(e) => modelUpdate(cardProvider, updateEditingProvider, index, { id: e.target.value, name: model.name || e.target.value })}
+                              placeholder="model-id"
+                            />
+                            <Input
+                              value={model.name}
+                              onChange={(e) => modelUpdate(cardProvider, updateEditingProvider, index, { name: e.target.value })}
+                              placeholder="Label"
+                            />
+                            <Button variant="ghost" size="icon" onClick={() => modelRemove(cardProvider, updateEditingProvider, index)} title="Remove model">
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="model-provider-card__footer">
+                  {testResults[providerId] && (
+                    <div className={`model-test-result ${testResults[providerId].ok ? 'model-test-result--ok' : 'model-test-result--error'}`}>
+                      {testResults[providerId].message}
+                    </div>
+                  )}
+                  {enabledModels(cardProvider).length > 1 && (
+                    <Select
+                      className="model-test-model-select"
+                      value={selectedTestModel(providerId, cardProvider)?.id || ''}
+                      onChange={(e) => setTestModelIds((prev) => ({ ...prev, [providerId]: e.target.value }))}
+                    >
+                      {enabledModels(cardProvider).map((model) => (
+                        <option key={model.id} value={model.id}>{model.name || model.id}</option>
+                      ))}
+                    </Select>
+                  )}
+                  <Button variant="secondary" size="sm" onClick={() => testProvider(providerId, cardProvider)} disabled={testingProvider === providerId}>
+                    <Zap size={13} />
+                    <span>{testingProvider === providerId ? 'Testing...' : 'Test Connection'}</span>
+                  </Button>
+                </div>
+              </Card>
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-header">
+          <Server className="icon-sm" style={{ color: 'var(--accent-primary)' }} />
+          <h3>Mexus Tool Model</h3>
+        </div>
+        <div className="tool-model-picker">
+          <div className="settings-field">
+            <Label>Provider</Label>
+            <Select
+              value={selectedToolProviderId}
+              onChange={(e) => selectToolProvider(e.target.value)}
+            >
+              <option value="">Not configured</option>
+              {providerEntries
+                .filter(([, provider]) => provider.enabled)
+                .map(([providerId, provider]) => (
+                  <option key={providerId} value={providerId}>{provider.name || providerId}</option>
+                ))}
+            </Select>
+          </div>
+          <div className="settings-field">
+            <Label>Model</Label>
+            <Select
+              value={selectedToolModels.some((model) => model.id === toolModelId) ? toolModelId : ''}
+              onChange={(e) => selectToolModel(e.target.value)}
+              disabled={!selectedToolProviderId || selectedToolModels.length === 0}
+            >
+              <option value="">Not configured</option>
+              {selectedToolModels.map((model) => (
+                <option key={model.id} value={model.id}>{model.name || model.id}</option>
+              ))}
+            </Select>
+          </div>
         </div>
       </section>
     </div>
@@ -597,9 +1202,8 @@ function AgentsTab({
 
                     <div className="settings-field-list">
                       <div className="settings-field">
-                        <label className="form-label">Binary Path</label>
-                        <input
-                          className="form-input"
+                        <Label>Binary Path</Label>
+                        <Input
                           value={agent.bin}
                           onChange={(e) => onAgentUpdate(key, 'bin', e.target.value)}
                           placeholder="claude"
@@ -608,17 +1212,15 @@ function AgentsTab({
 
                       <div className="settings-field-row">
                         <div className="settings-field" style={{ flex: 1 }}>
-                          <label className="form-label">Continue Flag</label>
-                          <input
-                            className="form-input"
+                          <Label>Continue Flag</Label>
+                          <Input
                             value={agent.continue_flag}
                             onChange={(e) => onAgentUpdate(key, 'continue_flag', e.target.value)}
                           />
                         </div>
                         <div className="settings-field" style={{ flex: 1 }}>
-                          <label className="form-label">YOLO Flag</label>
-                          <input
-                            className="form-input"
+                          <Label>YOLO Flag</Label>
+                          <Input
                             value={agent.yolo_flag || ''}
                             onChange={(e) => onAgentUpdate(key, 'yolo_flag', e.target.value)}
                           />
@@ -626,22 +1228,22 @@ function AgentsTab({
                       </div>
 
                       <div className="settings-field">
-                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+                        <Label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
                           <span>Statusline Integration</span>
                           <ToggleSwitch
                             checked={agent.statusline}
                             onChange={(v) => onAgentUpdate(key, 'statusline', v)}
                           />
-                        </label>
+                        </Label>
                         <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
                           Parse agent statusline output for model, cost, and context metrics
                         </span>
                       </div>
 
                       <div className="settings-field">
-                        <label className="form-label">Environment Variables</label>
+                        <Label>Environment Variables</Label>
                         <textarea
-                          className="form-input form-textarea"
+                          className="ui-input form-textarea"
                           value={envDrafts[key] ?? ''}
                           onChange={(e) => {
                             const nextValue = e.target.value

@@ -13,7 +13,7 @@ import { BrandMark } from './BrandMark'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import type { ClientEvent } from '@/types'
-import { Monitor, FolderTree, FolderOpen, Folder } from 'lucide-react'
+import { Monitor, PanelsTopLeft, FolderTree, FolderOpen, Folder, Plus } from 'lucide-react'
 import {
   AGENT_WIDTH_STEPS,
   DEFAULT_WIDTHS,
@@ -30,6 +30,8 @@ import {
 
 interface LayoutProps {
   send: (event: ClientEvent) => void
+  hideHeader?: boolean
+  hubMode?: boolean
 }
 
 type FileTreeHeaderActions = {
@@ -37,7 +39,7 @@ type FileTreeHeaderActions = {
   collapseAll: () => void
 }
 
-export function Layout({ send }: LayoutProps) {
+export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProps) {
   const { panes, activePaneId, setActivePaneId, name, connectionStatus } = useWorkspaceStore()
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
@@ -154,56 +156,61 @@ export function Layout({ send }: LayoutProps) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh',
-        width: '100vw',
+        height: '100%',
+        width: '100%',
         overflow: 'hidden',
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-md)',
-          padding: '0 var(--space-lg)',
-          borderBottom: '1px solid var(--border-subtle)',
-          background: 'var(--bg-surface)',
-          flexShrink: 0,
-          height: 'var(--header-height)',
-          boxSizing: 'border-box',
-        }}
-      >
-        <BrandMark size={20} />
-        <span style={{ fontSize: 'var(--font-md)', fontWeight: 600, color: 'var(--text-primary)' }}>
-          {name || 'Mexus'}
-        </span>
+      {!hideHeader && (
         <div
           style={{
-            marginLeft: 'auto',
-            width: 'var(--space-md)',
-            height: 'var(--space-md)',
-            borderRadius: '50%',
-            background:
-              connectionStatus === 'connected'
-                ? 'var(--status-running)'
-                : connectionStatus === 'reconnecting'
-                  ? 'var(--status-waiting)'
-                  : 'var(--status-error)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-md)',
+            padding: '0 var(--space-lg)',
+            borderBottom: '1px solid var(--border-subtle)',
+            background: 'var(--bg-surface)',
+            flexShrink: 0,
+            height: 'var(--header-height)',
+            boxSizing: 'border-box',
           }}
-          title={connectionStatus}
-        />
-      </div>
+        >
+          <BrandMark size={20} />
+          <span style={{ fontSize: 'var(--font-md)', fontWeight: 600, color: 'var(--text-primary)' }}>
+            {name || 'Mexus'}
+          </span>
+          <div
+            style={{
+              marginLeft: 'auto',
+              width: 'var(--space-md)',
+              height: 'var(--space-md)',
+              borderRadius: '50%',
+              background:
+                connectionStatus === 'connected'
+                  ? 'var(--status-running)'
+                  : connectionStatus === 'reconnecting'
+                    ? 'var(--status-waiting)'
+                    : 'var(--status-error)',
+            }}
+            title={connectionStatus}
+          />
+        </div>
+      )}
 
       <div
         style={{
           display: 'flex',
-          height: 'calc(100vh - var(--header-height) * 2)',
+          flex: 1,
+          minHeight: 0,
           width: '100%',
           overflow: 'hidden',
         }}
       >
-        <div style={{ width: 'var(--sidebar-width)', flexShrink: 0 }}>
-          <Sidebar onAddPane={handleOpenAddPane} onOpenSettings={handleOpenSettings} onOpenReplay={handleOpenReplay} onOpenNotes={handleOpenNotes} />
-        </div>
+        {!hubMode && (
+          <div style={{ width: 'var(--sidebar-width)', flexShrink: 0 }}>
+            <Sidebar onAddPane={handleOpenAddPane} onOpenSettings={handleOpenSettings} onOpenReplay={handleOpenReplay} onOpenNotes={handleOpenNotes} />
+          </div>
+        )}
 
         {!isEditorFullscreen && (
           <>
@@ -217,6 +224,35 @@ export function Layout({ send }: LayoutProps) {
                 flexShrink: 0,
               }}
             >
+              {hubMode && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--space-md)',
+                    padding: '0 var(--space-xl)',
+                    borderBottom: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-surface)',
+                    flexShrink: 0,
+                    height: 'var(--header-height)',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <PanelsTopLeft className="icon-sm" style={{ color: 'var(--text-secondary)' }} />
+                  <span style={{ fontSize: 'var(--font-md)', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Panes
+                  </span>
+                  <button
+                    type="button"
+                    className="pane-action-btn"
+                    title="Add pane"
+                    onClick={handleOpenAddPane}
+                    style={{ marginLeft: 'auto' }}
+                  >
+                    <Plus className="icon-sm" />
+                  </button>
+                </div>
+              )}
               <div
                 style={{
                   flex: 1,
@@ -242,20 +278,22 @@ export function Layout({ send }: LayoutProps) {
                   >
                     <Monitor className="icon-hero" />
                     <span style={{ fontSize: 'var(--font-lg)' }}>No agent panes</span>
-                    <button
-                      onClick={handleOpenAddPane}
-                      style={{
-                        background: 'var(--accent-primary)',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 'var(--radius-sm)',
-                        padding: 'var(--space-md) var(--space-xl)',
-                        cursor: 'pointer',
-                        fontSize: 'var(--font-md)',
-                      }}
-                    >
-                      Add Pane
-                    </button>
+                    {!hubMode && (
+                      <button
+                        onClick={handleOpenAddPane}
+                        style={{
+                          background: 'var(--accent-primary)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: 'var(--space-md) var(--space-xl)',
+                          cursor: 'pointer',
+                          fontSize: 'var(--font-md)',
+                        }}
+                      >
+                        Add Pane
+                      </button>
+                    )}
                   </div>
                 )}
 
