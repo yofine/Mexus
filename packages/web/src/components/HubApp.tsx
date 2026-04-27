@@ -266,7 +266,7 @@ export function HubApp() {
         <div style={tabRailStyle}>
         <button onClick={() => setActiveTabId(DASHBOARD_TAB)} style={tabStyle(activeTabId === DASHBOARD_TAB)}>
           <Server size={13} />
-          Dashboard
+          Hub
         </button>
         {settingsTabOpen && (
           <button onClick={() => setActiveTabId(SETTINGS_TAB)} style={tabStyle(activeTabId === SETTINGS_TAB)}>
@@ -328,7 +328,7 @@ export function HubApp() {
             <div style={{ padding: 20, overflow: 'auto' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 4 }}>Local Mexus Servers</div>
+                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 4 }}>Local execution servers</div>
                   <div style={{ fontSize: 24, fontWeight: 600 }}>{instances.length} tracked instances</div>
                 </div>
                 <button onClick={openSettingsTab} title="Mexus Settings" style={settingsButtonStyle}>
@@ -344,7 +344,7 @@ export function HubApp() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 12 }}>
                 {instances.length === 0 && (
                   <div style={{ padding: 36, borderRadius: 10, border: '1px dashed var(--border-default)', color: 'var(--text-muted)', textAlign: 'center' }}>
-                    No tracked servers. Start one from the panel on the right.
+                    No execution servers tracked. Start one from the panel on the right.
                   </div>
                 )}
                 {instances.map((instance) => (
@@ -390,8 +390,8 @@ export function HubApp() {
             </div>
 
             <div style={{ borderLeft: '1px solid var(--border-subtle)', padding: 20, background: 'var(--bg-surface)', overflow: 'auto' }}>
-              <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 8 }}>New Local Server</div>
-              <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 18 }}>Start Mexus server</div>
+              <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 8 }}>New execution server</div>
+              <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 18 }}>Start execution server</div>
               <label style={labelStyle}>
                 Project path
                 <input value={cwdInput} onChange={(event) => setCwdInput(event.target.value)} placeholder="~/projects/my-app" style={inputStyle} />
@@ -402,10 +402,10 @@ export function HubApp() {
               </label>
               <button onClick={createInstance} disabled={isCreating} style={{ ...primaryButtonStyle, width: '100%', justifyContent: 'center', marginTop: 6 }}>
                 <FolderPlus size={14} />
-                {isCreating ? 'Starting…' : 'Create Server'}
+                {isCreating ? 'Starting…' : 'Create server'}
               </button>
               <div style={{ marginTop: 14, color: 'var(--text-muted)', fontSize: 12, lineHeight: 1.5 }}>
-                Hub owns the tabs and connection state. Dashboard keeps the current server connection alive; opening another running server switches the active connection.
+                Mexus Hub owns the tabs and connection state. The Hub view keeps the current server connection alive; opening another running server switches the active connection.
               </div>
             </div>
           </div>
@@ -424,7 +424,7 @@ export function HubApp() {
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
                     <button onClick={() => startInstance(activeInstance)} style={primaryButtonStyle}>
                       <Play size={14} />
-                      Start Server
+                      Start server
                     </button>
                     <button onClick={() => removeInstance(activeInstance)} style={dangerButtonStyle}>
                       <Trash2 size={14} />

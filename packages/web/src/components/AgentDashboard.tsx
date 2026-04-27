@@ -347,7 +347,7 @@ export function AgentDashboard() {
           fontSize: 'var(--font-sm)',
         }}
       >
-        No agents running
+        No execution panes running
       </div>
     )
   }

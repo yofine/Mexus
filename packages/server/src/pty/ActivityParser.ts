@@ -182,7 +182,7 @@ export class ActivityParser {
       .replace(/^\(/, '')      // Remove leading paren
   }
 
-  // Paths under these prefixes are Nexus internals or noise — ignore them
+  // Paths under these prefixes are Mexus internals or noise — ignore them
   private static IGNORED_PREFIXES = ['.nexus/', 'node_modules/', '.git/']
 
   private isValidPath(file: string): boolean {
@@ -191,7 +191,7 @@ export class ActivityParser {
     if (!/\.\w{1,10}$/.test(file)) return false
     // Must not be absolute path or URL
     if (file.startsWith('/') || file.includes('://')) return false
-    // Skip Nexus internal and noise paths
+    // Skip Mexus internal and noise paths
     for (const prefix of ActivityParser.IGNORED_PREFIXES) {
       if (file.startsWith(prefix)) return false
     }

@@ -2,7 +2,7 @@
 
 ## 定位
 
-`comm/` 是 Nexus 与 CLI Agent 之间所有 PTY 级通信智能的核心模块。它从原始终端字节流中提取结构化信息、协调启动时序、推断 Agent 行为状态，使上层（PtyManager、WorkspaceManager、前端 UI）能够以可靠的事件驱动方式与 Agent 交互。
+`comm/` 是 Mexus 与 CLI Agent 之间所有 PTY 级通信智能的核心模块。它从原始终端字节流中提取结构化信息、协调启动时序、推断 Agent 行为状态，使上层（PtyManager、WorkspaceManager、前端 UI）能够以可靠的事件驱动方式与 Agent 交互。
 
 ```
 PTY 原始字节流 (node-pty onData)

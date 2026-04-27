@@ -1,4 +1,4 @@
-# Nexus Documentation Site Design
+# Mexus Documentation Site Design
 
 **Date:** 2026-04-05
 
@@ -8,7 +8,7 @@ Build a user-facing documentation site under `doc_site` using VitePress. The sit
 
 ## Audience
 
-Primary audience: end users of Nexus.
+Primary audience: end users of Mexus.
 
 This site is not a developer handbook. Technical implementation details should appear only when they help users install, configure, or troubleshoot the product.
 
@@ -69,7 +69,7 @@ Chinese and English should use mirrored navigation trees so the structure stays 
 
 The feature reference should cover the currently visible and implemented product surface, including:
 
-- Starting Nexus from CLI
+- Starting Mexus from CLI
 - Opening a workspace
 - Multi-pane agent management
 - Agent status and runtime metadata

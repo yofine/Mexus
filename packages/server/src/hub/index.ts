@@ -273,7 +273,7 @@ export async function buildHubServer(cliEntry: string) {
 export async function startHub(port: number, cliEntry: string) {
   const fastify = await buildHubServer(cliEntry)
   await fastify.listen({ port, host: '0.0.0.0' })
-  console.log(`Nexus Hub running at http://localhost:${port}`)
+  console.log(`Mexus Hub running at http://localhost:${port}`)
 
   const shutdown = async () => {
     await fastify.close()

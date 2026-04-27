@@ -11,8 +11,8 @@ function instance(overrides: Partial<HubInstanceRecord> = {}): HubInstanceRecord
   return {
     pid: 123,
     port: 7700,
-    cwd: '/root/workspace/Nexus',
-    projectName: 'Nexus',
+    cwd: '/root/workspace/Mexus',
+    projectName: 'Mexus',
     startedAt: 1,
     status: 'running',
     ...overrides,
@@ -56,15 +56,15 @@ describe('hubTabs', () => {
   })
 
   it('formats short cwd labels for tab compact display', () => {
-    expect(formatShortPath('/root/workspace/Nexus')).toBe('workspace/Nexus')
-    expect(formatShortPath('/Nexus')).toBe('/Nexus')
+    expect(formatShortPath('/root/workspace/Mexus')).toBe('workspace/Mexus')
+    expect(formatShortPath('/Mexus')).toBe('/Mexus')
   })
 
   it('builds snapshots from current instance data', () => {
     expect(buildHubTabSnapshot(instance())).toEqual({
-      projectName: 'Nexus',
+      projectName: 'Mexus',
       port: 7700,
-      cwd: '/root/workspace/Nexus',
+      cwd: '/root/workspace/Mexus',
       status: 'running',
       pid: 123,
     })

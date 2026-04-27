@@ -15,8 +15,8 @@
 | **WorkspaceManager.createPane()** | 同上 | 接受可选 `sessionId`，传递到 PtyManager |
 | **WorkspaceManager.getSessionList()** | 同上 | 从运行中 pane + config.yaml 收集可恢复会话 |
 | **SessionDiscovery** | `server/src/workspace/SessionDiscovery.ts` | 调用 `claude sessions list --output json`，30s 缓存 |
-| **GET /api/sessions** | `server/src/index.ts` | 合并 Nexus 内部 + 外部会话，按 sessionId 去重 |
-| **session.list WS 事件** | `server/src/ws/handlers.ts` | 返回 Nexus 内部会话列表 |
+| **GET /api/sessions** | `server/src/index.ts` | 合并 Mexus 内部 + 外部会话，按 sessionId 去重 |
+| **session.list WS 事件** | `server/src/ws/handlers.ts` | 返回 Mexus 内部会话列表 |
 | **AddPaneDialog** | `web/src/components/AddPaneDialog.tsx` | 双模式 UI（New Session / Resume Session），会话选择器 |
 | **AgentPane Resume 按钮** | `web/src/components/AgentPane.tsx` | Play 图标，优先用 sessionId resume，无则 --continue |
 | **类型定义** | `server/src/types.ts` + `web/src/types.ts` | `RestoreMode` 含 `'resume'`，`PaneCreateConfig` 含 `sessionId`，`DiscoveredSession` 接口 |
@@ -280,14 +280,14 @@ ConfigManager 持久化
 
 ## 验证方案
 
-1. 启动 Nexus (`pnpm run dev:full`)，创建一个 claudecode pane，让它工作一会产生 sessionId
+1. 启动 Mexus (`pnpm run dev:full`)，创建一个 claudecode pane，让它工作一会产生 sessionId
 2. 关闭该 pane → 验证 stopped 覆盖层显示三个恢复按钮（Resume / Continue Latest / New Session）
 3. 点击 "Resume" → 验证 `claude --resume <sessionId>` 正确发送
 4. 点击 "Continue Latest" → 验证 `claude --continue` 正确发送
-5. 新建 pane → Start Mode 选 "Resume Session" → 验证会话列表加载（包含 Nexus 内部 + external）
+5. 新建 pane → Start Mode 选 "Resume Session" → 验证会话列表加载（包含 Mexus 内部 + external）
 6. 选择一个外部会话 → 验证 pane 正确以 `--resume` 启动
 7. Cmd+K → "Resume Session..." → 验证 AddPaneDialog 以 Resume 模式打开
-8. 重启 Nexus 服务 → 验证所有带 sessionId 的 pane 自动恢复
+8. 重启 Mexus 服务 → 验证所有带 sessionId 的 pane 自动恢复
 
 ---
 
@@ -317,7 +317,7 @@ SessionDiscovery (协调器)
     ├── ClaudeCodeProvider    — `claude sessions list --output json`
     ├── OpenCodeProvider      — 读取 ~/.opencode/sessions/ 目录 (或对应 CLI)
     ├── KimiCliProvider       — (待 Kimi CLI 支持 session list 后实现)
-    └── FallbackProvider      — 仅返回 Nexus 内部记录的 session
+    └── FallbackProvider      — 仅返回 Mexus 内部记录的 session
 ```
 
 ### 接口定义
@@ -411,7 +411,7 @@ class OpenCodeProvider implements AgentSessionProvider {
 ```typescript
 /**
  * 对于没有专属 Provider 的 Agent 类型，只返回空数组
- * Nexus 内部记录的 session 由 SessionDiscovery 在合并层统一处理
+ * Mexus 内部记录的 session 由 SessionDiscovery 在合并层统一处理
  */
 class FallbackProvider implements AgentSessionProvider {
   readonly agentType: AgentType

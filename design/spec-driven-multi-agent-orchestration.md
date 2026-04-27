@@ -1,10 +1,10 @@
 # Spec-Driven Multi-Agent Orchestration Design
 
-> 目标：基于用户需求，先由用户指定的 CLI Agent 以非交互模式生成和迭代 spec；在用户批准 spec 后，再自动生成多 Agent 执行规划并批量启动新的执行 Agent；运行期间额外启动一名环境观察员 Agent，复用 Nexus 现有多 Agent 观测能力进行冲突协调、风险上报和过程总结。
+> 目标：基于用户需求，先由用户指定的 CLI Agent 以非交互模式生成和迭代 spec；在用户批准 spec 后，再自动生成多 Agent 执行规划并批量启动新的执行 Agent；运行期间额外启动一名环境观察员 Agent，复用 Mexus 现有多 Agent 观测能力进行冲突协调、风险上报和过程总结。
 
 ## 1. 背景与目标
 
-Nexus 当前已经具备多 Agent 并行运行、活动观测、冲突识别、文件活动流、`.nexus/agents.yaml` 写入等基础能力，但“任务自动分析拆分并分发执行”仍未落地。
+Mexus 当前已经具备多 Agent 并行运行、活动观测、冲突识别、文件活动流、`.nexus/agents.yaml` 写入等基础能力，但“任务自动分析拆分并分发执行”仍未落地。
 
 本设计将该能力升级为一套以 spec 为中心的编排系统，而不是简单的 `task.dispatch`：
 
@@ -527,7 +527,7 @@ claim 是轻量可见锁，不是强事务锁。目标是让其他 Agent 和观�
 
 ## 8. 复用现有多 Agent 观测能力
 
-Nexus 已有面向人的多 Agent 观测机制，包括但不限于：
+Mexus 已有面向人的多 Agent 观测机制，包括但不限于：
 
 - `ActivityMap`
 - `AgentDashboard`
@@ -1081,7 +1081,7 @@ interface FileClaim {
 
 ## 17. 总结
 
-该方案将 Nexus 的“任务分发”升级为“Spec 驱动的多 Agent 编排”：
+该方案将 Mexus 的“任务分发”升级为“Spec 驱动的多 Agent 编排”：
 
 - 前置用非交互规划 Agent 生成和修订 spec
 - 用户批准后再生成执行计划
@@ -1090,7 +1090,7 @@ interface FileClaim {
 - 默认采用共享工作区协作，不依赖 worktree 作为主路径
 - 复用现有面向人的多 Agent 观测机制，作为观察员的事实层输入
 
-这使 Nexus 从”多 Agent 控制台”向”多 Agent 任务编排系统”演进，并保持与现有架构和观测能力一致。
+这使 Mexus 从”多 Agent 控制台”向”多 Agent 任务编排系统”演进，并保持与现有架构和观测能力一致。
 
 ---
 
@@ -1416,7 +1416,7 @@ interface FileClaim {
 3. **成本高** — 每个 CLI Agent session 有自己的上下文管理和 token 开销，Planner 和 Observer 不需要完整的 CLI Agent 能力（文件编辑、shell 执行等），用完整 Agent 是浪费
 4. **协议难约束** — 外部 Agent 的输出格式只能靠 prompt 引导，无法用 TypeScript 类型系统强约束
 
-**建议方案**：参考 [pi-mono](https://github.com/badlogic/pi-mono)（OpenClaw 的核心 Agent 框架）的设计，在 Nexus server 内构建一个轻量的内置 Agent Runtime，用于驱动 Planner 和 Observer 角色。
+**建议方案**：参考 [pi-mono](https://github.com/badlogic/pi-mono)（OpenClaw 的核心 Agent 框架）的设计，在 Mexus server 内构建一个轻量的内置 Agent Runtime，用于驱动 Planner 和 Observer 角色。
 
 核心思路：
 
@@ -1442,7 +1442,7 @@ packages/server/src/agent/
 
 - **依然使用 SOTA 模型**（Claude Opus / Sonnet 等），不是用小模型替代，而是通过直接 API 调用替代启动完整 CLI Agent session
 - **Planner 和 Observer 只是不同的 role 配置**（system prompt + 可用 tool 子集），共享同一个 AgentRuntime 引擎
-- **Observer 可以直接调用 Nexus 内部 API** — 读取 `ClaimManager`、`ObservationContextBuilder` 的内存数据，而不是通过文件系统中转，延迟更低、一致性更好
+- **Observer 可以直接调用 Mexus 内部 API** — 读取 `ClaimManager`、`ObservationContextBuilder` 的内存数据，而不是通过文件系统中转，延迟更低、一致性更好
 - **Planner 的输出通过 tool-use 结构化返回** — 例如调用 `writeSpec({ markdown, json })` tool，而不是"希望 Agent 在 stdout 中按格式输出"，彻底解决 R4 和 R10 的可靠性问题
 - **和现有外部 CLI Agent worker 共存** — 内置 Agent 只用于 Planner/Observer，实际编码执行仍由用户选择的外部 CLI Agent（Claude Code 等）完成
 
@@ -1543,7 +1543,7 @@ MVP 阶段至少需要限制单 plan 的 worker 上限，并明确是否允许�
 当前阶段的判断是：
 
 - Worker 继续以外部 CLI Agent 为主
-- Planner 和 Observer 仍先按当前方案落地，保持与现有 Nexus 架构一致
+- Planner 和 Observer 仍先按当前方案落地，保持与现有 Mexus 架构一致
 - 同时将“内置 Agent Runtime for Planner/Observer”列为后续重点调研方向
 
 暂不在本版方案中直接切换到内置 runtime，原因有三点：
@@ -1558,4 +1558,4 @@ MVP 阶段至少需要限制单 plan 的 worker 上限，并明确是否允许�
 - Observer 是否优先切换到内置 runtime
 - Worker 是否继续保留外部 CLI Agent
 
-这很可能是 Nexus 从“编排外部 Agent”进一步演进到“拥有部分内建智能角色”的关键一步。
+这很可能是 Mexus 从“编排外部 Agent”进一步演进到“拥有部分内建智能角色”的关键一步。

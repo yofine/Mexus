@@ -27,7 +27,7 @@ export function getSupportedCommands(): string[] {
 // Check Node.js version — node-pty requires Node 22+
 const nodeVersion = parseInt(process.versions.node.split('.')[0], 10)
 if (nodeVersion < 22) {
-  console.error(`Error: Nexus requires Node.js >= 22, but you are running v${process.versions.node}`)
+  console.error(`Error: Mexus requires Node.js >= 22, but you are running v${process.versions.node}`)
   console.error(`  Please upgrade: nvm install 22 && nvm use 22`)
   process.exit(1)
 }
@@ -45,11 +45,11 @@ function printUsage(commandName: string) {
   Usage: ${commandName} [command] [directory]
 
   Commands:
-    start [dir]    Start the Nexus server (default)
+    start [dir]    Start the Mexus server (default)
     init  [dir]    Initialize .nexus/ config in a project
     status [dir]   Show workspace status
     stop           Stop the running server
-    hub            Start the Hub dashboard to manage all instances
+    hub            Start Mexus Hub to manage all instances
 
   Arguments:
     dir            Path to the project directory (defaults to cwd)
@@ -93,8 +93,8 @@ function findProjectRoot(startDir: string): string {
 
   // Warn if resolved to HOME — likely a mistake
   if (home && bestMatch === home && startDir === home) {
-    console.warn(`Warning: Running Nexus in HOME directory (${home}).`)
-    console.warn(`  Consider: nexus <project-path>`)
+    console.warn(`Warning: Running Mexus in HOME directory (${home}).`)
+    console.warn(`  Consider: mexus <project-path>`)
   }
 
   return bestMatch
@@ -126,7 +126,7 @@ async function main() {
   const commandName = getCliCommandName(process.argv[1])
 
   // Parse command and directory argument
-  // Support: nexus <dir>, nexus <cmd> <dir>, nexus <cmd>
+  // Support: mexus <dir>, mexus <cmd> <dir>, mexus <cmd>
   let command: string
   let dirArg: string | undefined
 
@@ -199,7 +199,7 @@ async function main() {
       const configManager = new ConfigManager(projectDir)
       const wsConfig = configManager.loadWorkspaceConfig()
       if (!wsConfig) {
-        console.log('No .nexus/config.yaml found. Run `nexus init` first.')
+        console.log('No .nexus/config.yaml found. Run `mexus init` first.')
         break
       }
       console.log(`Workspace: ${wsConfig.name}`)
@@ -219,7 +219,7 @@ async function main() {
           process.kill(process.pid, 'SIGTERM')
         }
       } catch {
-        console.log('No running Nexus server found.')
+        console.log('No running Mexus server found.')
       }
       break
     }

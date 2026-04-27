@@ -305,7 +305,7 @@ Chinese:
 - Title: `还没有执行面板`
 - Body: `创建一个 Agent 面板，开始一次多智能体执行。`
 
-### Add Pane Dialog
+### Create Execution Pane Dialog
 
 Preferred labels:
 

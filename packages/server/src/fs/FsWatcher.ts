@@ -10,7 +10,7 @@ const IGNORED_DIRS = new Set([
   '.hg',
   '.idea',
   '.vscode',
-  // Nexus runtime
+  // Mexus runtime
   '.nexus',
   // JS / TS ecosystem
   'node_modules',

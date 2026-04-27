@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the topbar `Nexus` monitor logo treatment with a reusable SVG brand mark and `Mexus` wordmark.
+**Goal:** Replace the topbar legacy monitor logo treatment with a reusable SVG brand mark and `Mexus` wordmark.
 
 **Architecture:** Add a dedicated `BrandMark` React component in the web component folder so the brand icon can be reused later without duplicating inline SVG markup. Update the topbar portion of `Layout.tsx` to consume that component and switch the displayed product label to `Mexus`, while leaving the empty-state monitor icon unchanged.
 
@@ -44,7 +44,7 @@ import { BrandMark } from './BrandMark'
 - [ ] **Step 3: Keep scope tight**
 
 ```tsx
-// Do not replace the empty-state monitor icon in the "No agent panes" screen.
+// Do not replace the empty-state monitor icon in the empty execution panes screen.
 ```
 
 ### Task 2: Verify the web bundle still builds

@@ -1,8 +1,8 @@
-# Nexus — AI Agent 多实例管理控制台
+# Mexus — AI Agent 多实例管理控制台
 
 ## 项目定位
 
-Nexus 是一个**本地 Web 控制台**，用于在单个浏览器界面中同时管理多个 CLI AI Agent 实例（Claude Code、OpenCode 等）的并行协作。用户通过 `nexus` CLI 启动服务，自动打开浏览器进入管理界面。
+Mexus 是一个**本地 Web 控制台**，用于在单个浏览器界面中同时管理多个 CLI AI Agent 实例（Claude Code、OpenCode 等）的并行协作。用户通过 `mexus` CLI 启动服务，自动打开浏览器进入管理界面。
 
 ## 技术栈
 
@@ -16,10 +16,10 @@ Nexus 是一个**本地 Web 控制台**，用于在单个浏览器界面中同�
 ## 目录结构
 
 ```
-Nexus/
+Mexus/
 ├── packages/
 │   ├── server/src/           # 后端 (~1530 行)
-│   │   ├── cli.ts            # CLI 入口 (nexus start/init/status/stop)
+│   │   ├── cli.ts            # CLI 入口 (mexus start/init/status/stop)
 │   │   ├── index.ts          # Fastify 服务编排，启动所有子服务
 │   │   ├── types.ts          # 全局类型定义
 │   │   ├── pty/

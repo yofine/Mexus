@@ -52,7 +52,7 @@ export async function startServer(port: number, projectDir: string) {
   // Session recorder — records replay history
   const wsConfig = configManager.loadWorkspaceConfig()
   const globalConfig = configManager.loadGlobalConfig()
-  const recorder = new SessionRecorder(projectDir, wsConfig?.name || 'Nexus', globalConfig.defaults.history_retention_days)
+  const recorder = new SessionRecorder(projectDir, wsConfig?.name || 'Mexus', globalConfig.defaults.history_retention_days)
 
   workspaceManager.onEvents({
     onPaneAdded: (pane) => recorder.onPaneAdded(pane),
@@ -172,7 +172,7 @@ export async function startServer(port: number, projectDir: string) {
   fastify.get('/api/sessions', async (request) => {
     const { agent } = request.query as { agent?: string }
     const external = await sessionDiscovery.listSessions(agent || 'claudecode')
-    // Merge with Nexus internal sessions, dedup by sessionId
+    // Merge with Mexus internal sessions, dedup by sessionId
     const internal = workspaceManager.getSessionList()
     const seen = new Set(internal.map((s) => s.sessionId))
     const merged = [
@@ -382,7 +382,7 @@ export async function startServer(port: number, projectDir: string) {
     startedAt: Date.now(),
   })
 
-  console.log(`Nexus server running at http://localhost:${port}`)
+  console.log(`Mexus server running at http://localhost:${port}`)
   console.log(`  Project dir: ${projectDir}`)
   console.log(`  File tree: ${fsWatcher.getTree().length} top-level entries`)
   const { unstaged: u, staged: s } = gitService.getCurrentDiffs()

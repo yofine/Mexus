@@ -1,12 +1,12 @@
-# Nexus Documentation Site Implementation Plan
+# Mexus Documentation Site Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a bilingual VitePress documentation site under `doc_site` that covers the current Nexus user-facing feature set, including experimental areas clearly labeled for end users.
+**Goal:** Build a bilingual VitePress documentation site under `doc_site` that covers the current Mexus user-facing feature set, including experimental areas clearly labeled for end users.
 
 **Architecture:** Create a standalone VitePress workspace in `doc_site`, with a single shared VitePress config and mirrored `zh` and `en` content trees. Source content from the current repository state, especially the existing manuals plus the live frontend and server surface, and organize it as quick-start plus full feature reference.
 
-**Tech Stack:** VitePress, Markdown, pnpm, existing Nexus repository docs and source files
+**Tech Stack:** VitePress, Markdown, pnpm, existing Mexus repository docs and source files
 
 ---
 
@@ -151,8 +151,8 @@ Create `doc_site/docs/.vitepress/config.ts` with a bilingual site configuration 
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'Nexus',
-  description: 'Documentation for Nexus',
+  title: 'Mexus',
+  description: 'Documentation for Mexus',
   cleanUrls: true,
   themeConfig: {
     search: { provider: 'local' },
@@ -204,7 +204,7 @@ Populate `nav` and `sidebar` with mirrored sections for:
 Create `doc_site/docs/index.md` as a lightweight language chooser:
 
 ```md
-# Nexus Documentation
+# Mexus Documentation
 
 - [中文文档](/zh/)
 - [English Docs](/en/)
@@ -275,7 +275,7 @@ Write compact user-facing pages with these minimum content shapes:
 `doc_site/docs/zh/index.md`
 
 ```md
-# Nexus 文档
+# Mexus 文档
 
 本地浏览器控制台，用来并行管理多个 CLI AI Agent。
 
@@ -358,7 +358,7 @@ Expected: matches across the Chinese page set, showing all major user-facing cap
 
 ```bash
 git add doc_site/docs/zh
-git commit -m "docs: add Chinese Nexus user documentation"
+git commit -m "docs: add Chinese Mexus user documentation"
 ```
 
 ### Task 4: Write the English user documentation set
@@ -413,7 +413,7 @@ doc_site/docs/en/faq.md
 Use equivalent headings such as:
 
 ```md
-# Nexus Docs
+# Mexus Docs
 # Quick Start
 # Installation
 # CLI Usage
@@ -436,7 +436,7 @@ Expected: both counts match.
 
 ```bash
 git add doc_site/docs/en
-git commit -m "docs: add English Nexus user documentation"
+git commit -m "docs: add English Mexus user documentation"
 ```
 
 ### Task 5: Install dependencies and verify the site end to end

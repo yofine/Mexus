@@ -1,4 +1,4 @@
-# Nexus — 完整技术方案文档
+# Mexus — 完整技术方案文档
 
 ---
 
@@ -6,9 +6,9 @@
 
 | 项目 | 内容 |
 |---|---|
-| **名称** | Nexus |
+| **名称** | Mexus |
 | **定位** | 本地 CLI AI Agent 多实例管理 Web 控制台 |
-| **入口** | `nexus` CLI 命令，自动打开浏览器 |
+| **入口** | `mexus` CLI 命令，自动打开浏览器 |
 | **核心场景** | 单 Repo 多 Agent 并行协作、任务分发、代码 Review |
 | **部署方式** | 本地单机，Node.js 服务 + 浏览器访问 |
 
@@ -275,7 +275,7 @@ Workspace（持久化，.nexus/config.yaml）
 │    │ │  API文档  src/api  │   │               │            │
 │    │ └────────────────────┘   │               │            │
 │    │                          │               │            │
-│    │ [+ Add Pane]             │               │            │
+│    │ [+ Create execution]     │               │            │
 └────┴──────────────────────────┴───────────────┴────────────┘
 ```
 
@@ -596,12 +596,12 @@ interface PaneCreateConfig {
 ## 十一、CLI 命令设计
 
 ```bash
-nexus                         # 启动，读取 .nexus/config.yaml
+mexus                         # 启动，读取 .nexus/config.yaml
                               # 无配置 → 引导初始化 → 打开浏览器
-nexus init                    # 强制重新初始化引导
-nexus add                     # 快速添加 Pane（CLI 参数方式）
-nexus status                  # 打印所有 Pane 状态（不打开浏览器）
-nexus stop                    # 停止所有 Agent 进程，关闭 server
+mexus init                    # 强制重新初始化引导
+mexus add                     # 快速添加执行面板（CLI 参数方式）
+mexus status                  # 打印所有执行面板状态（不打开浏览器）
+mexus stop                    # 停止所有 Agent 进程，关闭 server
 ```
 
 ### 首次启动引导流程
@@ -636,7 +636,7 @@ Level 1  Agent 自身恢复（优先）
          → claudecode --continue --session <id>
          → opencode   --session <id>
 
-Level 2  Nexus 历史回放（兜底）
+Level 2  Mexus 历史回放（兜底）
          .nexus/history/pane-xxx.log 终端输出存档
          重新打开时展示只读历史，可滚动回溯
          状态显示「已结束 · 点击重启」
@@ -653,7 +653,7 @@ Level 3  手动恢复
 
 | 阶段 | 模块 | 交付物 |
 |---|---|---|
-| **P0** | CLI 入口 + 引导流程 | `nexus` 命令可用 |
+| **P0** | CLI 入口 + 引导流程 | `mexus` 命令可用 |
 | **P0** | PTY Manager（node-pty）+ WebSocket | 进程管理基础 |
 | **P0** | 手风琴 Terminal UI（xterm.js）| 可交互的 Agent 窗口 |
 | **P0** | config.yaml 读写 + Workspace 加载 | 配置驱动启动 |
@@ -666,4 +666,3 @@ Level 3  手动恢复
 | **P2** | 主题系统（7套内置主题）| 主题切换 |
 | **P3** | 历史回放 + 三级恢复机制 | 工作日志 |
 | **P3** | 任务模板 + Web 端配置编辑 | 配置管理 |
-

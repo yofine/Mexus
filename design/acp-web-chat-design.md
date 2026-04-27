@@ -1,10 +1,10 @@
 # Agent Pane ACP / Web Chat 改造方案
 
-> 目标：将 Nexus 当前基于 PTY 的 Agent pane 交互，从“终端字节流”升级为“结构化 Web 对话”，同时保留对非 ACP CLI Agent 的兼容能力。
+> 目标：将 Mexus 当前基于 PTY 的 Agent pane 交互，从“终端字节流”升级为“结构化 Web 对话”，同时保留对非 ACP CLI Agent 的兼容能力。
 
 ## 背景
 
-Nexus 当前的 Agent pane 架构是：
+Mexus 当前的 Agent pane 架构是：
 
 ```text
 Browser (React + WebSocket + xterm.js)
@@ -44,7 +44,7 @@ ACP（Agent Client Protocol）是 Agent 与 Client 之间的结构化协议，�
 - 首选 `stdio` 传输
 - 支持会话、消息、工具调用、终端、计划、审批等结构化事件
 
-对 Nexus 相关的关键能力：
+对 Mexus 相关的关键能力：
 
 - `initialize`：协商能力，如 `fs`、`terminal`
 - `session/new`：创建会话
@@ -81,11 +81,11 @@ OpenCode 有三条相关能力线：
 - **同一后端状态可被多个前端消费**
 - **Web 不必依赖 PTY 才能交互**
 
-但它不是“ACP 套一层网页”，所以不能简单照搬为 Nexus 的通用协议层。
+但它不是“ACP 套一层网页”，所以不能简单照搬为 Mexus 的通用协议层。
 
-### 3. Nexus 需要双 Runtime，而不是直接替换 PTY
+### 3. Mexus 需要双 Runtime，而不是直接替换 PTY
 
-Nexus 当前支持的 Agent 不只 OpenCode。现实情况是：
+Mexus 当前支持的 Agent 不只 OpenCode。现实情况是：
 
 - OpenCode 这类 Agent 可以优先走 ACP
 - Claude Code、Aider、Gemini CLI 等未必都有 ACP 接口
@@ -153,7 +153,7 @@ Nexus 当前支持的 Agent 不只 OpenCode。现实情况是：
 2. `AcpRuntime`
    - 启动 `agent acp` 子进程
    - 通过 `stdin/stdout` 跑 JSON-RPC
-   - 将 ACP 消息转换为 Nexus 的统一会话事件
+   - 将 ACP 消息转换为 Mexus 的统一会话事件
 
 前端不再只消费 `terminal.output`，而是消费统一的 `ConversationEvent` 流。
 
@@ -162,7 +162,7 @@ Nexus 当前支持的 Agent 不只 OpenCode。现实情况是：
 ```text
 Browser
   ↕ WebSocket
-Nexus Server
+Mexus Server
   ↕
 Conversation Event Bus
   ├─ PtyRuntime  ─→ Shell / CLI / PTY
@@ -233,13 +233,13 @@ interface AgentRuntime {
 - 根据 pane 配置创建 / 恢复 ACP session
 - 发送 prompt
 - 接收并解析 `session/update`、permission、terminal 等 ACP 事件
-- 转换成 Nexus 内部事件总线
+- 转换成 Mexus 内部事件总线
 
 关键点：
 
 - 使用 `stdio`，不要走浏览器直接连 agent
-- ACP 子进程生命周期由 Nexus Server 托管
-- ACP sessionId 与 Nexus paneId 需要做映射持久化
+- ACP 子进程生命周期由 Mexus Server 托管
+- ACP sessionId 与 Mexus paneId 需要做映射持久化
 
 建议内部模块：
 
@@ -488,7 +488,7 @@ type ConversationEvent =
 - **短期**：保留 PTY 主链路，先完成 runtime 抽象
 - **中期**：优先把 OpenCode 接到 `AcpRuntime`
 - **中期**：新增 ChatPane，ACP Agent 默认走 Web 对话界面
-- **长期**：Nexus 成为“多 Runtime Agent 控制台”，而不是“多 PTY 终端管理器”
+- **长期**：Mexus 成为“多 Runtime Agent 控制台”，而不是“多 PTY 终端管理器”
 
 不推荐采用：
 
@@ -496,7 +496,7 @@ type ConversationEvent =
 - 直接用 OpenCode 的 HTTP Server API 作为全站统一协议
 - 为了统一 UI，强制所有 Agent 都走 ACP 包装层
 
-## 对 Nexus 的直接收益
+## 对 Mexus 的直接收益
 
 - Agent pane 交互体验从终端回显升级到结构化协作
 - 计划、工具、审批可视化，用户认知负担降低

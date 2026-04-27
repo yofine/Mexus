@@ -1,8 +1,8 @@
-# Nexus User Manual
+# Mexus User Manual
 
-## What is Nexus?
+## What is Mexus?
 
-Nexus is a local web console that lets you manage multiple CLI AI agent instances in parallel from a single browser interface.
+Mexus is a local web console that lets you manage multiple CLI AI agent instances in parallel from a single browser interface.
 
 Instead of opening several terminal windows for different coding agents, you can monitor and operate them all in one browser tab, while also tracking file changes and Git status in real time.
 
@@ -37,7 +37,7 @@ mexus stop
 NEXUS_PORT=8080 mexus
 ```
 
-On first launch, Nexus automatically opens `http://localhost:7700` in your browser.
+On first launch, Mexus automatically opens `http://localhost:7700` in your browser.
 
 #### Option 2: Run from source for development
 
@@ -56,7 +56,7 @@ pnpm build
 pnpm start
 ```
 
-When running from source, Nexus also opens `http://localhost:7700` on first launch.
+When running from source, Mexus also opens `http://localhost:7700` on first launch.
 
 ### Common CLI Commands
 
@@ -78,7 +78,7 @@ NEXUS_PORT=8080 mexus
 
 ## Interface Overview
 
-Nexus uses a four-column layout:
+Mexus uses a four-column layout:
 
 ```
 ┌────┬─────────────────────┬────────────┬──────────┐
@@ -147,7 +147,7 @@ The file tree updates in real time and supports:
 
 ### Git Worktree Isolation
 
-Nexus can give each agent its own Git worktree for real parallel development:
+Mexus can give each agent its own Git worktree for real parallel development:
 
 ```yaml
 # Example: .nexus/config.yaml
@@ -169,7 +169,7 @@ This allows multiple agents to work on separate branches without interfering wit
 
 ### Real-Time Metadata Monitoring
 
-Nexus parses Claude Code statusline output and displays:
+Mexus parses Claude Code statusline output and displays:
 
 - **Model**: current model, such as `claude-sonnet-4-5`
 - **Context**: context usage percentage
@@ -211,7 +211,7 @@ This metadata updates live in each collapsed pane header.
 
 ## Theme System
 
-Nexus includes seven built-in themes that can be switched from the command palette:
+Mexus includes seven built-in themes that can be switched from the command palette:
 
 1. **Dark IDE** (default): VSCode Dark+ style
 2. **GitHub Dark**: GitHub dark theme
@@ -273,7 +273,7 @@ panes:
 
 ### Runtime state: `.nexus/agents.yaml`
 
-Generated and maintained automatically by Nexus, this file records real-time agent state:
+Generated and maintained automatically by Mexus, this file records real-time agent state:
 
 ```yaml
 updated_at: "2026-03-16T10:00:00+08:00"

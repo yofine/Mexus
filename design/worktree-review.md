@@ -2,7 +2,7 @@
 
 ## 设计决策
 
-参考 Claude Squad 的做法（worktree 隔离 + keep/remove 模型），结合 Nexus 自身的 Web Review 面板优势，确定以下方案：
+参考 Claude Squad 的做法（worktree 隔离 + keep/remove 模型），结合 Mexus 自身的 Web Review 面板优势，确定以下方案：
 
 - **合并方式**：本地 `git merge`（方案 A），不依赖 GitHub
 - **关闭 pane 时**：默认保留 branch，不弹确认框
