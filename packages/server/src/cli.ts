@@ -164,10 +164,6 @@ async function main() {
       const port = parseInt(process.env.NEXUS_PORT || String(DEFAULT_PORT), 10)
       await startServer(port, projectDir)
 
-      // Auto-open browser (non-blocking, failure is ok)
-      const url = `http://localhost:${port}`
-      import('open').then((mod) => mod.default(url)).catch(() => {})
-
       // Check agent availability after server is up (non-blocking)
       const { ConfigManager: CM } = await import('./workspace/ConfigManager.ts')
       const cm = new CM(projectDir)
