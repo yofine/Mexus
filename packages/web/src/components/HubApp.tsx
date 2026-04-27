@@ -23,7 +23,7 @@ const DASHBOARD_TAB = 'hub:dashboard'
 const SETTINGS_TAB = 'hub:settings'
 
 function targetFor(instance: HubInstanceRecord): ConnectionTarget {
-  const origin = `${window.location.protocol}//${window.location.hostname}:${instance.port}`
+  const origin = `${window.location.origin}/api/instances/${instance.port}/proxy`
   return {
     serverId: serverIdFor(instance.port),
     label: instance.projectName,

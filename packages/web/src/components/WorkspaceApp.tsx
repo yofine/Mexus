@@ -137,10 +137,21 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
           break
 
         case 'pane.activity':
+          debugLog('workspace-app', 'event:pane.activity', {
+            serverId: target.serverId,
+            paneId: event.paneId,
+            file: event.activity.file,
+            action: event.activity.action,
+          })
           addActivity(event.paneId, event.activity)
           break
 
         case 'file.activity':
+          debugLog('workspace-app', 'event:file.activity', {
+            serverId: target.serverId,
+            file: event.activity.file,
+            action: event.activity.action,
+          })
           addFileActivity(event.activity)
           break
 

@@ -442,24 +442,35 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
   addActivity: (paneId, activity) =>
     set((state) => {
       const pane = state.panes.find((p) => p.id === paneId)
-      if (!pane) return state
+      const paneName = pane?.name || 'Workspace'
+      const agent = pane?.agent || 'workspace'
       const entry: ActivityEntry = {
         id: `act-${++activitySeq}`,
-        paneId,
-        paneName: pane.name,
-        agent: pane.agent,
+        paneId: pane?.id || '__workspace__',
+        paneName,
+        agent,
         file: activity.file,
         action: activity.action,
         timestamp: activity.timestamp,
       }
       // Keep last 100 activities
       const activities = [entry, ...state.activities].slice(0, 100)
+      debugLog('workspace-store', 'addActivity', {
+        sourcePaneId: paneId,
+        storedPaneId: entry.paneId,
+        paneFound: Boolean(pane),
+        file: activity.file,
+        action: activity.action,
+        count: activities.length,
+      })
       return {
         activities,
-        paneCurrentFile: {
-          ...state.paneCurrentFile,
-          [paneId]: { file: activity.file, action: activity.action },
-        },
+        paneCurrentFile: pane
+          ? {
+              ...state.paneCurrentFile,
+              [pane.id]: { file: activity.file, action: activity.action },
+            }
+          : state.paneCurrentFile,
       }
     }),
 
@@ -485,6 +496,12 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
         timestamp: activity.timestamp,
       }
       const activities = [entry, ...state.activities].slice(0, 100)
+      debugLog('workspace-store', 'addFileActivity', {
+        storedPaneId: entry.paneId,
+        file: activity.file,
+        action: activity.action,
+        count: activities.length,
+      })
       return {
         activities,
         paneCurrentFile: pane

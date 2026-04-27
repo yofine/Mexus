@@ -1,5 +1,6 @@
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
+import fastifyProxy from '@fastify/http-proxy'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -8,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import {
   findFreePort,
   getInstanceByPort,
+  isPortFree,
   listInstances,
   markStoppedByPort,
   register,
@@ -21,6 +23,19 @@ import type { GlobalConfig, ModelDefinition, ModelProviderConfig } from '../type
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const HUB_LOG_DIR = path.join(os.homedir(), '.nexus', 'hub-logs')
 
+type HealthInfo = {
+  status?: string
+  pid?: number
+  port?: number
+  projectDir?: string
+  projectName?: string
+}
+
+type ExpectedInstance = {
+  pid?: number
+  cwd: string
+}
+
 function addCorsHeaders(reply: { header: (name: string, value: string) => void }) {
   reply.header('Access-Control-Allow-Origin', '*')
   reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
@@ -29,6 +44,12 @@ function addCorsHeaders(reply: { header: (name: string, value: string) => void }
 
 function resolveWebDistPath(): string {
   return path.resolve(__dirname, '../../web/dist')
+}
+
+function localInstanceUpstream(port: string | number): string {
+  const parsed = typeof port === 'number' ? port : parseInt(port, 10)
+  if (!Number.isFinite(parsed) || parsed <= 0) return 'http://127.0.0.1:0'
+  return `http://127.0.0.1:${parsed}`
 }
 
 function spawnLocalInstance(cliEntry: string, cwd: string, assignedPort: number) {
@@ -50,6 +71,33 @@ function spawnLocalInstance(cliEntry: string, cwd: string, assignedPort: number)
   })
   child.unref()
   return { child, logPath }
+}
+
+function normalizePathForCompare(value: string): string {
+  return path.resolve(value)
+}
+
+function matchesExpectedInstance(info: HealthInfo, expected?: ExpectedInstance): boolean {
+  if (info.status !== 'ok') return false
+  if (!expected) return true
+  if (expected.pid && info.pid !== expected.pid) return false
+  if (info.projectDir && normalizePathForCompare(info.projectDir) !== normalizePathForCompare(expected.cwd)) return false
+  return true
+}
+
+async function waitForLocalInstance(port: number, expected?: ExpectedInstance, timeoutMs = 10_000): Promise<HealthInfo | null> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`http://localhost:${port}/api/health`)
+      if (res.ok) {
+        const data = await res.json().catch(() => null) as HealthInfo | null
+        if (data && matchesExpectedInstance(data, expected)) return data
+      }
+    } catch { /* server is still starting */ }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+  return null
 }
 
 async function stopLocalInstance(port: number): Promise<boolean> {
@@ -132,6 +180,22 @@ export async function buildHubServer(cliEntry: string) {
     return configManager.checkAgentAvailability()
   })
 
+  await fastify.register(fastifyProxy, {
+    // Keep this empty so both HTTP and WebSocket proxy paths use getUpstream().
+    // A non-empty fallback upstream makes @fastify/http-proxy route every WS to
+    // that static target before consulting getUpstream.
+    upstream: '',
+    prefix: '/api/instances/:port/proxy',
+    rewritePrefix: '/',
+    websocket: true,
+    replyOptions: {
+      getUpstream(request) {
+        const { port } = request.params as { port: string }
+        return localInstanceUpstream(port)
+      },
+    },
+  })
+
   fastify.post('/api/models/test-connection', async (request, reply) => {
     try {
       const body = request.body as { provider?: ModelProviderConfig; model?: ModelDefinition } | ModelProviderConfig
@@ -160,8 +224,21 @@ export async function buildHubServer(cliEntry: string) {
       return { error: `Not a directory: ${cwd}` }
     }
 
+    await scanInstances()
+
     let assignedPort: number
     try {
+      if (body.port) {
+        const existing = getInstanceByPort(body.port)
+        if (existing?.status === 'running') {
+          reply.code(409)
+          return { error: `Port ${body.port} is already used by running server: ${existing.projectName}`, instance: existing }
+        }
+        if (!(await isPortFree(body.port))) {
+          reply.code(409)
+          return { error: `Port ${body.port} is already in use` }
+        }
+      }
       assignedPort = body.port || (await findFreePort(7700, 7800))
     } catch (err) {
       reply.code(503)
@@ -170,11 +247,25 @@ export async function buildHubServer(cliEntry: string) {
 
     const { child, logPath } = spawnLocalInstance(cliEntry, cwd, assignedPort)
     const projectName = path.basename(cwd)
+
+    const ready = await waitForLocalInstance(assignedPort, { pid: child.pid, cwd })
+    if (!ready) {
+      reply.code(500)
+      return {
+        error: `Server on port ${assignedPort} did not become ready as the requested instance. Check log: ${logPath}`,
+        pid: child.pid,
+        port: assignedPort,
+        cwd,
+        projectName,
+        logPath,
+      }
+    }
+
     register({
-      pid: child.pid || 0,
+      pid: ready.pid || child.pid || 0,
       port: assignedPort,
-      cwd,
-      projectName,
+      cwd: ready.projectDir || cwd,
+      projectName: ready.projectName || projectName,
       startedAt: Date.now(),
       status: 'running',
     })
@@ -203,10 +294,31 @@ export async function buildHubServer(cliEntry: string) {
       return { error: `Not a directory: ${record.cwd}` }
     }
 
+    await scanInstances()
+    const refreshed = getInstanceByPort(port)
+    if (refreshed?.status === 'running') {
+      if (normalizePathForCompare(refreshed.cwd) !== normalizePathForCompare(record.cwd)) {
+        reply.code(409)
+        return { error: `Port ${port} is already used by running server: ${refreshed.projectName}`, instance: refreshed }
+      }
+      return { success: true, instance: refreshed }
+    }
+    if (!(await isPortFree(port))) {
+      reply.code(409)
+      return { error: `Port ${port} is already in use`, instance: refreshed }
+    }
+
     const { child, logPath } = spawnLocalInstance(cliEntry, record.cwd, port)
+    const ready = await waitForLocalInstance(port, { pid: child.pid, cwd: record.cwd })
+    if (!ready) {
+      reply.code(500)
+      return { error: `Server on port ${port} did not become ready as the requested instance. Check log: ${logPath}`, instance: getInstanceByPort(port), logPath }
+    }
     const next = {
       ...record,
-      pid: child.pid || 0,
+      pid: ready.pid || child.pid || 0,
+      cwd: ready.projectDir || record.cwd,
+      projectName: ready.projectName || record.projectName,
       startedAt: Date.now(),
       status: 'running' as const,
     }
