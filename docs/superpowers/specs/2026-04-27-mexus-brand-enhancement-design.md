@@ -48,6 +48,41 @@ Expanded Chinese positioning:
 
 > Mexus 将分散的 CLI Agent 组织成统一执行系统：启动、观察、审查和协调，都在一个本地控制台完成。
 
+## Brand Personality
+
+M.E.X.U.S. has a deliberate system-code feeling. The dotted acronym can carry an EVA-like operator-console mood: institutional, procedural, synchronized, and slightly science-fictional. This should be treated as brand atmosphere, not as a direct anime reference.
+
+The useful qualities are:
+
+- A named execution system rather than a generic app.
+- Multiple units synchronized under one operator console.
+- Clear states, signals, protocols, and boundaries.
+- Human operators supervising semi-autonomous execution.
+- Runtime events that feel observable, reviewable, and auditable.
+
+The brand should feel:
+
+- Cool-headed
+- Technical
+- Systematic
+- Command-center oriented
+- High-trust rather than playful
+
+The brand should not become:
+
+- A literal anime homage
+- A mecha-themed UI
+- A decorative sci-fi skin over weak product clarity
+- A brand that relies on references users must already know
+
+Suggested atmospheric line:
+
+> M.E.X.U.S. is the operator console for multi-agent execution.
+
+Chinese:
+
+> M.E.X.U.S. 是多智能体执行的操作员控制台。
+
 ## Naming System
 
 Public names:
@@ -167,6 +202,14 @@ Content:
 - `Unified`: bring panes, diffs, file activity, review, and settings into one console.
 - `System`: create a foundation for observed, reviewable, and coordinated work.
 
+Optional atmospheric copy:
+
+> Multiple agents. One operator console. A visible execution system.
+
+Chinese:
+
+> 多个 Agent。一个操作员控制台。一个可见的执行系统。
+
 ### Section 3: Mexus Hub
 
 Title:
@@ -248,6 +291,7 @@ These changes are copy-only and should not alter logic, identifiers, data models
 - `Loading Mexus...`
 - Topbar product name: `Mexus`
 - Documentation link label: `Mexus Docs`
+- Optional system-flavored subtitle: `Operator console for multi-agent execution`
 
 ### Empty State
 
@@ -313,6 +357,8 @@ Recommended traits:
 - Real UI screenshots or faithful UI compositions as the primary website visual.
 - Subtle execution signals: status dots, connection lines, tab stacks, file-change traces, diff colors, activity timelines.
 - Restrained accent palette using cyan/blue-green for active execution, amber for attention, red/green for diff semantics.
+- Dotted acronym treatment for `M.E.X.U.S.` where it reinforces the feeling of a named system.
+- Console-like labels such as `Execution Unit`, `Runtime Signal`, `Observation Layer`, `System Boundary`, and `Active Connection`.
 
 Avoid:
 
@@ -321,6 +367,8 @@ Avoid:
 - Marketing cards that obscure the actual product.
 - A one-note purple, beige, or slate palette.
 - Claims that make Mexus sound like a cloud IDE or autonomous coding platform.
+- Direct visual references to existing anime, mecha franchises, or copyrighted control-room interfaces.
+- Excessive warning-strip, neon, or fake-military styling that makes the product feel less trustworthy.
 
 ## Logo And Brandmark Direction
 
