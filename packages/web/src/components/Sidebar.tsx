@@ -64,7 +64,7 @@ export function Sidebar({ onAddPane, onOpenSettings, onOpenReplay, onOpenNotes }
     >
       <SidebarButton
         icon={<Plus className="sidebar-icon" />}
-        title="Add Pane"
+        title="Create execution pane"
         onClick={onAddPane}
       />
       <SidebarButton

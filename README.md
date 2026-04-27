@@ -1,6 +1,8 @@
-# Nexus
+# Mexus
 
-A local web console for managing multiple CLI AI Agent instances in parallel from a single browser interface.
+**M.E.X.U.S. = Multi-agent Execution Unified System**
+
+Mexus is the execution layer for multi-agent development. It turns scattered CLI AI agents into a unified local system: run them, observe them, review their work, and coordinate progress from one operator console.
 
 
 https://github.com/user-attachments/assets/1bde703f-dda8-4a83-9421-40e212c6aba1
@@ -9,10 +11,10 @@ https://github.com/user-attachments/assets/1bde703f-dda8-4a83-9421-40e212c6aba1
 
 ## Features
 
-### 🖥️ Multi-Agent Parallel Management
+### 🖥️ Multi-Agent Execution
 - Supports multiple agents: Claude Code, OpenCode, Aider, Codex, Gemini
-- Each agent runs in its own collapsible terminal pane
-- Create, close, restart, and resume agent processes
+- Each agent runs as a managed execution pane
+- Create, close, restart, and resume agent executions
 - Real-time status indicators (running / waiting / idle / stopped / error)
 - Floating bottom shell terminal, always accessible
 
@@ -21,12 +23,12 @@ https://github.com/user-attachments/assets/1bde703f-dda8-4a83-9421-40e212c6aba1
 - Parallel development on independent branches without conflicts
 - Branch name and file change count displayed in pane headers
 
-### 📊 Agent Metadata Monitoring
+### 📊 Runtime Observation
 - Automatically parses Claude Code statusline for runtime info
 - Live display of model name, context usage %, cumulative cost, session ID
 - All agent states written to `.nexus/agents.yaml` for cross-agent awareness
 
-### 📁 File & Code Viewing
+### 📁 Unified Review Surface
 - Live file tree with automatic change detection (chokidar)
 - Built-in code viewer with Shiki syntax highlighting
 - Git diff panel for repo-level change inspection
@@ -47,6 +49,8 @@ https://github.com/user-attachments/assets/1bde703f-dda8-4a83-9421-40e212c6aba1
 - YAML-driven config at global (`~/.nexus/config.yaml`) and project level
 - Per-agent working directory and task description
 - Session start modes: new session or resume a selected prior session
+
+> Some internal paths and compatibility identifiers still use the historical Nexus name. These remain unchanged to preserve existing projects and local configuration.
 
 ## Installation & Usage
 

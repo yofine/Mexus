@@ -1,7 +1,7 @@
 {
   "name": "mexus-cli",
   "version": "2.4.0",
-  "description": "Local web console for managing multiple CLI AI Agent instances in parallel",
+  "description": "Execution layer for managing multiple CLI AI Agent instances from one local console",
   "type": "module",
   "bin": {
     "mexus": "./packages/server/dist/cli.mjs",

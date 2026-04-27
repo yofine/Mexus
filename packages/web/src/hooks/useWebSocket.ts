@@ -45,7 +45,7 @@ export function useWebSocket({ onMessage, target }: UseWebSocketOptions) {
     }
 
     const url = buildWsUrl('/nexus-ws', currentTarget)
-    console.log('[Nexus] Connecting to', url)
+    console.log('[Mexus] Connecting to', url)
     const ws = new WebSocket(url)
     const seq = ++connectionSeq.current
     wsRef.current = ws
@@ -137,7 +137,7 @@ export function useWebSocket({ onMessage, target }: UseWebSocketOptions) {
       wsRef.current.send(JSON.stringify(event))
     } else {
       debugLog('ws', 'send:dropped', { type: event.type, readyState: wsRef.current?.readyState ?? null })
-      console.warn('[Nexus] WebSocket not connected, dropping event:', event.type)
+      console.warn('[Mexus] WebSocket not connected, dropping event:', event.type)
     }
   }, [])
 

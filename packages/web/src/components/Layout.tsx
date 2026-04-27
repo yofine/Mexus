@@ -277,7 +277,7 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
                     }}
                   >
                     <Monitor className="icon-hero" />
-                    <span style={{ fontSize: 'var(--font-lg)' }}>No agent panes</span>
+                    <span style={{ fontSize: 'var(--font-lg)' }}>No execution panes yet</span>
                     {!hubMode && (
                       <button
                         onClick={handleOpenAddPane}
@@ -291,7 +291,7 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
                           fontSize: 'var(--font-md)',
                         }}
                       >
-                        Add Pane
+                        Create execution pane
                       </button>
                     )}
                   </div>
