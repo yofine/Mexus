@@ -55,7 +55,7 @@ interface InlineCommentFormProps {
 function InlineCommentForm({ file, line, onSubmit, onCancel }: InlineCommentFormProps) {
   const [content, setContent] = useState('')
   const [targetPaneId, setTargetPaneId] = useState('')
-  const { panes } = useWorkspaceStore()
+  const panes = useWorkspaceStore((s) => s.panes)
   const activePanes = panes.filter((p) => p.status !== 'stopped' && p.status !== 'error')
 
   // Auto-select if only one pane
@@ -363,7 +363,7 @@ interface DiffFileItemProps {
 
 function DiffFileItem({ diff, mode, send, onStage, onUnstage, onDiscard, isReviewed, onToggleReviewed, agentColors, agentNames, importRefCount }: DiffFileItemProps) {
   const [expanded, setExpanded] = useState(false)
-  const { openFileTab } = useWorkspaceStore()
+  const openFileTab = useWorkspaceStore((s) => s.openFileTab)
   const Icon = statusIcons[diff.status] || FileEdit
   const isMultiAgent = (agentColors?.length ?? 0) > 1
 
@@ -602,7 +602,15 @@ function SectionHeader({ label, count, collapsed, onToggle, reviewedCount, child
 }
 
 export function GitDiffPanel({ send, paneId }: GitDiffPanelProps) {
-  const { gitDiffs, gitStagedDiffs, gitBranchInfo, panes, paneDiffs, activities, depGraph, reviewedFiles, toggleFileReviewed } = useWorkspaceStore()
+  const gitDiffs = useWorkspaceStore((s) => s.gitDiffs)
+  const gitStagedDiffs = useWorkspaceStore((s) => s.gitStagedDiffs)
+  const gitBranchInfo = useWorkspaceStore((s) => s.gitBranchInfo)
+  const panes = useWorkspaceStore((s) => s.panes)
+  const paneDiffs = useWorkspaceStore((s) => s.paneDiffs)
+  const activities = useWorkspaceStore((s) => s.activities)
+  const depGraph = useWorkspaceStore((s) => s.depGraph)
+  const reviewedFiles = useWorkspaceStore((s) => s.reviewedFiles)
+  const toggleFileReviewed = useWorkspaceStore((s) => s.toggleFileReviewed)
   const [confirmDiscardAll, setConfirmDiscardAll] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
   const [stagedCollapsed, setStagedCollapsed] = useState(false)

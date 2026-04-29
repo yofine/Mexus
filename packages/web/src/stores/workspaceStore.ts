@@ -208,7 +208,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
         shellPanes: shells,
         activeShellPaneId: nextActiveShellPaneId,
         conversationByPane,
-        activePaneId: state.activePaneId || (visible.length > 0 ? visible[0].id : null),
+        activePaneId: state.panes.length === 0 && state.activePaneId === null
+          ? (visible.length > 0 ? visible[0].id : null)
+          : state.activePaneId,
       }
     }),
 

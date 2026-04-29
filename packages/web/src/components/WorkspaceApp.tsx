@@ -16,25 +16,23 @@ interface WorkspaceAppProps {
 }
 
 export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: WorkspaceAppProps) {
-  const {
-    setWorkspace,
-    resetWorkspace,
-    addPane,
-    removePane,
-    updatePaneStatus,
-    updatePaneMeta,
-    setConnectionStatus,
-    setFileTree,
-    setGitAllDiffs,
-    setGitBranchInfo,
-    setPaneDiffs,
-    addActivity,
-    addFileActivity,
-    setMergeResult,
-    clearMergeResult,
-    applyConversationEvent,
-    ensureReplayTabPinned,
-  } = useWorkspaceStore()
+  const setWorkspace = useWorkspaceStore((s) => s.setWorkspace)
+  const resetWorkspace = useWorkspaceStore((s) => s.resetWorkspace)
+  const addPane = useWorkspaceStore((s) => s.addPane)
+  const removePane = useWorkspaceStore((s) => s.removePane)
+  const updatePaneStatus = useWorkspaceStore((s) => s.updatePaneStatus)
+  const updatePaneMeta = useWorkspaceStore((s) => s.updatePaneMeta)
+  const setConnectionStatus = useWorkspaceStore((s) => s.setConnectionStatus)
+  const setFileTree = useWorkspaceStore((s) => s.setFileTree)
+  const setGitAllDiffs = useWorkspaceStore((s) => s.setGitAllDiffs)
+  const setGitBranchInfo = useWorkspaceStore((s) => s.setGitBranchInfo)
+  const setPaneDiffs = useWorkspaceStore((s) => s.setPaneDiffs)
+  const addActivity = useWorkspaceStore((s) => s.addActivity)
+  const addFileActivity = useWorkspaceStore((s) => s.addFileActivity)
+  const setMergeResult = useWorkspaceStore((s) => s.setMergeResult)
+  const clearMergeResult = useWorkspaceStore((s) => s.clearMergeResult)
+  const applyConversationEvent = useWorkspaceStore((s) => s.applyConversationEvent)
+  const ensureReplayTabPinned = useWorkspaceStore((s) => s.ensureReplayTabPinned)
 
   useEffect(() => {
     debugLog('workspace-app', 'mount-target', { serverId: target.serverId, hubMode, hideHeader })

@@ -168,7 +168,10 @@ function FileTreeNode({ node, depth, expanded, onToggle, onSelect, openFilePaths
 }
 
 export function FileTree({ onActionsReady }: FileTreeProps) {
-  const { fileTree, tabs, activeTabId, openFileTab } = useWorkspaceStore()
+  const fileTree = useWorkspaceStore((s) => s.fileTree)
+  const tabs = useWorkspaceStore((s) => s.tabs)
+  const activeTabId = useWorkspaceStore((s) => s.activeTabId)
+  const openFileTab = useWorkspaceStore((s) => s.openFileTab)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const initializedRef = useRef(false)
 

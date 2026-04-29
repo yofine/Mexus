@@ -13,10 +13,21 @@ declare global {
     mexusDebugDump?: () => string
     mexusDebugCopy?: () => Promise<string>
     mexusDebugClear?: () => void
+    mexusDebugEnable?: () => void
+    mexusDebugDisable?: () => void
   }
 }
 
 const MAX_ENTRIES = 1000
+const DEBUG_ENABLED_KEY = 'mexus.debug.enabled'
+
+function isDebugEnabled(): boolean {
+  try {
+    return window.localStorage.getItem(DEBUG_ENABLED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
 
 function getBuffer(): DebugEntry[] {
   if (!window.mexusDebugLogs) window.mexusDebugLogs = []
@@ -59,11 +70,24 @@ function installHelpers(): void {
     window.mexusDebugLogs = []
     console.info('[MexusDebug] cleared')
   }
+  window.mexusDebugEnable = () => {
+    try {
+      window.localStorage.setItem(DEBUG_ENABLED_KEY, '1')
+    } catch { /* ignore */ }
+    console.info('[MexusDebug] enabled')
+  }
+  window.mexusDebugDisable = () => {
+    try {
+      window.localStorage.removeItem(DEBUG_ENABLED_KEY)
+    } catch { /* ignore */ }
+    console.info('[MexusDebug] disabled')
+  }
 }
 
 export function debugLog(area: string, event: string, data?: DebugData): void {
   if (typeof window === 'undefined') return
   installHelpers()
+  if (!isDebugEnabled()) return
   const entry: DebugEntry = {
     ts: new Date().toISOString(),
     area,

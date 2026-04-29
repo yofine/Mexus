@@ -214,7 +214,7 @@ function SessionDetailView({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<ReplaySession | null>(null)
   const [activeTurn, setActiveTurn] = useState<ReplayTurn | null>(null)
   const [loadingTurn, setLoadingTurn] = useState(false)
-  const { openReplayTab } = useWorkspaceStore()
+  const openReplayTab = useWorkspaceStore((s) => s.openReplayTab)
 
   useEffect(() => {
     fetch(api(`/api/replay/sessions/${sessionId}`))
@@ -620,7 +620,7 @@ function TurnPlayer({ turn }: { turn: ReplayTurn }) {
 // ─── Main Component ─────────────────────────────────────────
 
 export function ReplayViewer({ sessionId }: { sessionId?: string }) {
-  const { openReplayTab } = useWorkspaceStore()
+  const openReplayTab = useWorkspaceStore((s) => s.openReplayTab)
 
   if (sessionId) {
     return <SessionDetailView sessionId={sessionId} />

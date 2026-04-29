@@ -40,7 +40,11 @@ type FileTreeHeaderActions = {
 }
 
 export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProps) {
-  const { panes, activePaneId, setActivePaneId, name, connectionStatus } = useWorkspaceStore()
+  const panes = useWorkspaceStore((s) => s.panes)
+  const activePaneId = useWorkspaceStore((s) => s.activePaneId)
+  const setActivePaneId = useWorkspaceStore((s) => s.setActivePaneId)
+  const name = useWorkspaceStore((s) => s.name)
+  const connectionStatus = useWorkspaceStore((s) => s.connectionStatus)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSettings, setShowSettings] = useState(false)

@@ -42,7 +42,7 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
   const paneColor = getPaneColor(paneIndex)
   const paneDiffs = useWorkspaceStore((s) => s.paneDiffs[pane.id])
   const mergeResult = useWorkspaceStore((s) => s.mergeResults[pane.id])
-  const { openReviewTab } = useWorkspaceStore()
+  const openReviewTab = useWorkspaceStore((s) => s.openReviewTab)
   const diffCount = paneDiffs?.length ?? 0
   const prevExpandedRef = useRef(isExpanded)
 

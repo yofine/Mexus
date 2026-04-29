@@ -81,7 +81,10 @@ function TabButton({ tab, isActive, onActivate, onClose }: {
 }
 
 export function EditorTabs({ send, isMaximized = false, onToggleMaximize }: EditorTabsProps) {
-  const { tabs, activeTabId, setActiveTab, closeTab } = useWorkspaceStore()
+  const tabs = useWorkspaceStore((s) => s.tabs)
+  const activeTabId = useWorkspaceStore((s) => s.activeTabId)
+  const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
+  const closeTab = useWorkspaceStore((s) => s.closeTab)
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
 

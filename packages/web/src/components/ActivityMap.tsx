@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useState, useCallback, useRef } from 'react'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import type { ActivityEntry } from '@/stores/workspaceStore'
+import { useConnectionStore } from '@/stores/connectionStore'
 import { getPaneColorById } from './AgentIcon'
 import { DependencyTopology, VIEW_MODE_META, type ViewMode } from './DependencyTopology'
 import { AgentDashboard } from './AgentDashboard'
@@ -105,7 +106,13 @@ const VIEW_ICONS: Record<ViewMode, typeof GitFork> = {
 // ── Main Component ──
 
 export function ActivityMap() {
-  const { activities, paneCurrentFile, panes, openFileTab, depGraph, setDepGraph } = useWorkspaceStore()
+  const activities = useWorkspaceStore((s) => s.activities)
+  const paneCurrentFile = useWorkspaceStore((s) => s.paneCurrentFile)
+  const panes = useWorkspaceStore((s) => s.panes)
+  const openFileTab = useWorkspaceStore((s) => s.openFileTab)
+  const depGraph = useWorkspaceStore((s) => s.depGraph)
+  const setDepGraph = useWorkspaceStore((s) => s.setDepGraph)
+  const activeTarget = useConnectionStore((s) => s.activeTarget)
   const [newEntryIds, setNewEntryIds] = useState<Set<string>>(new Set())
   const prevActivityCountRef = useRef(0)
   const [loading, setLoading] = useState(false)
@@ -113,27 +120,32 @@ export function ActivityMap() {
   const [filterPaneId, setFilterPaneId] = useState<string | null>(null)
   const [timelineMode, setTimelineMode] = useState<'list' | 'swimlane'>('list')
 
-  // Fetch dependency graph on mount
-  useEffect(() => {
-    if (!depGraph) {
-      fetchDepGraph()
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   const fetchDepGraph = useCallback(async () => {
+    const requestTarget = activeTarget
+    if (!requestTarget) return
     setLoading(true)
     try {
-      const res = await fetch(api('/api/deps'))
+      const res = await fetch(api('/api/deps', requestTarget))
       if (res.ok) {
         const graph: DepGraph = await res.json()
+        if (useConnectionStore.getState().activeTarget?.serverId !== requestTarget.serverId) return
         setDepGraph(graph)
       }
     } catch (err) {
       console.error('Failed to fetch dependency graph:', err)
     } finally {
-      setLoading(false)
+      if (useConnectionStore.getState().activeTarget?.serverId === requestTarget.serverId) {
+        setLoading(false)
+      }
     }
-  }, [setDepGraph])
+  }, [activeTarget, setDepGraph])
+
+  // Fetch dependency graph for the currently connected server only.
+  useEffect(() => {
+    if (!depGraph && activeTarget) {
+      fetchDepGraph()
+    }
+  }, [activeTarget?.serverId, depGraph, fetchDepGraph])
 
   // Track new entries for animation
   useEffect(() => {

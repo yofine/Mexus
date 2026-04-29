@@ -20,7 +20,10 @@ interface CommandPaletteProps {
 }
 
 export function CommandPalette({ open, onClose, send, onAddPane }: CommandPaletteProps) {
-  const { panes, activePaneId, setActivePaneId, openReviewTab } = useWorkspaceStore()
+  const panes = useWorkspaceStore((s) => s.panes)
+  const activePaneId = useWorkspaceStore((s) => s.activePaneId)
+  const setActivePaneId = useWorkspaceStore((s) => s.setActivePaneId)
+  const openReviewTab = useWorkspaceStore((s) => s.openReviewTab)
   const [search, setSearch] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
