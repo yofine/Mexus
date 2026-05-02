@@ -54,7 +54,7 @@ function Row({ label, value, color }: { label: string; value: string | number; c
   )
 }
 
-function Card({ title, children, width }: { title: string; children?: React.ReactNode; width?: number }) {
+function Card({ title, children, width, minHeight }: { title: string; children?: React.ReactNode; width?: number; minHeight?: number }) {
   return React.createElement(Box, {
     borderStyle: 'round',
     borderColor: 'gray',
@@ -62,6 +62,7 @@ function Card({ title, children, width }: { title: string; children?: React.Reac
     paddingX: 1,
     paddingY: 0,
     width,
+    minHeight,
   },
     React.createElement(Text, { bold: true }, title),
     React.createElement(Box, { flexDirection: 'column', marginTop: 1 }, children),
@@ -80,7 +81,7 @@ function Logo() {
 }
 
 function BrandCard({ snapshot }: { snapshot: HubConsoleSnapshot }) {
-  return React.createElement(Card, { title: 'Mexus', width: 64 },
+  return React.createElement(Card, { title: 'Mexus', width: 64, minHeight: 23 },
     React.createElement(Logo),
     React.createElement(Box, { marginTop: 1, flexDirection: 'column' },
       React.createElement(Row, { label: 'version', value: snapshot.version, color: 'cyan' }),
@@ -91,13 +92,8 @@ function BrandCard({ snapshot }: { snapshot: HubConsoleSnapshot }) {
       React.createElement(Row, { label: 'registry', value: truncate(snapshot.registryPath, 44) }),
       React.createElement(Row, { label: 'logs', value: truncate(snapshot.logDir, 44) }),
     ),
-    React.createElement(Box, { marginTop: 1, flexDirection: 'column' },
-      React.createElement(Text, { color: 'green' }, 'Dashboard'),
-      React.createElement(Text, { color: 'gray' }, 'Projects'),
-      React.createElement(Text, { color: 'gray' }, 'Connections'),
-      React.createElement(Text, { color: 'gray' }, 'Settings'),
-    ),
-    React.createElement(Box, { marginTop: 1 },
+    React.createElement(Box, { flexGrow: 1 }),
+    React.createElement(Box, null,
       React.createElement(Text, { color: 'gray' }, 'ctrl+c to stop'),
     ),
   )
@@ -151,8 +147,8 @@ function WarningsCard({ warnings }: { warnings: string[] }) {
 }
 
 export function HubConsoleView({ snapshot }: { snapshot: HubConsoleSnapshot }) {
-  return React.createElement(Box, { flexDirection: 'column', paddingX: 1, paddingY: 1 },
-    React.createElement(Box, { gap: 2, alignItems: 'flex-start' },
+  return React.createElement(Box, { flexDirection: 'column', width: '100%', height: '100%', paddingX: 1, paddingY: 1 },
+    React.createElement(Box, { gap: 2, alignItems: 'stretch', width: '100%' },
       React.createElement(BrandCard, { snapshot }),
       React.createElement(Box, { flexDirection: 'column', gap: 1 },
         React.createElement(Box, { gap: 2 },
