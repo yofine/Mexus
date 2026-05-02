@@ -1,5 +1,6 @@
 import os from 'node:os'
 import path from 'node:path'
+import fs from 'node:fs'
 import React from 'react'
 import { render, type Instance as InkInstance } from 'ink'
 import { listInstances } from './InstanceRegistry.ts'
@@ -18,10 +19,26 @@ function registryPath(): string {
   return path.join(process.env.NEXUS_REGISTRY_DIR || path.join(os.homedir(), '.nexus'), 'instances.json')
 }
 
+function readPackageVersion(): string {
+  const candidates = [
+    path.resolve(__dirname, '../../../package.json'),
+    path.resolve(__dirname, '../../../../package.json'),
+    path.resolve(process.cwd(), 'package.json'),
+  ]
+  for (const candidate of candidates) {
+    try {
+      const data = JSON.parse(fs.readFileSync(candidate, 'utf-8')) as { name?: string; version?: string }
+      if ((data.name === 'mexus-cli' || candidate.endsWith('/package.json')) && data.version) return data.version
+    } catch { /* try next */ }
+  }
+  return 'dev'
+}
+
 function buildSnapshot(options: HubConsoleOptions): HubConsoleSnapshot {
   const instances = listInstances()
   const mem = process.memoryUsage()
   return {
+    version: readPackageVersion(),
     port: options.port,
     pid: process.pid,
     nodeVersion: process.version,

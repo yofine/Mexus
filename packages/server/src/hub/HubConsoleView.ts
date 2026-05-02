@@ -3,6 +3,7 @@ import { Box, Text } from 'ink'
 import type { InstanceRecord } from './InstanceRegistry.ts'
 
 export type HubConsoleSnapshot = {
+  version: string
   port: number
   pid: number
   nodeVersion: string
@@ -69,20 +70,26 @@ function Card({ title, children, width }: { title: string; children?: React.Reac
 
 function Logo() {
   return React.createElement(Box, { flexDirection: 'column' },
-    React.createElement(Text, { color: 'cyan' }, '  __  __'),
-    React.createElement(Text, { color: 'cyan' }, ' |  \\/  | ___  __  __ _   _ ___'),
-    React.createElement(Text, { color: 'cyan' }, ' | |\\/| |/ _ \\ \\ \\/ /| | | / __|'),
-    React.createElement(Text, { color: 'cyan' }, ' | |  | |  __/  >  < | |_| \\__ \\'),
-    React.createElement(Text, { color: 'cyan' }, ' |_|  |_|\\___| /_/\\_\\ \\__,_|___/'),
+    React.createElement(Text, { color: 'cyan', bold: true }, '███╗   ███╗███████╗██╗  ██╗██╗   ██╗███████╗'),
+    React.createElement(Text, { color: 'cyan', bold: true }, '████╗ ████║██╔════╝╚██╗██╔╝██║   ██║██╔════╝'),
+    React.createElement(Text, { color: 'cyan', bold: true }, '██╔████╔██║█████╗   ╚███╔╝ ██║   ██║███████╗'),
+    React.createElement(Text, { color: 'cyan', bold: true }, '██║╚██╔╝██║██╔══╝   ██╔██╗ ██║   ██║╚════██║'),
+    React.createElement(Text, { color: 'cyan', bold: true }, '██║ ╚═╝ ██║███████╗██╔╝ ██╗╚██████╔╝███████║'),
+    React.createElement(Text, { color: 'cyan', bold: true }, '╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝'),
   )
 }
 
 function BrandCard({ snapshot }: { snapshot: HubConsoleSnapshot }) {
-  return React.createElement(Card, { title: 'Mexus', width: 42 },
+  return React.createElement(Card, { title: 'Mexus', width: 64 },
     React.createElement(Logo),
     React.createElement(Box, { marginTop: 1, flexDirection: 'column' },
+      React.createElement(Row, { label: 'version', value: snapshot.version, color: 'cyan' }),
       React.createElement(Row, { label: 'hub', value: 'local workspace console' }),
       React.createElement(Row, { label: 'url', value: `http://localhost:${snapshot.port}`, color: 'green' }),
+    ),
+    React.createElement(Box, { marginTop: 1, flexDirection: 'column' },
+      React.createElement(Row, { label: 'registry', value: truncate(snapshot.registryPath, 44) }),
+      React.createElement(Row, { label: 'logs', value: truncate(snapshot.logDir, 44) }),
     ),
     React.createElement(Box, { marginTop: 1, flexDirection: 'column' },
       React.createElement(Text, { color: 'green' }, 'Dashboard'),
@@ -136,13 +143,6 @@ function ResourcesCard({ snapshot }: { snapshot: HubConsoleSnapshot }) {
   )
 }
 
-function PathsCard({ snapshot }: { snapshot: HubConsoleSnapshot }) {
-  return React.createElement(Card, { title: 'Paths', width: 76 },
-    React.createElement(Row, { label: 'registry', value: truncate(snapshot.registryPath, 56) }),
-    React.createElement(Row, { label: 'logs', value: truncate(snapshot.logDir, 56) }),
-  )
-}
-
 function WarningsCard({ warnings }: { warnings: string[] }) {
   if (warnings.length === 0) return null
   return React.createElement(Card, { title: 'Warnings', width: 76 },
@@ -161,7 +161,6 @@ export function HubConsoleView({ snapshot }: { snapshot: HubConsoleSnapshot }) {
         ),
         React.createElement(ConnectionsCard, { snapshot }),
         React.createElement(ResourcesCard, { snapshot }),
-        React.createElement(PathsCard, { snapshot }),
         React.createElement(WarningsCard, { warnings: snapshot.warnings }),
       ),
     ),
