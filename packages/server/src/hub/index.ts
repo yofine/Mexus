@@ -19,6 +19,7 @@ import {
 import { ConfigManager } from '../workspace/ConfigManager.ts'
 import { testModelProviderConnection } from '../models/ModelConnectionTester.ts'
 import type { GlobalConfig, ModelDefinition, ModelProviderConfig } from '../types.ts'
+import { startHubConsole } from './HubConsole.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const HUB_LOG_DIR = path.join(os.homedir(), '.nexus', 'hub-logs')
@@ -385,9 +386,10 @@ export async function buildHubServer(cliEntry: string) {
 export async function startHub(port: number, cliEntry: string) {
   const fastify = await buildHubServer(cliEntry)
   await fastify.listen({ port, host: '0.0.0.0' })
-  console.log(`Mexus Hub running at http://localhost:${port}`)
+  const hubConsole = startHubConsole({ port, logDir: HUB_LOG_DIR })
 
   const shutdown = async () => {
+    hubConsole.stop()
     await fastify.close()
     process.exit(0)
   }
