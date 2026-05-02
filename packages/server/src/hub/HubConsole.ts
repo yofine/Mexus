@@ -1,6 +1,7 @@
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import React from 'react'
 import { render, type Instance as InkInstance } from 'ink'
 import { listInstances } from './InstanceRegistry.ts'
@@ -15,14 +16,16 @@ type HubConsoleHandle = {
   stop: () => void
 }
 
+const moduleDir = path.dirname(fileURLToPath(import.meta.url))
+
 function registryPath(): string {
   return path.join(process.env.NEXUS_REGISTRY_DIR || path.join(os.homedir(), '.nexus'), 'instances.json')
 }
 
 function readPackageVersion(): string {
   const candidates = [
-    path.resolve(__dirname, '../../../package.json'),
-    path.resolve(__dirname, '../../../../package.json'),
+    path.resolve(moduleDir, '../../../package.json'),
+    path.resolve(moduleDir, '../../../../package.json'),
     path.resolve(process.cwd(), 'package.json'),
   ]
   for (const candidate of candidates) {
