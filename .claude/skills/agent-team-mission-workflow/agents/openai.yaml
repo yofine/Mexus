@@ -1,0 +1,3 @@
+display_name: Agent Team Mission Workflow
+short_description: Create and operate Markdown-native Mission workflows for multi-agent engineering collaboration.
+default_prompt: Use this skill to create or operate a Mission workflow with mission.md, agents.md, kanban.md, roundtable.md, and squad-lead.md.
