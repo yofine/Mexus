@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Sidebar } from './Sidebar'
 import { AgentPane } from './AgentPane'
 import { AddPaneDialog } from './AddPaneDialog'
@@ -27,6 +27,7 @@ import {
   type LayoutPanel,
   type PanelWidths,
 } from '@/lib/layoutPreferences'
+import { filterHubPanes, getHubPaneFilterOptions } from './hubPaneFilters'
 
 interface LayoutProps {
   send: (event: ClientEvent) => void
@@ -49,6 +50,8 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
+  const [missionFilter, setMissionFilter] = useState('all')
+  const [agentFilter, setAgentFilter] = useState('all')
   const [fileTreeActions, setFileTreeActions] = useState<FileTreeHeaderActions | null>(null)
   const [layoutPrefs, setLayoutPrefs] = useState(loadLayoutPreferences)
   const [widths, setWidths] = useState<PanelWidths>(() => loadLayoutPreferences().widthsByMode[loadLayoutPreferences().mode])
@@ -147,6 +150,10 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
   }, [])
 
   const isEditorFullscreen = maximizedPanel === 'editor'
+  const paneFilterOptions = useMemo(() => getHubPaneFilterOptions(panes), [panes])
+  const missionFilterOptions = paneFilterOptions.missions
+  const agentFilterOptions = paneFilterOptions.agents
+  const filteredPanes = useMemo(() => filterHubPanes(panes, missionFilter, agentFilter), [agentFilter, missionFilter, panes])
 
   useKeyboardShortcuts({
     send,
@@ -259,6 +266,33 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
                   </button>
                 </div>
               )}
+              {hubMode && panes.length > 0 && (
+                <div className="pane-filter-bar">
+                  <select
+                    value={missionFilter}
+                    onChange={(e) => setMissionFilter(e.target.value)}
+                    className="pane-filter-select"
+                    title="Filter by mission"
+                  >
+                    <option value="all">All missions</option>
+                    <option value="__none__">No mission</option>
+                    {missionFilterOptions.map((missionName) => (
+                      <option key={missionName} value={missionName}>{missionName}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={agentFilter}
+                    onChange={(e) => setAgentFilter(e.target.value)}
+                    className="pane-filter-select"
+                    title="Filter by agent type"
+                  >
+                    <option value="all">All agents</option>
+                    {agentFilterOptions.map((agentType) => (
+                      <option key={agentType} value={agentType}>{agentType}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div
                 style={{
                   flex: 1,
@@ -303,7 +337,13 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
                   </div>
                 )}
 
-                {panes.map((pane, index) => (
+                {panes.length > 0 && filteredPanes.length === 0 && (
+                  <div className="pane-filter-empty">
+                    No panes match the current filters.
+                  </div>
+                )}
+
+                {filteredPanes.map((pane, index) => (
                   <AgentPane
                     key={pane.id}
                     pane={pane}

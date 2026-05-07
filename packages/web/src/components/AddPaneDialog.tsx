@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { GitBranch, Share2, Zap, History, Plus, Loader2, X, FolderOpen, MessageSquare } from 'lucide-react'
 import { AgentIcon, getAgentDisplayName } from './AgentIcon'
-import type { ClientEvent, AgentType, RestoreMode, IsolationMode, AgentAvailability, DiscoveredSession } from '@/types'
+import { useMissionStore, type MissionAgentObservation } from '@/stores/missionStore'
+import type { ClientEvent, AgentType, RestoreMode, IsolationMode, AgentAvailability, DiscoveredSession, PaneMission, GlobalConfig } from '@/types'
 import { loadLayoutPreferences } from '@/lib/layoutPreferences'
 import { api } from '@/lib/apiBase'
 
 const AGENT_TYPES: AgentType[] = ['claudecode', 'codex', 'opencode', 'kimi-cli', 'qodercli']
+const EMPTY_MISSION_AGENTS: MissionAgentObservation[] = []
 
 function estimateTerminalDimensions(): { cols: number; rows: number } {
   const FONT_SIZE = 13
@@ -42,6 +44,60 @@ function formatTimeAgo(dateStr?: string): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
+function missionPathForDetails(mission: { name: string; path?: string }): string {
+  return mission.path || `agent-team/missions/${mission.name}`
+}
+
+function missionAgentTask(missionName: string, missionPath: string, agent: MissionAgentObservation): string {
+  const lines = [
+    `You are ${agent.name}, a Mission Agent for mission \`${missionName}\`.`,
+    '',
+    'Read:',
+    '- agent-team/mission-workflow.md',
+    '- agent-team/agents.md',
+    `- ${missionPath}/mission.md`,
+    `- ${missionPath}/agents.md`,
+    `- ${missionPath}/kanban.md`,
+    `- ${missionPath}/roundtable.md`,
+    '',
+    `Responsibility: ${agent.responsibility || 'See the mission agents file.'}`,
+    '',
+    'Claim one task assigned to you in kanban.md, work within its scope, fill Result/Files/Verification, move it to Done, then check for more assigned tasks or tasks you published that need Review.',
+  ]
+
+  if (agent.activationPromptSummary) {
+    lines.push('', 'Activation prompt summary:', agent.activationPromptSummary)
+  }
+  if (agent.initialPromptSummary) {
+    lines.push('', 'Initial prompt summary:', agent.initialPromptSummary)
+  }
+
+  return lines.join('\n')
+}
+
+export function buildMissionAgentPaneDefaults(
+  mission: { name: string; path?: string },
+  agent: MissionAgentObservation,
+): { name: string; task: string } {
+  return {
+    name: `${agent.name} - ${mission.name}`,
+    task: missionAgentTask(mission.name, missionPathForDetails(mission), agent),
+  }
+}
+
+export function buildPaneMission(
+  mission: { name: string; path?: string } | null | undefined,
+  agent: MissionAgentObservation | null | undefined,
+): PaneMission | undefined {
+  if (!mission || !agent) return undefined
+  return {
+    name: mission.name,
+    path: missionPathForDetails(mission),
+    role: 'mission-agent',
+    agentName: agent.name,
+  }
+}
+
 interface AddPaneDialogProps {
   isOpen: boolean
   onClose: () => void
@@ -57,13 +113,31 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
   const [isolation, setIsolation] = useState<IsolationMode>('shared')
   const [yolo, setYolo] = useState(false)
   const [agentAvailability, setAgentAvailability] = useState<Record<string, AgentAvailability> | null>(null)
+  const [agentChangedByUser, setAgentChangedByUser] = useState(false)
+  const [missionDefaultAgent, setMissionDefaultAgent] = useState<AgentType | null>(null)
+  const [selectedMissionAgentName, setSelectedMissionAgentName] = useState('')
 
   const [sessions, setSessions] = useState<DiscoveredSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
+  const activeMission = useMissionStore((s) => s.activeMission)
+  const missionAgentsResult = useMissionStore((s) => s.agents)
+  const missionAgents = missionAgentsResult?.agents ?? EMPTY_MISSION_AGENTS
+  const loadActiveMission = useMissionStore((s) => s.loadActiveMission)
 
   useEffect(() => {
     if (!isOpen) return
+    loadActiveMission().catch(() => {})
+    fetch(api('/api/config'))
+      .then(res => res.json())
+      .then((data: GlobalConfig) => {
+        const configured = data.mission_defaults?.agent_type
+        if (configured && configured !== '__shell__') {
+          setMissionDefaultAgent(configured)
+          if (!agentChangedByUser) setAgent(configured)
+        }
+      })
+      .catch(() => {})
     fetch(api('/api/agents'))
       .then(res => res.json())
       .then(data => {
@@ -97,6 +171,8 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
 
     const estimatedDims = estimateTerminalDimensions()
     const submitRestoreMode: RestoreMode = restore === 'resume' ? 'resume' : 'restart'
+    const selectedMissionAgent = missionAgents.find((missionAgent) => missionAgent.name === selectedMissionAgentName)
+    const mission = buildPaneMission(activeMission, selectedMissionAgent)
 
     send({
       type: 'pane.create',
@@ -105,6 +181,7 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
         agent,
         workdir: workdir.trim() || undefined,
         task: task.trim() || undefined,
+        mission,
         restore: submitRestoreMode,
         isolation,
         yolo: yolo || undefined,
@@ -119,6 +196,8 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
     setRestore('restart')
     setIsolation('shared')
     setYolo(false)
+    setAgentChangedByUser(false)
+    setSelectedMissionAgentName('')
     setSelectedSessionId(null)
     setSessions([])
     onClose()
@@ -126,6 +205,23 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
 
   const isAgentInstalled = (a: AgentType) => !agentAvailability || agentAvailability[a]?.installed !== false
   const isResume = restore === 'resume'
+
+  const handleAgentSelect = (nextAgent: AgentType) => {
+    setAgentChangedByUser(true)
+    setAgent(nextAgent)
+  }
+
+  const handleMissionAgentSelect = (agentName: string) => {
+    setSelectedMissionAgentName(agentName)
+    const missionAgent = missionAgents.find((item) => item.name === agentName)
+    if (!activeMission || !missionAgent) return
+    const defaults = buildMissionAgentPaneDefaults(activeMission, missionAgent)
+    setName(defaults.name)
+    setTask(defaults.task)
+    if (!agentChangedByUser && missionDefaultAgent) {
+      setAgent(missionDefaultAgent)
+    }
+  }
 
   return (
     <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
@@ -150,7 +246,7 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
                   <button
                     key={a}
                     type="button"
-                    onClick={() => installed && setAgent(a)}
+                    onClick={() => installed && handleAgentSelect(a)}
                     disabled={!installed}
                     title={!installed ? `Not installed. ${hint}` : getAgentDisplayName(a)}
                     className={`apd-agent-card${agent === a ? ' apd-agent-card--active' : ''}${!installed ? ' apd-agent-card--disabled' : ''}`}
@@ -163,6 +259,28 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
               })}
             </div>
           </div>
+
+          {activeMission && missionAgents.length > 0 && (
+            <div className="apd-section">
+              <label className="apd-label" htmlFor="apd-mission-agent">
+                Mission Agent
+                <span className="apd-label-hint">{activeMission.name}</span>
+              </label>
+              <select
+                id="apd-mission-agent"
+                value={selectedMissionAgentName}
+                onChange={(e) => handleMissionAgentSelect(e.target.value)}
+                className="apd-input"
+              >
+                <option value="">No mission association</option>
+                {missionAgents.map((missionAgent) => (
+                  <option key={missionAgent.name} value={missionAgent.name}>
+                    {missionAgent.name}{missionAgent.responsibility ? ` - ${missionAgent.responsibility}` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Name input */}
           <div className="apd-section">

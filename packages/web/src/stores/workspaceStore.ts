@@ -40,7 +40,7 @@ function invalidateStaleReviewed(
 
 export interface EditorTab {
   id: string
-  type: 'file' | 'review' | 'activity' | 'replay'
+  type: 'file' | 'review' | 'activity' | 'team' | 'replay'
   label: string
   filePath?: string
   paneId?: string   // null/undefined = workspace (shared) review; set = worktree pane review
@@ -106,6 +106,7 @@ interface WorkspaceStore {
   setPanes: (panes: PaneState[]) => void
   addPane: (pane: PaneState) => void
   removePane: (paneId: string) => void
+  renamePane: (paneId: string, name: string) => void
   updatePaneStatus: (paneId: string, status: PaneStatus) => void
   updatePaneMeta: (paneId: string, meta: PaneMeta) => void
   setActivePaneId: (paneId: string | null) => void
@@ -140,13 +141,14 @@ interface WorkspaceStore {
 function getInitialTabs(): EditorTab[] {
   return [
     { id: 'tab:activity', type: 'activity', label: 'Activity', pinned: true },
+    { id: 'tab:team', type: 'team', label: 'Team', pinned: true },
     { id: 'review:workspace', type: 'review', label: 'Review', pinned: true },
   ]
 }
 
 function getInitialWorkspaceState(): Omit<WorkspaceStore,
   'setWorkspace' | 'resetWorkspace' | 'setPanes' | 'addPane' | 'removePane' | 'updatePaneStatus' |
-  'updatePaneMeta' | 'setActivePaneId' | 'setConnectionStatus' | 'setFileTree' | 'setGitDiffs' |
+  'renamePane' | 'updatePaneMeta' | 'setActivePaneId' | 'setConnectionStatus' | 'setFileTree' | 'setGitDiffs' |
   'setGitStagedDiffs' | 'setGitAllDiffs' | 'setGitBranchInfo' | 'setPaneDiffs' | 'removePaneDiffs' |
   'setMergeResult' | 'clearMergeResult' | 'applyConversationEvent' | 'setDiffViewPaneId' |
   'setDepGraph' | 'toggleFileReviewed' | 'clearReviewedFiles' | 'addActivity' | 'addFileActivity' |
@@ -296,6 +298,15 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
         tabs: nextTabs,
         activeTabId: nextActiveTab,
       }
+    }),
+
+  renamePane: (paneId, name) =>
+    set((state) => {
+      const idx = state.panes.findIndex((p) => p.id === paneId)
+      if (idx === -1 || state.panes[idx].name === name) return state
+      const panes = state.panes.slice()
+      panes[idx] = { ...panes[idx], name }
+      return { panes }
     }),
 
   updatePaneStatus: (paneId, status) =>

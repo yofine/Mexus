@@ -16,6 +16,8 @@ import { SessionRecorder } from './history/SessionRecorder.ts'
 import { SessionDiscovery } from './workspace/SessionDiscovery.ts'
 import { register as registerInstance, markStoppedByPid } from './hub/InstanceRegistry.ts'
 import { testModelProviderConnection } from './models/ModelConnectionTester.ts'
+import { MissionService } from './mission/MissionService.ts'
+import { registerMissionRoutes } from './mission/routes.ts'
 import type { GlobalConfig, ModelDefinition, ModelProviderConfig } from './types.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -38,6 +40,7 @@ export async function startServer(port: number, projectDir: string) {
 
   const workspaceManager = new WorkspaceManager(configManager)
   await workspaceManager.init()
+  const missionService = new MissionService(projectDir, configManager, workspaceManager)
 
   // agents.yaml writer — updates on pane state changes
   const agentsWriter = new AgentsYamlWriter(projectDir)
@@ -165,6 +168,8 @@ export async function startServer(port: number, projectDir: string) {
       return { ok: false, message: (err as Error).message }
     }
   })
+
+  registerMissionRoutes(fastify, missionService)
 
   // Session discovery (claude sessions list)
   const sessionDiscovery = new SessionDiscovery(configManager)

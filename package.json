@@ -15,6 +15,8 @@
   "scripts": {
     "dev": "pnpm run build:web && NEXUS_PROJECT_DIR=$PWD tsx packages/server/src/cli.ts",
     "dev:full": "NEXUS_PROJECT_DIR=$PWD pnpm -r --filter @nexus/server --filter @nexus/web --parallel dev",
+    "dev:hub": "pnpm run build:web && NEXUS_HUB_PORT=${NEXUS_HUB_PORT:-7801} tsx packages/server/src/cli.ts hub",
+    "debug:hub": "pnpm run build && NEXUS_HUB_PORT=${NEXUS_HUB_PORT:-7801} node packages/server/dist/cli.mjs hub",
     "build:web": "pnpm --filter @nexus/web build",
     "build:server": "pnpm --filter @nexus/server build",
     "build": "pnpm run build:web && pnpm run build:server",
@@ -58,5 +60,6 @@
     "pty",
     "manager"
   ],
-  "license": "MIT"
+  "license": "Apache-2.0",
+  "author": "yofine"
 }

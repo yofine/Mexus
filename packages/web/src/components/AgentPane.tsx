@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useRef, memo } from 'react'
+import { useCallback, useEffect, useRef, useState, memo } from 'react'
 import {
+  Check,
   ChevronDown,
   ChevronRight,
+  Pencil,
   GitBranch,
   GitMerge,
   RotateCcw,
@@ -43,8 +45,14 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
   const paneDiffs = useWorkspaceStore((s) => s.paneDiffs[pane.id])
   const mergeResult = useWorkspaceStore((s) => s.mergeResults[pane.id])
   const openReviewTab = useWorkspaceStore((s) => s.openReviewTab)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [draftName, setDraftName] = useState(pane.name)
   const diffCount = paneDiffs?.length ?? 0
   const prevExpandedRef = useRef(isExpanded)
+
+  useEffect(() => {
+    if (!isEditingName) setDraftName(pane.name)
+  }, [isEditingName, pane.name])
 
   // Handle pause/resume when expand state changes
   useEffect(() => {
@@ -99,6 +107,32 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation()
     send({ type: 'pane.close', paneId: pane.id })
+  }
+
+  const handleStartRename = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setDraftName(pane.name)
+    setIsEditingName(true)
+  }
+
+  const handleCommitRename = (e?: React.MouseEvent | React.FormEvent) => {
+    e?.stopPropagation()
+    const nextName = draftName.trim()
+    if (!nextName) {
+      setDraftName(pane.name)
+      setIsEditingName(false)
+      return
+    }
+    if (nextName !== pane.name) {
+      send({ type: 'pane.rename', paneId: pane.id, name: nextName })
+    }
+    setIsEditingName(false)
+  }
+
+  const handleCancelRename = (e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    setDraftName(pane.name)
+    setIsEditingName(false)
   }
 
   const handleRestart = (e: React.MouseEvent) => {
@@ -163,9 +197,33 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
             boxShadow: `0 0 4px ${paneColor}66`,
           }} />
 
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-md)', whiteSpace: 'nowrap' }}>
-            {pane.name}
-          </span>
+          {isEditingName ? (
+            <form
+              onSubmit={handleCommitRename}
+              onClick={(e) => e.stopPropagation()}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 120, maxWidth: 220 }}
+            >
+              <input
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') handleCancelRename()
+                }}
+                autoFocus
+                className="pane-title-input"
+              />
+              <button type="submit" className="pane-action-btn" title="Save title">
+                <Check size={13} />
+              </button>
+              <button type="button" onClick={handleCancelRename} className="pane-action-btn" title="Cancel title edit">
+                <X size={13} />
+              </button>
+            </form>
+          ) : (
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-md)', whiteSpace: 'nowrap' }}>
+              {pane.name}
+            </span>
+          )}
 
           <span
             style={{
@@ -181,6 +239,13 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
 
           {/* Meta info (branch, workdir, context%, cost, diff count) */}
           <div className="agent-pane-header__meta">
+            {pane.mission && (
+              <span className="agent-pane-mission-badge" title={`${pane.mission.name} / ${pane.mission.role}${pane.mission.agentName ? ` / ${pane.mission.agentName}` : ''}`}>
+                {pane.mission.name}
+                <span>{pane.mission.role === 'squad-lead' ? 'lead' : 'agent'}</span>
+                {pane.mission.agentName && <span>{pane.mission.agentName}</span>}
+              </span>
+            )}
             {pane.isolation === 'worktree' && pane.branch && (
               <span
                 style={{
@@ -230,6 +295,15 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
           </div>
 
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-xs)', flexShrink: 0, alignItems: 'center' }}>
+            {!isEditingName && (
+              <button
+                onClick={handleStartRename}
+                title="Edit title"
+                className="pane-action-btn"
+              >
+                <Pencil size={13} />
+              </button>
+            )}
             {/* Merge button — worktree panes with changes */}
             {pane.isolation === 'worktree' && diffCount > 0 && (
               <button

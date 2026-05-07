@@ -16,6 +16,13 @@ export interface PaneMeta {
   cwd?: string
 }
 
+export interface PaneMission {
+  name: string
+  path: string
+  role: 'squad-lead' | 'mission-agent'
+  agentName?: string
+}
+
 export type FileAction = 'read' | 'edit' | 'write' | 'create' | 'delete' | 'bash'
 
 export interface FileActivity {
@@ -31,6 +38,7 @@ export interface PaneState {
   agent: AgentType
   workdir?: string
   task?: string
+  mission?: PaneMission
   restore: RestoreMode
   isolation: IsolationMode
   yolo?: boolean
@@ -51,6 +59,18 @@ export interface WorkspaceState {
   panes: PaneState[]
 }
 
+export interface WorkspaceConfig {
+  version: string
+  name: string
+  description?: string
+  active_mission?: string
+  repository: {
+    path: string
+    git: boolean
+  }
+  panes: PaneState[]
+}
+
 // ─── WebSocket Protocol ─────────────────────────────────────
 
 // Client → Server
@@ -60,6 +80,7 @@ export type ClientEvent =
   | { type: 'conversation.send'; paneId: string; text: string }
   | { type: 'pane.create'; config: PaneCreateConfig }
   | { type: 'pane.close'; paneId: string }
+  | { type: 'pane.rename'; paneId: string; name: string }
   | { type: 'pane.restart'; paneId: string; mode: RestoreMode; sessionId?: string }
   | { type: 'broadcast.send'; groupId: string; message: string }
   | { type: 'task.dispatch'; tasks: TaskItem[] }
@@ -86,6 +107,7 @@ export type ServerEvent =
   | { type: 'pane.status'; paneId: string; status: PaneStatus }
   | { type: 'pane.meta'; paneId: string; meta: PaneMeta }
   | { type: 'pane.added'; pane: PaneState }
+  | { type: 'pane.renamed'; paneId: string; name: string }
   | { type: 'pane.create.failed'; message: string }
   | { type: 'pane.removed'; paneId: string }
   | { type: 'fs.tree'; tree: FileNode[] }
@@ -106,6 +128,7 @@ export interface PaneCreateConfig {
   agent: AgentType
   workdir?: string
   task?: string
+  mission?: PaneMission
   restore: RestoreMode
   isolation?: IsolationMode
   yolo?: boolean
@@ -235,6 +258,9 @@ export interface GlobalConfig {
     theme: string
   }
   agents: Record<string, AgentDefinition>
+  mission_defaults?: {
+    agent_type?: AgentType
+  }
   models: ModelConfig
 }
 

@@ -27,6 +27,7 @@ function nextPaneId(): string {
 
 export interface EventHandlers {
   onPaneAdded?: (pane: PaneState) => void
+  onPaneRenamed?: (paneId: string, name: string) => void
   onPaneRemoved?: (paneId: string) => void
   onConversationEvent?: (paneId: string, event: ConversationEvent) => void
   onPaneStatus?: (paneId: string, status: PaneStatus) => void
@@ -56,6 +57,7 @@ export class WorkspaceManager {
   // Multi-client event listener sets
   private listeners: { [K in ListenerKey]: Set<NonNullable<EventHandlers[K]>> } = {
     onPaneAdded: new Set(),
+    onPaneRenamed: new Set(),
     onPaneRemoved: new Set(),
     onConversationEvent: new Set(),
     onPaneStatus: new Set(),
@@ -212,6 +214,17 @@ export class WorkspaceManager {
     this.removePaneFromConfig(paneId)
   }
 
+  renamePane(paneId: string, name: string): void {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Pane title cannot be empty')
+    const pane = this.panes.get(paneId)
+    if (!pane) throw new Error(`Pane not found: ${paneId}`)
+
+    pane.name = trimmed
+    this.updatePaneConfigName(paneId, trimmed)
+    this.emit('onPaneRenamed', paneId, trimmed)
+  }
+
   restartPane(paneId: string, mode: RestoreMode, sessionId?: string): void {
     const existingState = this.panes.get(paneId)
     if (!existingState) return
@@ -229,6 +242,7 @@ export class WorkspaceManager {
       agent: existingState.agent,
       workdir: existingState.workdir,
       task: existingState.task,
+      mission: existingState.mission,
       restore: mode,
       isolation: existingState.isolation,
       yolo: existingState.yolo || false,
@@ -373,6 +387,7 @@ export class WorkspaceManager {
       agent: config.agent,
       workdir: config.workdir,
       task: config.task,
+      mission: config.mission,
       restore: config.restore,
       isolation: config.isolation || 'shared',
       yolo: config.yolo || false,
@@ -463,6 +478,19 @@ export class WorkspaceManager {
         const paneConfig = wsConfig.panes.find((p) => p.id === paneId)
         if (paneConfig) {
           paneConfig.sessionId = sessionId
+          this.configManager.saveWorkspaceConfig(wsConfig)
+        }
+      }
+    })
+  }
+
+  private updatePaneConfigName(paneId: string, name: string): void {
+    this.serializedConfigWrite(() => {
+      const wsConfig = this.configManager.loadWorkspaceConfig()
+      if (wsConfig) {
+        const paneConfig = wsConfig.panes.find((p) => p.id === paneId)
+        if (paneConfig) {
+          paneConfig.name = name
           this.configManager.saveWorkspaceConfig(wsConfig)
         }
       }

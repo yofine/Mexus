@@ -20,6 +20,8 @@ import { ConfigManager } from '../workspace/ConfigManager.ts'
 import { testModelProviderConnection } from '../models/ModelConnectionTester.ts'
 import type { GlobalConfig, ModelDefinition, ModelProviderConfig } from '../types.ts'
 import { startHubConsole } from './HubConsole.ts'
+import { MissionService } from '../mission/MissionService.ts'
+import { registerMissionRoutes } from '../mission/routes.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const HUB_LOG_DIR = path.join(os.homedir(), '.nexus', 'hub-logs')
@@ -44,7 +46,13 @@ function addCorsHeaders(reply: { header: (name: string, value: string) => void }
 }
 
 function resolveWebDistPath(): string {
-  return path.resolve(__dirname, '../../web/dist')
+  const candidates = [
+    // Dist runtime: packages/server/dist/cli.mjs -> packages/web/dist
+    path.resolve(__dirname, '../../web/dist'),
+    // Source dev runtime: packages/server/src/hub/index.ts -> packages/web/dist
+    path.resolve(__dirname, '../../../web/dist'),
+  ]
+  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0]
 }
 
 function localInstanceUpstream(port: string | number): string {
@@ -121,6 +129,7 @@ async function stopLocalInstance(port: number): Promise<boolean> {
 export async function buildHubServer(cliEntry: string) {
   const fastify = Fastify({ logger: false })
   const configManager = new ConfigManager(process.cwd())
+  const missionService = new MissionService(process.cwd(), configManager)
 
   fastify.addHook('onRequest', async (request, reply) => {
     addCorsHeaders(reply)
@@ -179,6 +188,11 @@ export async function buildHubServer(cliEntry: string) {
 
   fastify.get('/api/agents', async () => {
     return configManager.checkAgentAvailability()
+  })
+
+  registerMissionRoutes(fastify, missionService, {
+    allowCreate: false,
+    createDisabledMessage: 'Connect to a workspace instance to create Missions',
   })
 
   await fastify.register(fastifyProxy, {

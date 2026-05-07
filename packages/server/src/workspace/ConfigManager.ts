@@ -75,6 +75,7 @@ const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
       env: {},
     },
   },
+  mission_defaults: {},
   models: {
     defaults: {
       tool_model: '',
@@ -143,6 +144,17 @@ function mergeMissingGlobalConfig(config: GlobalConfig): boolean {
         }
       }
     }
+  }
+
+  if (!config.mission_defaults) {
+    config.mission_defaults = {}
+    updated = true
+  } else if (
+    config.mission_defaults.agent_type &&
+    (config.mission_defaults.agent_type === '__shell__' || !config.agents[config.mission_defaults.agent_type])
+  ) {
+    delete config.mission_defaults.agent_type
+    updated = true
   }
 
   if (!config.models) {
@@ -225,6 +237,7 @@ export class ConfigManager {
       const parsed = yaml.load(content) as WorkspaceConfig | null
       if (parsed) {
         if (!Array.isArray(parsed.panes)) parsed.panes = []
+        if (!('active_mission' in parsed)) parsed.active_mission = undefined
         this.workspaceConfig = parsed
         return this.workspaceConfig
       }
@@ -369,6 +382,7 @@ export class ConfigManager {
   }
 
   updateGlobalConfig(config: GlobalConfig): void {
+    mergeMissingGlobalConfig(config)
     this.globalConfig = config
     this.saveGlobalConfig(config)
   }

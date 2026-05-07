@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "license": "Apache-2.0",
+  "author": "yofine",
   "scripts": {
     "dev": "vite --port 7701",
     "build": "tsc -b && vite build",

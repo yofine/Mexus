@@ -24,7 +24,7 @@ import { Card } from './ui/card'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Select } from './ui/select'
-import type { GlobalConfig, AgentDefinition, AgentAvailability, ModelDefinition, ModelProviderConfig, ModelProviderType } from '@/types'
+import type { GlobalConfig, AgentDefinition, AgentAvailability, ModelDefinition, ModelProviderConfig, ModelProviderType, AgentType } from '@/types'
 import { api, hubApi } from '@/lib/apiBase'
 
 interface SettingsDialogProps {
@@ -225,6 +225,16 @@ export function SettingsDialog({ isOpen, onClose, scope = 'server', mode = 'dial
     setConfig({ ...config, defaults: { ...config.defaults, [key]: value } })
   }, [config])
 
+  const handleMissionDefaultAgentChange = useCallback((agentType: string) => {
+    if (!config) return
+    setConfig({
+      ...config,
+      mission_defaults: agentType
+        ? { ...(config.mission_defaults || {}), agent_type: agentType as AgentType }
+        : {},
+    })
+  }, [config])
+
   const handleAgentUpdate = useCallback((agentKey: string, field: keyof AgentDefinition, value: string | boolean) => {
     if (!config) return
     const agent = config.agents[agentKey]
@@ -375,6 +385,8 @@ export function SettingsDialog({ isOpen, onClose, scope = 'server', mode = 'dial
                 onThemeChange={handleThemeChange}
                 onFontChange={handleFontChange}
                 onDefaultsChange={handleDefaultsChange}
+                onMissionDefaultAgentChange={handleMissionDefaultAgentChange}
+                availability={availability}
               />
             )}
             {!loading && config && activeTab === 'shortcuts' && <ShortcutsTab />}
@@ -418,17 +430,25 @@ function GeneralTab({
   config,
   currentTheme,
   currentFont,
+  availability,
   onThemeChange,
   onFontChange,
   onDefaultsChange,
+  onMissionDefaultAgentChange,
 }: {
   config: GlobalConfig | null
   currentTheme: string
   currentFont: string
+  availability: Record<string, AgentAvailability>
   onThemeChange: (id: string) => void
   onFontChange: (value: string) => void
   onDefaultsChange: (key: string, value: string | number) => void
+  onMissionDefaultAgentChange: (agentType: string) => void
 }) {
+  const missionAgentOptions = Object.keys(config?.agents || {}).filter((key) => key !== '__shell__')
+  const missionDefaultAgent = config?.mission_defaults?.agent_type || ''
+  const selectedMissionAgentAvailability = missionDefaultAgent ? availability[missionDefaultAgent] : undefined
+
   return (
     <div className="settings-section-list">
       <section className="settings-section">
@@ -509,6 +529,29 @@ function GeneralTab({
               value={config?.defaults.history_retention_days || 30}
               onChange={(e) => onDefaultsChange('history_retention_days', parseInt(e.target.value) || 30)}
             />
+          </div>
+          <div className="settings-field">
+            <Label>Mission Default Agent</Label>
+            <Select
+              value={missionDefaultAgent}
+              onChange={(e) => onMissionDefaultAgentChange(e.target.value)}
+            >
+              <option value="">Not configured</option>
+              {missionAgentOptions.map((agentType) => {
+                const display = AGENT_DISPLAY[agentType] || { name: agentType, desc: '' }
+                const installed = availability[agentType]?.installed
+                return (
+                  <option key={agentType} value={agentType}>
+                    {display.name}{installed === false ? ' (not found)' : ''}
+                  </option>
+                )
+              })}
+            </Select>
+            {selectedMissionAgentAvailability?.installed === false && (
+              <span style={{ fontSize: 'var(--font-xs)', color: '#F0883E' }}>
+                {selectedMissionAgentAvailability.installHint}
+              </span>
+            )}
           </div>
         </div>
       </section>
