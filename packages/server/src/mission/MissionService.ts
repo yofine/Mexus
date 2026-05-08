@@ -2,6 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ConfigManager } from '../workspace/ConfigManager.ts'
 import type { AgentType, PaneCreateConfig } from '../types.ts'
+import { parseMissionKanban, type MissionTask } from './missionParsers.ts'
+export type { MissionTask } from './missionParsers.ts'
 
 export type MissionLifecycle = 'active' | 'inactive' | 'completed'
 
@@ -27,18 +29,6 @@ export interface MissionFile {
   exists: boolean
   raw: string
   parseError?: string
-}
-
-export interface MissionTask {
-  to: string
-  from: string
-  scope: string
-  ref?: string
-  request?: string
-  acceptance?: string
-  updated?: string
-  review?: string
-  raw: string
 }
 
 export interface MissionDetail {
@@ -153,69 +143,6 @@ function parseMissionFields(raw: string): Pick<MissionSummary, 'title' | 'create
   }
 }
 
-function parseTaskBlock(raw: string): MissionTask | null {
-  const header = raw.match(/^To:\s*(.*?)\s*\|\s*From:\s*(.*?)\s*\|\s*Scope:\s*(.*)$/m)
-  if (!header) return null
-  const field = (label: string) => raw.match(new RegExp(`^- ${label}:\\s*(.*)$`, 'm'))?.[1]?.trim()
-  return {
-    to: header[1].trim(),
-    from: header[2].trim(),
-    scope: header[3].trim(),
-    ref: field('Ref'),
-    request: field('Request'),
-    acceptance: field('Acceptance'),
-    updated: field('Updated'),
-    review: field('Review'),
-    raw,
-  }
-}
-
-function splitSection(raw: string, section: string, nextSections: string[]): string | null {
-  const start = raw.match(new RegExp(`^## ${section}\\s*$`, 'm'))
-  if (!start || start.index === undefined) return null
-  const bodyStart = start.index + start[0].length
-  let bodyEnd = raw.length
-  for (const next of nextSections) {
-    const match = raw.slice(bodyStart).match(new RegExp(`\\n## ${next}\\s*$`, 'm'))
-    if (match?.index !== undefined) {
-      bodyEnd = Math.min(bodyEnd, bodyStart + match.index)
-    }
-  }
-  return raw.slice(bodyStart, bodyEnd).trim()
-}
-
-function parseTasks(sectionRaw: string): MissionTask[] {
-  if (!sectionRaw || /^No tasks /m.test(sectionRaw)) return []
-  const starts = Array.from(sectionRaw.matchAll(/^To:\s.*$/gm))
-    .map((match) => match.index)
-    .filter((index): index is number => index !== undefined)
-  return starts
-    .map((start, index) => {
-      const end = starts[index + 1] ?? sectionRaw.length
-      return parseTaskBlock(sectionRaw.slice(start, end).trim())
-    })
-    .filter((task): task is MissionTask => Boolean(task))
-}
-
-function parseKanban(raw: string): { tasks: MissionDetail['kanban']; parseError?: string } {
-  const toClaim = splitSection(raw, 'To Claim', ['In Progress', 'Done'])
-  const inProgress = splitSection(raw, 'In Progress', ['Done'])
-  const done = splitSection(raw, 'Done', [])
-  if (toClaim === null || inProgress === null || done === null) {
-    return {
-      tasks: { toClaim: [], inProgress: [], done: [] },
-      parseError: 'Kanban sections To Claim, In Progress, and Done were not all found.',
-    }
-  }
-  return {
-    tasks: {
-      toClaim: parseTasks(toClaim),
-      inProgress: parseTasks(inProgress),
-      done: parseTasks(done),
-    },
-  }
-}
-
 export class MissionService {
   constructor(
     private readonly projectDir: string,
@@ -244,9 +171,9 @@ export class MissionService {
     }
 
     const files = this.readMissionFiles(name)
-    const parsed = parseKanban(files.kanban.raw)
-    if (parsed.parseError && files.kanban.exists) {
-      files.kanban.parseError = parsed.parseError
+    const parsed = parseMissionKanban(files.kanban.raw)
+    if (!parsed.ok && files.kanban.exists) {
+      files.kanban.parseError = parsed.error
     }
 
     return {
@@ -373,7 +300,7 @@ export class MissionService {
       .filter((filename) => !fs.existsSync(path.join(missionDir, filename)))
     const missionRaw = readOptional(path.join(missionDir, 'mission.md'))
     const kanbanRaw = readOptional(path.join(missionDir, 'kanban.md'))
-    const parsed = parseKanban(kanbanRaw)
+    const parsed = parseMissionKanban(kanbanRaw)
     return {
       name,
       path: rel,

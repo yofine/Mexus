@@ -18,6 +18,7 @@ import { register as registerInstance, markStoppedByPid } from './hub/InstanceRe
 import { testModelProviderConnection } from './models/ModelConnectionTester.ts'
 import { MissionService } from './mission/MissionService.ts'
 import { registerMissionRoutes } from './mission/routes.ts'
+import { MissionInboxPipeline } from './mission/MissionInboxPipeline.ts'
 import type { GlobalConfig, ModelDefinition, ModelProviderConfig } from './types.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -41,6 +42,8 @@ export async function startServer(port: number, projectDir: string) {
   const workspaceManager = new WorkspaceManager(configManager)
   await workspaceManager.init()
   const missionService = new MissionService(projectDir, configManager, workspaceManager)
+  const missionInboxPipeline = new MissionInboxPipeline({ projectDir, missionService, workspaceManager })
+  await missionInboxPipeline.start()
 
   // agents.yaml writer — updates on pane state changes
   const agentsWriter = new AgentsYamlWriter(projectDir)
@@ -172,7 +175,9 @@ export async function startServer(port: number, projectDir: string) {
     }
   })
 
-  registerMissionRoutes(fastify, missionService)
+  registerMissionRoutes(fastify, missionService, {
+    onMissionChanged: () => missionInboxPipeline.restartForActiveMission(),
+  })
 
   // Session discovery (claude sessions list)
   const sessionDiscovery = new SessionDiscovery(configManager)
@@ -354,6 +359,10 @@ export async function startServer(port: number, projectDir: string) {
       reply.sendFile('index.html')
     })
   }
+
+  fastify.addHook('onClose', async () => {
+    await missionInboxPipeline.stop()
+  })
 
   // Graceful shutdown
   const shutdown = async () => {

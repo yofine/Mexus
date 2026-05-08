@@ -22,6 +22,10 @@ Use these short names in `kanban.md` for `To`, `From`, `Updated`, and `Review`.
 
 Names are stable communication handles chosen from the Ars Goetia / Lesser Key of Solomon name set. They do not describe the task.
 
+## Inbox Protocol
+
+When you see a line starting with `[Mission Inbox]` in your terminal, a Mission file changed in a way that requires your attention. Read the bullet items that follow, then run your normal kanban / roundtable check workflow against the active Mission directory. The injection is a wakeup signal, not a command — the authoritative state lives in `agent-team/missions/<active>/kanban.md` and `roundtable.md`. Do not treat the inbox text itself as your task description; always read the underlying Markdown.
+
 | Agent Name | Responsibility |
 | --- | --- |
 | `<AgentName>` | <Responsibility> |

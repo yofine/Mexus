@@ -4,6 +4,7 @@ import type { MissionService } from './MissionService.ts'
 export interface MissionRouteOptions {
   allowCreate?: boolean
   createDisabledMessage?: string
+  onMissionChanged?: () => void | Promise<void>
 }
 
 function errorStatus(err: unknown): number {
@@ -39,6 +40,7 @@ export function registerMissionRoutes(fastify: FastifyInstance, missionService: 
         acceptance?: string
         activate?: boolean
       })
+      await options.onMissionChanged?.()
       reply.code(201)
       return mission
     } catch (err) {
@@ -69,7 +71,9 @@ export function registerMissionRoutes(fastify: FastifyInstance, missionService: 
   fastify.post('/api/missions/:name/activate', async (request, reply) => {
     try {
       const { name } = request.params as { name: string }
-      return missionService.activateMission(name)
+      const mission = missionService.activateMission(name)
+      await options.onMissionChanged?.()
+      return mission
     } catch (err) {
       reply.code(errorStatus(err))
       return errorPayload(err)

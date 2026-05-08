@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import Fastify from 'fastify'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ConfigManager } from '../workspace/ConfigManager.ts'
 import { MissionService } from './MissionService.ts'
 import { registerMissionRoutes } from './routes.ts'
@@ -86,6 +86,27 @@ describe('Mission REST routes', () => {
     })
     const activate = await fastify.inject({ method: 'POST', url: '/api/missions/other/activate' })
     expect(activate.json().summary.lifecycle).toBe('active')
+  })
+
+  it('calls the mission changed hook after create and activate mutations', async () => {
+    const projectDir = makeTempProject()
+    const fastify = Fastify()
+    const onMissionChanged = vi.fn()
+    registerMissionRoutes(fastify, new MissionService(projectDir, new ConfigManager(projectDir)), { onMissionChanged })
+
+    await fastify.inject({
+      method: 'POST',
+      url: '/api/missions',
+      payload: { name: 'one', activate: true },
+    })
+    await fastify.inject({
+      method: 'POST',
+      url: '/api/missions',
+      payload: { name: 'two', activate: false },
+    })
+    await fastify.inject({ method: 'POST', url: '/api/missions/two/activate' })
+
+    expect(onMissionChanged).toHaveBeenCalledTimes(3)
   })
 
   it('returns safe errors for invalid Mission names', async () => {

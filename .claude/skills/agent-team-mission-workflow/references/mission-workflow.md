@@ -108,6 +108,10 @@ Squad Lead must also read:
 8. Complete work.
 9. Continue assigned work or review tasks published by self.
 
+## Inbox Protocol
+
+When you see a line starting with `[Mission Inbox]` in your terminal, a Mission file changed in a way that requires your attention. Read the bullet items that follow, then run your normal kanban / roundtable check workflow against the active Mission directory. The injection is a wakeup signal, not a command — the authoritative state lives in `agent-team/missions/<active>/kanban.md` and `roundtable.md`. Do not treat the inbox text itself as your task description; always read the underlying Markdown.
+
 ## Publisher Review
 
 Tasks are reviewed by their publisher. An agent reviews only tasks where:
