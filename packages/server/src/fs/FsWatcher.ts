@@ -1,174 +1,77 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { watch, type FSWatcher } from 'chokidar'
+import watcher, { type AsyncSubscription, type Event } from '@parcel/watcher'
+import ignore, { type Ignore } from 'ignore'
 import type { FileNode, FileActivity } from '../types.ts'
 
-const IGNORED_DIRS = new Set([
+const BUILTIN_IGNORE_PATTERNS = [
   // VCS / editor
-  '.git',
-  '.svn',
-  '.hg',
-  '.idea',
-  '.vscode',
+  '.git', '.svn', '.hg', '.idea', '.vscode',
   // Mexus runtime
   '.nexus',
   // JS / TS ecosystem
-  'node_modules',
-  '.pnpm',
-  '.yarn',
-  '.npm',
-  '.turbo',
-  '.next',
-  '.nuxt',
-  '.svelte-kit',
-  '.astro',
-  '.vercel',
-  '.netlify',
-  '.parcel-cache',
-  '.vite',
-  '.rollup.cache',
-  '.webpack',
+  'node_modules', '.pnpm', '.yarn', '.npm', '.turbo',
+  '.next', '.nuxt', '.svelte-kit', '.astro',
+  '.vercel', '.netlify', '.parcel-cache', '.vite',
+  '.rollup.cache', '.webpack',
   // Build / output
-  'dist',
-  'build',
-  'out',
-  '.output',
-  'coverage',
-  '.nyc_output',
+  'dist', 'build', 'out', '.output', 'coverage', '.nyc_output',
   // Generic caches
-  '.cache',
-  'tmp',
-  '.tmp',
-  'temp',
-  '.temp',
-  'logs',
+  '.cache', 'tmp', '.tmp', 'temp', '.temp', 'logs',
   // Python
-  '__pycache__',
-  '.pytest_cache',
-  '.mypy_cache',
-  '.ruff_cache',
-  '.tox',
-  '.venv',
-  'venv',
-  'env',
-  '.eggs',
+  '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache',
+  '.tox', '.venv', 'venv', 'env', '.eggs',
   // Rust / Go / Java
-  'target',
-  '.gradle',
-  '.mvn',
+  'target', '.gradle', '.mvn',
   // iOS / Android
-  'Pods',
-  'DerivedData',
-  '.xcodeproj',
-  '.build',
+  'Pods', 'DerivedData', '.xcodeproj', '.build',
   // Examples / fixtures / vendored
-  'demo',
-  'demos',
-  'example',
-  'examples',
-  'fixtures',
-  '__fixtures__',
-  '__snapshots__',
-  'vendor',
-  'third_party',
-  'storybook-static',
-])
+  'demo', 'demos', 'example', 'examples',
+  'fixtures', '__fixtures__', '__snapshots__',
+  'vendor', 'third_party', 'storybook-static',
+]
 
-const IGNORED_FILES = new Set([
-  '.DS_Store',
-  'Thumbs.db',
-  'desktop.ini',
-  '.env.local',
-])
+const BUILTIN_IGNORE_FILES = ['.DS_Store', 'Thumbs.db', 'desktop.ini', '.env.local']
 
 export class FsWatcher {
   private projectDir: string
-  private watcher: FSWatcher | null = null
+  private subscription: AsyncSubscription | null = null
   private tree: FileNode[] = []
   private debounceTimer: ReturnType<typeof setTimeout> | null = null
   private listeners = new Set<(tree: FileNode[]) => void>()
   private fileChangeListeners = new Set<(activity: FileActivity) => void>()
-  private recentChanges = new Map<string, number>() // path → timestamp for dedup
+  private recentChanges = new Map<string, number>()
+  private ig: Ignore = ignore()
 
   constructor(projectDir: string) {
     this.projectDir = projectDir
   }
 
-  start(): void {
-    // Build initial tree synchronously
+  async start(): Promise<void> {
+    this.rebuildIgnore()
     this.tree = this.buildTree(this.projectDir, 0)
     this.notifyListeners()
 
-    // Watch top-level directory only (depth 0) for structural changes
-    // Use function-based ignored to reliably filter out heavy directories.
-    // Check every path segment so nested matches (e.g. apps/foo/.turbo/cookies/x)
-    // are pruned before chokidar descends and exhausts file descriptors.
-    this.watcher = watch(this.projectDir, {
-      ignored: (filePath: string) => {
-        const basename = path.basename(filePath)
-        if (IGNORED_FILES.has(basename)) return true
-        const rel = path.relative(this.projectDir, filePath)
-        if (!rel || rel.startsWith('..')) return false
-        for (const seg of rel.split(path.sep)) {
-          if (IGNORED_DIRS.has(seg)) return true
-        }
-        return false
-      },
-      persistent: true,
-      ignoreInitial: true,
-      depth: 5,
-    })
+    // @parcel/watcher takes a flat array of glob-like paths to ignore.
+    // Builtin names match anywhere in the tree.
+    const ignoreGlobs: string[] = [
+      ...BUILTIN_IGNORE_PATTERNS.map((d) => `**/${d}`),
+      ...BUILTIN_IGNORE_PATTERNS.map((d) => `**/${d}/**`),
+      ...BUILTIN_IGNORE_FILES.map((f) => `**/${f}`),
+    ]
 
-    const scheduleRebuild = () => {
-      if (this.debounceTimer) clearTimeout(this.debounceTimer)
-      this.debounceTimer = setTimeout(() => {
-        const newTree = this.buildTree(this.projectDir, 0)
-        // Skip broadcast if tree hasn't structurally changed
-        if (this.treeFingerprint(newTree) === this.treeFingerprint(this.tree)) return
-        this.tree = newTree
-        this.notifyListeners()
-      }, 300)
+    try {
+      this.subscription = await watcher.subscribe(
+        this.projectDir,
+        (err, events) => {
+          if (err) return
+          this.handleEvents(events)
+        },
+        { ignore: ignoreGlobs },
+      )
+    } catch {
+      // Watcher init failed — tree was built synchronously, just no live updates.
     }
-
-    // Emit individual file change events for activity tracking
-    const emitFileChange = (eventType: 'add' | 'change' | 'unlink', filePath: string) => {
-      // Only emit for files, not directories
-      const relativePath = path.relative(this.projectDir, filePath)
-      if (!relativePath || relativePath.startsWith('..')) return
-      // Skip files without extension (likely directories or special files)
-      if (!/\.\w{1,10}$/.test(path.basename(filePath))) return
-      // Dedup: skip if same file changed within 1s
-      const now = Date.now()
-      const lastChange = this.recentChanges.get(relativePath)
-      if (lastChange && now - lastChange < 1000) return
-      this.recentChanges.set(relativePath, now)
-      // Clean old entries periodically
-      if (this.recentChanges.size > 200) {
-        for (const [key, ts] of this.recentChanges) {
-          if (now - ts > 10000) this.recentChanges.delete(key)
-        }
-      }
-
-      const actionMap = { add: 'create' as const, change: 'edit' as const, unlink: 'delete' as const }
-      const activity: FileActivity = {
-        file: relativePath,
-        action: actionMap[eventType],
-        timestamp: now,
-      }
-      for (const listener of this.fileChangeListeners) {
-        listener(activity)
-      }
-    }
-
-    this.watcher.on('add', (p) => { emitFileChange('add', p); scheduleRebuild() })
-    this.watcher.on('change', (p) => { emitFileChange('change', p) })
-    this.watcher.on('unlink', (p) => { emitFileChange('unlink', p); scheduleRebuild() })
-    this.watcher.on('addDir', scheduleRebuild)
-    this.watcher.on('unlinkDir', scheduleRebuild)
-    this.watcher.on('error', () => {
-      // Silently handle watcher errors (e.g., ENOSPC)
-      // Tree is still built synchronously, just won't auto-update
-    })
   }
 
   getTree(): FileNode[] {
@@ -185,20 +88,81 @@ export class FsWatcher {
     return () => this.fileChangeListeners.delete(callback)
   }
 
-  close(): void {
+  async close(): Promise<void> {
     if (this.debounceTimer) clearTimeout(this.debounceTimer)
-    this.watcher?.close()
-    this.watcher = null
+    await this.subscription?.unsubscribe().catch(() => {})
+    this.subscription = null
+  }
+
+  private handleEvents(events: Event[]): void {
+    let needsRebuild = false
+    for (const e of events) {
+      const rel = path.relative(this.projectDir, e.path)
+      if (!rel || rel.startsWith('..')) continue
+      // Apply user .gitignore / .mexusignore on top of builtin globs.
+      if (this.ig.ignores(rel)) continue
+
+      this.emitFileChange(e.type, rel)
+      if (e.type === 'create' || e.type === 'delete') needsRebuild = true
+    }
+    if (needsRebuild) this.scheduleRebuild()
+  }
+
+  private emitFileChange(type: Event['type'], relativePath: string): void {
+    const basename = path.basename(relativePath)
+    if (!/\.\w{1,10}$/.test(basename)) return
+
+    const now = Date.now()
+    const lastChange = this.recentChanges.get(relativePath)
+    if (lastChange && now - lastChange < 1000) return
+    this.recentChanges.set(relativePath, now)
+    if (this.recentChanges.size > 200) {
+      for (const [key, ts] of this.recentChanges) {
+        if (now - ts > 10000) this.recentChanges.delete(key)
+      }
+    }
+
+    const actionMap = {
+      create: 'create' as const,
+      update: 'edit' as const,
+      delete: 'delete' as const,
+    }
+    const activity: FileActivity = {
+      file: relativePath,
+      action: actionMap[type],
+      timestamp: now,
+    }
+    for (const listener of this.fileChangeListeners) listener(activity)
+  }
+
+  private scheduleRebuild(): void {
+    if (this.debounceTimer) clearTimeout(this.debounceTimer)
+    this.debounceTimer = setTimeout(() => {
+      const newTree = this.buildTree(this.projectDir, 0)
+      if (this.treeFingerprint(newTree) === this.treeFingerprint(this.tree)) return
+      this.tree = newTree
+      this.notifyListeners()
+    }, 300)
+  }
+
+  private rebuildIgnore(): void {
+    const ig = ignore()
+    for (const fname of ['.gitignore', '.mexusignore']) {
+      try {
+        const raw = fs.readFileSync(path.join(this.projectDir, fname), 'utf-8')
+        ig.add(raw)
+      } catch {
+        // missing file — fine
+      }
+    }
+    this.ig = ig
   }
 
   private notifyListeners(): void {
-    for (const listener of this.listeners) {
-      listener(this.tree)
-    }
+    for (const listener of this.listeners) listener(this.tree)
   }
 
   private treeFingerprint(tree: FileNode[]): string {
-    // Fast structural fingerprint: concatenate paths and types
     const parts: string[] = []
     const walk = (nodes: FileNode[]) => {
       for (const n of nodes) {
@@ -211,17 +175,21 @@ export class FsWatcher {
   }
 
   private buildTree(dirPath: string, depth: number): FileNode[] {
-    if (depth > 5) return [] // Match chokidar watch depth
+    if (depth > 5) return []
 
     try {
       const entries = fs.readdirSync(dirPath, { withFileTypes: true })
       const nodes: FileNode[] = []
 
       for (const entry of entries) {
-        if (IGNORED_DIRS.has(entry.name) || IGNORED_FILES.has(entry.name)) continue
+        if (BUILTIN_IGNORE_FILES.includes(entry.name)) continue
+        if (BUILTIN_IGNORE_PATTERNS.includes(entry.name)) continue
 
         const fullPath = path.join(dirPath, entry.name)
         const relativePath = path.relative(this.projectDir, fullPath)
+        // Honor .gitignore / .mexusignore when listing.
+        if (this.ig.ignores(relativePath)) continue
+        if (entry.isDirectory() && this.ig.ignores(relativePath + '/')) continue
 
         if (entry.isDirectory()) {
           nodes.push({
@@ -239,7 +207,6 @@ export class FsWatcher {
         }
       }
 
-      // Sort: directories first, then files, alphabetical within each group
       nodes.sort((a, b) => {
         if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
         return a.name.localeCompare(b.name)

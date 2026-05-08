@@ -75,22 +75,25 @@ export async function startServer(port: number, projectDir: string) {
   fsWatcher.onTreeChange((tree) => {
     workspaceManager.emitFileTree(tree)
   })
-  fsWatcher.onFileChange((activity) => {
-    workspaceManager.emitFileActivity(activity)
-    // Also feed file changes to session recorder for diff capture
-    recorder.onFileActivityForReplay(activity)
-  })
-  try {
-    fsWatcher.start()
-  } catch (err) {
-    console.warn('[FsWatcher] Failed to start file watcher:', (err as Error).message)
-  }
-
-  // Git service
+  // Git service (constructed before fs wiring so onFileChange can poke it)
   const gitService = new GitService(projectDir)
   gitService.onDiffChange((result) => {
     workspaceManager.emitGitDiff(result)
   })
+
+  fsWatcher.onFileChange((activity) => {
+    workspaceManager.emitFileActivity(activity)
+    // Feed file changes to session recorder for diff capture
+    recorder.onFileActivityForReplay(activity)
+    // Trigger a debounced git diff refresh so the working-tree panel stays live
+    gitService.notifyWorkingTreeChange()
+  })
+  try {
+    await fsWatcher.start()
+  } catch (err) {
+    console.warn('[FsWatcher] Failed to start file watcher:', (err as Error).message)
+  }
+
   try {
     await gitService.start()
   } catch (err) {
@@ -358,8 +361,8 @@ export async function startServer(port: number, projectDir: string) {
     markStoppedByPid(process.pid)
     recorder.flush()
     agentsWriter.flush(workspaceManager.getPanes())
-    fsWatcher.close()
-    gitService.close()
+    await fsWatcher.close()
+    await gitService.close()
     await workspaceManager.shutdown()
     await fastify.close()
     process.exit(0)
