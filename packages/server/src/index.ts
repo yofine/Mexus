@@ -16,6 +16,10 @@ import { SessionRecorder } from './history/SessionRecorder.ts'
 import { SessionDiscovery } from './workspace/SessionDiscovery.ts'
 import { register as registerInstance, markStoppedByPid } from './hub/InstanceRegistry.ts'
 import { testModelProviderConnection } from './models/ModelConnectionTester.ts'
+import { MissionService } from './mission/MissionService.ts'
+import { registerMissionRoutes } from './mission/routes.ts'
+import { MissionInboxPipeline } from './mission/MissionInboxPipeline.ts'
+import { registerPaneRoutes } from './pane/routes.ts'
 import type { GlobalConfig, ModelDefinition, ModelProviderConfig } from './types.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -38,6 +42,9 @@ export async function startServer(port: number, projectDir: string) {
 
   const workspaceManager = new WorkspaceManager(configManager)
   await workspaceManager.init()
+  const missionService = new MissionService(projectDir, configManager, workspaceManager)
+  const missionInboxPipeline = new MissionInboxPipeline({ projectDir, missionService, workspaceManager })
+  await missionInboxPipeline.start()
 
   // agents.yaml writer — updates on pane state changes
   const agentsWriter = new AgentsYamlWriter(projectDir)
@@ -72,22 +79,25 @@ export async function startServer(port: number, projectDir: string) {
   fsWatcher.onTreeChange((tree) => {
     workspaceManager.emitFileTree(tree)
   })
-  fsWatcher.onFileChange((activity) => {
-    workspaceManager.emitFileActivity(activity)
-    // Also feed file changes to session recorder for diff capture
-    recorder.onFileActivityForReplay(activity)
-  })
-  try {
-    fsWatcher.start()
-  } catch (err) {
-    console.warn('[FsWatcher] Failed to start file watcher:', (err as Error).message)
-  }
-
-  // Git service
+  // Git service (constructed before fs wiring so onFileChange can poke it)
   const gitService = new GitService(projectDir)
   gitService.onDiffChange((result) => {
     workspaceManager.emitGitDiff(result)
   })
+
+  fsWatcher.onFileChange((activity) => {
+    workspaceManager.emitFileActivity(activity)
+    // Feed file changes to session recorder for diff capture
+    recorder.onFileActivityForReplay(activity)
+    // Trigger a debounced git diff refresh so the working-tree panel stays live
+    gitService.notifyWorkingTreeChange()
+  })
+  try {
+    await fsWatcher.start()
+  } catch (err) {
+    console.warn('[FsWatcher] Failed to start file watcher:', (err as Error).message)
+  }
+
   try {
     await gitService.start()
   } catch (err) {
@@ -165,6 +175,11 @@ export async function startServer(port: number, projectDir: string) {
       return { ok: false, message: (err as Error).message }
     }
   })
+
+  registerMissionRoutes(fastify, missionService, {
+    onMissionChanged: () => missionInboxPipeline.restartForActiveMission(),
+  })
+  registerPaneRoutes(fastify, workspaceManager, configManager)
 
   // Session discovery (claude sessions list)
   const sessionDiscovery = new SessionDiscovery(configManager)
@@ -347,14 +362,18 @@ export async function startServer(port: number, projectDir: string) {
     })
   }
 
+  fastify.addHook('onClose', async () => {
+    await missionInboxPipeline.stop()
+  })
+
   // Graceful shutdown
   const shutdown = async () => {
     console.log('\nShutting down...')
     markStoppedByPid(process.pid)
     recorder.flush()
     agentsWriter.flush(workspaceManager.getPanes())
-    fsWatcher.close()
-    gitService.close()
+    await fsWatcher.close()
+    await gitService.close()
     await workspaceManager.shutdown()
     await fastify.close()
     process.exit(0)

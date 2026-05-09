@@ -18,7 +18,7 @@ describe('getCliCommandName', () => {
 
 describe('getSupportedCommands', () => {
   it('only exposes public CLI commands', () => {
-    expect(getSupportedCommands()).toEqual(['start', 'init', 'status', 'stop', 'hub', 'help'])
+    expect(getSupportedCommands()).toEqual(['start', 'init', 'status', 'stop', 'hub', 'pane', 'mission', 'help'])
   })
 })
 

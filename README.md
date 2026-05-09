@@ -2,14 +2,14 @@
 
 **M.E.X.U.S. = Multi-agent Execution Unified System**
 
-Mexus is the execution layer for multi-agent development. It turns scattered CLI AI agents into a unified local system: run them, observe them, review their work, and coordinate progress from one operator console.
+Mexus is the execution layer for multi-agent development. It turns scattered CLI AI agents into a unified local system: run them, observe their status, and review their work from one operator console.
 
 
 https://github.com/user-attachments/assets/1bde703f-dda8-4a83-9421-40e212c6aba1
 
 
 
-## Features
+## Current Features
 
 ### 🖥️ Multi-Agent Execution
 - Supports multiple agents: Claude Code, OpenCode, Aider, Codex, Gemini
@@ -26,7 +26,7 @@ https://github.com/user-attachments/assets/1bde703f-dda8-4a83-9421-40e212c6aba1
 ### 📊 Runtime Observation
 - Automatically parses Claude Code statusline for runtime info
 - Live display of model name, context usage %, cumulative cost, session ID
-- All agent states written to `.nexus/agents.yaml` for cross-agent awareness
+- Agent state is persisted under `.nexus/` for local session continuity
 
 ### 📁 Unified Review Surface
 - Live file tree with automatic change detection (chokidar)
@@ -58,10 +58,13 @@ https://github.com/user-attachments/assets/1bde703f-dda8-4a83-9421-40e212c6aba1
 # Install globally
 npm install -g mexus-cli
 
-# Start in the current directory
+# Recommended: start Mexus Hub
+mexus hub
+
+# Start a single workspace directly
 mexus
 
-# Start with a specific project path
+# Start a single workspace with a specific project path
 mexus ~/projects/my-app
 
 # Initialize project config
@@ -75,6 +78,9 @@ mexus stop
 
 # Custom port
 NEXUS_PORT=8080 mexus
+
+# Custom Hub port
+NEXUS_HUB_PORT=8081 mexus hub
 ```
 
 ### Development
@@ -120,7 +126,11 @@ CLI Agent Processes (node-pty)
 
 ## License
 
-MIT
+Copyright (c) 2026 yofine
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE) for details.
+
+"Mexus" and "M.E.X.U.S." are trademarks of yofine. The Apache License 2.0 does **not** grant permission to use these names. Forks must be rebranded.
 
 ## Star History
 

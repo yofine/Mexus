@@ -20,6 +20,7 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
   const resetWorkspace = useWorkspaceStore((s) => s.resetWorkspace)
   const addPane = useWorkspaceStore((s) => s.addPane)
   const removePane = useWorkspaceStore((s) => s.removePane)
+  const renamePane = useWorkspaceStore((s) => s.renamePane)
   const updatePaneStatus = useWorkspaceStore((s) => s.updatePaneStatus)
   const updatePaneMeta = useWorkspaceStore((s) => s.updatePaneMeta)
   const setConnectionStatus = useWorkspaceStore((s) => s.setConnectionStatus)
@@ -112,6 +113,11 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
           removePane(event.paneId)
           break
 
+        case 'pane.renamed':
+          debugLog('workspace-app', 'event:pane.renamed', { serverId: target.serverId, paneId: event.paneId, name: event.name })
+          renamePane(event.paneId, event.name)
+          break
+
         case 'fs.tree':
           setFileTree(event.tree)
           break
@@ -159,7 +165,7 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
           break
       }
     },
-    [target.serverId, setWorkspace, addPane, removePane, updatePaneStatus, updatePaneMeta, setConnectionStatus, setFileTree, setGitAllDiffs, setGitBranchInfo, setPaneDiffs, addActivity, addFileActivity, setMergeResult, clearMergeResult, applyConversationEvent],
+    [target.serverId, setWorkspace, addPane, removePane, renamePane, updatePaneStatus, updatePaneMeta, setConnectionStatus, setFileTree, setGitAllDiffs, setGitBranchInfo, setPaneDiffs, addActivity, addFileActivity, setMergeResult, clearMergeResult, applyConversationEvent],
   )
 
   const { send, status } = useWebSocket({ onMessage: handleMessage, target })

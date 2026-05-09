@@ -2,6 +2,9 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { startServer } from './index.ts'
+import { CliError, resolveServerUrl, type CliHttpClient, type CliIo } from './cli/http.ts'
+import { runPaneCommand } from './cli/pane.ts'
+import { runMissionCommand } from './cli/mission.ts'
 export function getCliCommandName(invokedPath?: string): 'mexus' | 'nexus' {
   const binaryName = invokedPath ? path.basename(invokedPath).toLowerCase() : ''
   return binaryName === 'nexus' ? 'nexus' : 'mexus'
@@ -18,7 +21,7 @@ export function shouldRunMain(invokedPath: string | undefined, moduleUrl: string
   }
 }
 
-const COMMANDS = ['start', 'init', 'status', 'stop', 'hub', 'help'] as const
+const COMMANDS = ['start', 'init', 'status', 'stop', 'hub', 'pane', 'mission', 'help'] as const
 
 export function getSupportedCommands(): string[] {
   return [...COMMANDS]
@@ -50,6 +53,8 @@ function printUsage(commandName: string) {
     status [dir]   Show workspace status
     stop           Stop the running server
     hub            Start Mexus Hub to manage all instances
+    pane           Manage Panes over REST
+    mission        Manage Agent Team Missions over REST
 
   Arguments:
     dir            Path to the project directory (defaults to cwd)
@@ -121,9 +126,23 @@ function resolveProjectDir(dirArg?: string): string {
 
 const COMMAND_SET = new Set(getSupportedCommands())
 
-async function main() {
-  const args = process.argv.slice(2)
-  const commandName = getCliCommandName(process.argv[1])
+export interface RunCliOptions {
+  argv: string[]
+  invokedPath?: string
+  env?: NodeJS.ProcessEnv
+  httpClient?: CliHttpClient
+  io?: CliIo
+}
+
+export async function runCli(options: RunCliOptions): Promise<void> {
+  const args = [...options.argv]
+  const env = options.env || process.env
+  const io = options.io || {
+    stdout: (text: string) => console.log(text),
+    stderr: (text: string) => console.error(text),
+  }
+  const httpClient = options.httpClient || { fetch }
+  const commandName = getCliCommandName(options.invokedPath)
 
   // Parse command and directory argument
   // Support: mexus <dir>, mexus <cmd> <dir>, mexus <cmd>
@@ -148,8 +167,18 @@ async function main() {
     return
   }
 
+  if (command === 'pane') {
+    await runPaneCommand(args.slice(1), resolveServerUrl(env), httpClient, io)
+    return
+  }
+
+  if (command === 'mission') {
+    await runMissionCommand(args.slice(1), resolveServerUrl(env), httpClient, io)
+    return
+  }
+
   if (command === 'hub') {
-    const hubPort = parseInt(process.env.NEXUS_HUB_PORT || String(DEFAULT_HUB_PORT), 10)
+    const hubPort = parseInt(env.NEXUS_HUB_PORT || String(DEFAULT_HUB_PORT), 10)
     const { startHub } = await import('./hub/index.ts')
     await startHub(hubPort, process.argv[1] || '')
     const url = `http://localhost:${hubPort}`
@@ -161,7 +190,7 @@ async function main() {
 
   switch (command) {
     case 'start': {
-      const port = parseInt(process.env.NEXUS_PORT || String(DEFAULT_PORT), 10)
+      const port = parseInt(env.NEXUS_PORT || String(DEFAULT_PORT), 10)
       await startServer(port, projectDir)
 
       // Check agent availability after server is up (non-blocking)
@@ -208,8 +237,8 @@ async function main() {
 
     case 'stop': {
       try {
-        const port = parseInt(process.env.NEXUS_PORT || String(DEFAULT_PORT), 10)
-        const res = await fetch(`http://localhost:${port}/api/health`)
+        const port = parseInt(env.NEXUS_PORT || String(DEFAULT_PORT), 10)
+        const res = await httpClient.fetch(`http://localhost:${port}/api/health`)
         if (res.ok) {
           console.log('Sending shutdown signal...')
           process.kill(process.pid, 'SIGTERM')
@@ -224,6 +253,23 @@ async function main() {
       console.error(`Unknown command: ${command}`)
       printUsage(commandName)
       process.exit(1)
+  }
+}
+
+async function main() {
+  try {
+    await runCli({
+      argv: process.argv.slice(2),
+      invokedPath: process.argv[1],
+      env: process.env,
+      httpClient: { fetch },
+    })
+  } catch (err) {
+    if (err instanceof CliError) {
+      console.error(err.message)
+      process.exit(err.exitCode)
+    }
+    throw err
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type ComponentPropsWithoutRef } from 'react'
+import { isValidElement, useState, useEffect, useRef, useMemo, type ComponentPropsWithoutRef, type ReactNode } from 'react'
 import { createHighlighter, type Highlighter } from 'shiki'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -31,6 +31,67 @@ function getHighlighter() {
 }
 
 type FileType = 'markdown' | 'svg' | 'mermaid' | 'image' | 'html' | 'csv' | 'tsv' | 'pdf' | 'json' | 'code'
+
+function extractText(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(extractText).join('')
+  if (isValidElement<{ children?: ReactNode }>(node)) return extractText(node.props.children)
+  return ''
+}
+
+function hasMermaidCode(node: ReactNode): boolean {
+  if (Array.isArray(node)) return node.some(hasMermaidCode)
+  if (!isValidElement<{ className?: string; children?: ReactNode }>(node)) return false
+  if (/\blanguage-mermaid\b/.test(node.props.className || '')) return true
+  return hasMermaidCode(node.props.children)
+}
+
+function copyTextFallback(text: string): boolean {
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.top = '-1000px'
+  textarea.style.left = '-1000px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const success = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  return success
+}
+
+function CopyCodeButton({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(code)
+      } else {
+        copyTextFallback(code)
+      }
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1200)
+    } catch {
+      if (copyTextFallback(code)) {
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 1200)
+      }
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="markdown-code-copy"
+      onClick={handleCopy}
+      aria-label="Copy code block"
+      title="Copy code"
+    >
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  )
+}
 
 function detectFileType(filePath: string): FileType {
   const ext = filePath.split('.').pop()?.toLowerCase() || ''
@@ -134,6 +195,16 @@ export function FileViewer({ filePath }: FileViewerProps) {
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
+                pre({ children, ...props }: ComponentPropsWithoutRef<'pre'>) {
+                  if (hasMermaidCode(children)) return <>{children}</>
+                  const code = extractText(children).replace(/\n$/, '')
+                  return (
+                    <div className="markdown-code-block">
+                      <CopyCodeButton code={code} />
+                      <pre {...props}>{children}</pre>
+                    </div>
+                  )
+                },
                 code({ className, children, ...props }: ComponentPropsWithoutRef<'code'>) {
                   const match = /language-(\w+)/.exec(className || '')
                   if (match?.[1] === 'mermaid') {

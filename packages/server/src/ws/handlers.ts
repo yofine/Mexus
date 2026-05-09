@@ -73,6 +73,9 @@ export function setupWsHandlers(
     onPaneAdded: (pane) => {
       send({ type: 'pane.added', pane })
     },
+    onPaneRenamed: (paneId, name) => {
+      send({ type: 'pane.renamed', paneId, name })
+    },
     onPaneRemoved: (paneId) => {
       send({ type: 'pane.removed', paneId })
     },
@@ -136,6 +139,14 @@ export function setupWsHandlers(
         workspaceManager.closePane(event.paneId).catch((err) => {
           console.error('pane.close failed:', err)
         })
+        break
+
+      case 'pane.rename':
+        try {
+          workspaceManager.renamePane(event.paneId, event.name)
+        } catch (err) {
+          console.error('pane.rename failed:', err)
+        }
         break
 
       case 'pane.restart':

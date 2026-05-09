@@ -1,0 +1,459 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import type { ConfigManager } from '../workspace/ConfigManager.ts'
+import type { AgentType, PaneCreateConfig, PaneState } from '../types.ts'
+import { parseMissionKanban, type MissionTask } from './missionParsers.ts'
+export type { MissionTask } from './missionParsers.ts'
+
+export type MissionLifecycle = 'active' | 'inactive' | 'completed'
+
+export interface MissionSummary {
+  name: string
+  path: string
+  lifecycle: MissionLifecycle
+  complete: boolean
+  missingFiles: string[]
+  title?: string
+  createdBy?: string
+  createdAt?: string
+  taskCounts: {
+    toClaim: number
+    inProgress: number
+    done: number
+  }
+  unreviewedDoneCount: number
+}
+
+export interface MissionFile {
+  path: string
+  exists: boolean
+  raw: string
+  parseError?: string
+}
+
+export interface MissionDetail {
+  summary: MissionSummary
+  files: Record<MissionFileKey, MissionFile>
+  kanban: {
+    toClaim: MissionTask[]
+    inProgress: MissionTask[]
+    done: MissionTask[]
+  }
+}
+
+export interface CreateMissionInput {
+  name: string
+  goal?: string
+  originalRequest?: string
+  constraints?: string
+  acceptance?: string
+  activate?: boolean
+}
+
+export interface MissionPaneCreator {
+  createPane(config: PaneCreateConfig): unknown | Promise<unknown>
+  getPanes?(): PaneState[]
+  closePane?(paneId: string): void | Promise<void>
+}
+
+export interface MissionArchiveResult {
+  name: string
+  path: string
+  closedPaneIds: string[]
+  deactivated: boolean
+}
+
+export class MissionArchiveBlockedError extends Error {
+  constructor(name: string, public readonly runningPaneIds: string[]) {
+    super(`Mission archive blocked by running panes for ${name}: ${runningPaneIds.join(', ')}`)
+    this.name = 'MissionArchiveBlockedError'
+  }
+}
+
+type TemplateKey = 'missionWorkflow' | 'agentRoster' | 'mission' | 'agents' | 'kanban' | 'roundtable' | 'squadLead'
+type MissionFileKey = 'mission' | 'agents' | 'kanban' | 'roundtable' | 'squadLead'
+
+const TEMPLATE_FILENAMES: Record<TemplateKey, string> = {
+  missionWorkflow: 'mission-workflow.md',
+  agentRoster: 'agent-roster-template.md',
+  mission: 'mission-template.md',
+  agents: 'agents-template.md',
+  kanban: 'kanban-template.md',
+  roundtable: 'roundtable-template.md',
+  squadLead: 'squad-lead-template.md',
+}
+
+const MISSION_FILENAMES: Record<MissionFileKey, string> = {
+  mission: 'mission.md',
+  agents: 'agents.md',
+  kanban: 'kanban.md',
+  roundtable: 'roundtable.md',
+  squadLead: 'squad-lead.md',
+}
+
+export function resolveMissionTemplatePaths(projectDir: string): Record<TemplateKey, string> {
+  const skillReferencesDir = path.join(projectDir, '.claude', 'skills', 'agent-team-mission-workflow', 'references')
+  const pluginReferencesDir = path.join(projectDir, 'packages', 'plugin-agent-team', 'references')
+  const resolved = {} as Record<TemplateKey, string>
+
+  for (const [key, filename] of Object.entries(TEMPLATE_FILENAMES) as Array<[TemplateKey, string]>) {
+    const templatePath = [skillReferencesDir, pluginReferencesDir]
+      .map((referencesDir) => path.join(referencesDir, filename))
+      .find((candidate) => fs.existsSync(candidate))
+    if (!templatePath) {
+      throw new Error(`Missing Mission template: ${filename} in ${skillReferencesDir} or ${pluginReferencesDir}`)
+    }
+    resolved[key] = templatePath
+  }
+
+  return resolved
+}
+
+function isMissionName(name: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)
+}
+
+function assertMissionName(name: string): void {
+  if (!isMissionName(name)) {
+    throw new Error(`Invalid Mission name: ${name}`)
+  }
+}
+
+function missionRelPath(name: string): string {
+  return path.join('agent-team', 'missions', name)
+}
+
+function replaceTemplateTokens(raw: string, name: string): string {
+  return raw
+    .replaceAll('<mission-name>', name)
+    .replaceAll('<Mission Title>', name)
+    .replaceAll('<YYYY-MM-DD>', new Date().toISOString().slice(0, 10))
+}
+
+function withOriginalRequest(raw: string, originalRequest?: string): string {
+  if (!originalRequest) return raw
+  return raw.replace('<Preserve the user\'s original mission request or a faithful summary.>', originalRequest)
+}
+
+function readOptional(filePath: string): string {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf-8') : ''
+}
+
+function parseLifecycle(raw: string): MissionLifecycle {
+  const match = raw.match(/^Lifecycle:\s*(active|inactive|completed)\s*$/m)
+  return (match?.[1] as MissionLifecycle | undefined) || 'inactive'
+}
+
+function setLifecycle(raw: string, lifecycle: MissionLifecycle): string {
+  if (/^Lifecycle:\s*\S+\s*$/m.test(raw)) {
+    return raw.replace(/^Lifecycle:\s*\S+\s*$/m, `Lifecycle: ${lifecycle}`)
+  }
+  if (/^Mission:\s*`[^`]+`\s*$/m.test(raw)) {
+    return raw.replace(/^(Mission:\s*`[^`]+`\s*)$/m, `$1\n\nLifecycle: ${lifecycle}`)
+  }
+  return `Lifecycle: ${lifecycle}\n\n${raw}`
+}
+
+function parseMissionFields(raw: string): Pick<MissionSummary, 'title' | 'createdBy' | 'createdAt'> {
+  return {
+    title: raw.match(/^# Mission:\s*(.+)$/m)?.[1]?.trim(),
+    createdBy: raw.match(/^Created by:\s*(.+)$/m)?.[1]?.trim(),
+    createdAt: raw.match(/^Created (?:at|date):\s*(.+)$/im)?.[1]?.trim(),
+  }
+}
+
+export class MissionService {
+  constructor(
+    private readonly projectDir: string,
+    private readonly configManager: ConfigManager,
+    private readonly paneCreator?: MissionPaneCreator,
+  ) {}
+
+  listMissions(): MissionSummary[] {
+    const missionsDir = path.join(this.projectDir, 'agent-team', 'missions')
+    if (!fs.existsSync(missionsDir)) return []
+
+    return fs.readdirSync(missionsDir, { withFileTypes: true })
+      .filter((entry) => {
+        if (!entry.isDirectory() || !isMissionName(entry.name)) return false
+        return fs.existsSync(path.join(missionsDir, entry.name, 'mission.md'))
+      })
+      .map((entry) => this.readSummary(entry.name))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  getMission(name: string): MissionDetail {
+    assertMissionName(name)
+    const summary = this.readSummary(name)
+    if (!fs.existsSync(path.join(this.projectDir, summary.path))) {
+      throw new Error(`Mission not found: ${name}`)
+    }
+
+    const files = this.readMissionFiles(name)
+    const parsed = parseMissionKanban(files.kanban.raw)
+    if (!parsed.ok && files.kanban.exists) {
+      files.kanban.parseError = parsed.error
+    }
+
+    return {
+      summary: {
+        ...summary,
+        taskCounts: {
+          toClaim: parsed.tasks.toClaim.length,
+          inProgress: parsed.tasks.inProgress.length,
+          done: parsed.tasks.done.length,
+        },
+        unreviewedDoneCount: parsed.tasks.done.filter((task) => !task.review).length,
+      },
+      files,
+      kanban: parsed.tasks,
+    }
+  }
+
+  getActiveMission(): MissionDetail | null {
+    const active = this.listMissions().find((mission) => mission.lifecycle === 'active')
+    return active ? this.getMission(active.name) : null
+  }
+
+  async createMission(input: CreateMissionInput): Promise<MissionDetail> {
+    assertMissionName(input.name)
+    const templates = resolveMissionTemplatePaths(this.projectDir)
+    const existing = this.listMissions()
+    const activate = input.activate ?? existing.length === 0
+    const lifecycle: MissionLifecycle = activate || existing.length === 0 ? 'active' : 'inactive'
+    const missionDir = path.join(this.projectDir, missionRelPath(input.name))
+    if (fs.existsSync(missionDir)) {
+      throw new Error(`Mission already exists: ${input.name}`)
+    }
+
+    this.ensureRootFiles(templates)
+    fs.mkdirSync(missionDir, { recursive: true })
+    for (const [key, filename] of Object.entries(MISSION_FILENAMES) as Array<[MissionFileKey, string]>) {
+      let raw = fs.readFileSync(templates[key], 'utf-8')
+      raw = replaceTemplateTokens(raw, input.name)
+      if (key === 'mission') {
+        raw = withOriginalRequest(raw, input.originalRequest || input.goal)
+        raw = setLifecycle(raw, lifecycle)
+      }
+      fs.writeFileSync(path.join(missionDir, filename), raw)
+    }
+
+    if (lifecycle === 'active') {
+      this.deactivateOtherMissions(input.name)
+      this.setActiveMissionConfig(input.name)
+    }
+
+    await this.createSquadLeadPane(input.name)
+
+    return this.getMission(input.name)
+  }
+
+  activateMission(name: string): MissionDetail {
+    assertMissionName(name)
+    const missionPath = path.join(this.projectDir, missionRelPath(name), 'mission.md')
+    if (!fs.existsSync(missionPath)) {
+      throw new Error(`Mission not found: ${name}`)
+    }
+
+    this.deactivateOtherMissions(name)
+    this.writeMissionLifecycle(name, 'active')
+    this.setActiveMissionConfig(name)
+    return this.getMission(name)
+  }
+
+  repairMission(name: string): MissionDetail {
+    assertMissionName(name)
+    const templates = resolveMissionTemplatePaths(this.projectDir)
+    const missionDir = path.join(this.projectDir, missionRelPath(name))
+    if (!fs.existsSync(missionDir)) {
+      throw new Error(`Mission not found: ${name}`)
+    }
+
+    this.ensureRootFiles(templates)
+    for (const [key, filename] of Object.entries(MISSION_FILENAMES) as Array<[MissionFileKey, string]>) {
+      const target = path.join(missionDir, filename)
+      if (fs.existsSync(target)) continue
+      let raw = replaceTemplateTokens(fs.readFileSync(templates[key], 'utf-8'), name)
+      if (key === 'mission') {
+        raw = setLifecycle(raw, 'inactive')
+      }
+      fs.writeFileSync(target, raw)
+    }
+
+    return this.getMission(name)
+  }
+
+  async archiveMission(name: string, options: { force: boolean }): Promise<MissionArchiveResult> {
+    assertMissionName(name)
+    const sourceDir = path.join(this.projectDir, missionRelPath(name))
+    const missionPath = path.join(sourceDir, 'mission.md')
+    if (!fs.existsSync(missionPath)) {
+      throw new Error(`Mission not found: ${name}`)
+    }
+
+    const archivedRel = path.join('agent-team', 'missions', '_archived', name)
+    const archivedDir = path.join(this.projectDir, archivedRel)
+    if (fs.existsSync(archivedDir)) {
+      throw new Error(`Archived Mission already exists: ${name}`)
+    }
+
+    const missionPanes = this.getMissionPanes(name)
+    const runningPaneIds = missionPanes
+      .filter((pane) => pane.status === 'running')
+      .map((pane) => pane.id)
+    if (!options.force && runningPaneIds.length > 0) {
+      throw new MissionArchiveBlockedError(name, runningPaneIds)
+    }
+
+    const closedPaneIds: string[] = []
+    for (const pane of missionPanes) {
+      if (this.paneCreator?.closePane) {
+        await this.paneCreator.closePane(pane.id)
+      }
+      closedPaneIds.push(pane.id)
+    }
+
+    const deactivated = parseLifecycle(readOptional(missionPath)) === 'active'
+    if (deactivated) {
+      this.clearActiveMissionConfig()
+    }
+
+    fs.mkdirSync(path.dirname(archivedDir), { recursive: true })
+    fs.renameSync(sourceDir, archivedDir)
+
+    return {
+      name,
+      path: archivedRel,
+      closedPaneIds,
+      deactivated,
+    }
+  }
+
+  private ensureRootFiles(templates: Record<TemplateKey, string>): void {
+    const agentTeamDir = path.join(this.projectDir, 'agent-team')
+    fs.mkdirSync(agentTeamDir, { recursive: true })
+    const workflowPath = path.join(agentTeamDir, 'mission-workflow.md')
+    if (!fs.existsSync(workflowPath)) {
+      fs.copyFileSync(templates.missionWorkflow, workflowPath)
+    }
+    const rosterPath = path.join(agentTeamDir, 'agents.md')
+    if (!fs.existsSync(rosterPath)) {
+      fs.copyFileSync(templates.agentRoster, rosterPath)
+    }
+  }
+
+  private readMissionFiles(name: string): Record<MissionFileKey, MissionFile> {
+    const result = {} as Record<MissionFileKey, MissionFile>
+    for (const [key, filename] of Object.entries(MISSION_FILENAMES) as Array<[MissionFileKey, string]>) {
+      const rel = path.join(missionRelPath(name), filename)
+      const full = path.join(this.projectDir, rel)
+      const exists = fs.existsSync(full)
+      result[key] = {
+        path: rel,
+        exists,
+        raw: exists ? fs.readFileSync(full, 'utf-8') : '',
+      }
+    }
+    return result
+  }
+
+  private readSummary(name: string): MissionSummary {
+    assertMissionName(name)
+    const rel = missionRelPath(name)
+    const missionDir = path.join(this.projectDir, rel)
+    const missingFiles = Object.values(MISSION_FILENAMES)
+      .filter((filename) => !fs.existsSync(path.join(missionDir, filename)))
+    const missionRaw = readOptional(path.join(missionDir, 'mission.md'))
+    const kanbanRaw = readOptional(path.join(missionDir, 'kanban.md'))
+    const parsed = parseMissionKanban(kanbanRaw)
+    return {
+      name,
+      path: rel,
+      lifecycle: parseLifecycle(missionRaw),
+      complete: missingFiles.length === 0,
+      missingFiles,
+      ...parseMissionFields(missionRaw),
+      taskCounts: {
+        toClaim: parsed.tasks.toClaim.length,
+        inProgress: parsed.tasks.inProgress.length,
+        done: parsed.tasks.done.length,
+      },
+      unreviewedDoneCount: parsed.tasks.done.filter((task) => !task.review).length,
+    }
+  }
+
+  private deactivateOtherMissions(activeName: string): void {
+    for (const mission of this.listMissions()) {
+      if (mission.name !== activeName && mission.lifecycle === 'active') {
+        this.writeMissionLifecycle(mission.name, 'inactive')
+      }
+    }
+  }
+
+  private writeMissionLifecycle(name: string, lifecycle: MissionLifecycle): void {
+    const missionPath = path.join(this.projectDir, missionRelPath(name), 'mission.md')
+    const raw = readOptional(missionPath)
+    fs.writeFileSync(missionPath, setLifecycle(raw, lifecycle))
+  }
+
+  private setActiveMissionConfig(name: string): void {
+    const config = this.configManager.initWorkspace()
+    config.active_mission = name
+    this.configManager.saveWorkspaceConfig(config)
+  }
+
+  private clearActiveMissionConfig(): void {
+    const config = this.configManager.initWorkspace()
+    config.active_mission = null
+    this.configManager.saveWorkspaceConfig(config)
+  }
+
+  private getMissionPanes(name: string): PaneState[] {
+    return this.paneCreator?.getPanes?.().filter((pane) => pane.mission?.name === name) || []
+  }
+
+  private async createSquadLeadPane(name: string): Promise<void> {
+    if (!this.paneCreator) return
+    const agent = this.resolveMissionDefaultAgent()
+    const rel = missionRelPath(name)
+    await this.paneCreator.createPane({
+      name: `Squad Lead - ${name}`,
+      agent,
+      workdir: '.',
+      task: buildSquadLeadTask(name),
+      mission: {
+        name,
+        path: rel,
+        role: 'squad-lead',
+        agentName: 'Squad Lead',
+      },
+      restore: 'manual',
+      isolation: 'shared',
+      yolo: false,
+    })
+  }
+
+  private resolveMissionDefaultAgent(): AgentType {
+    const configured = this.configManager.loadGlobalConfig().mission_defaults?.agent_type || 'claudecode'
+    if (configured === '__shell__' || !this.configManager.getAgentDefinition(configured)) {
+      throw new Error(`Mission default CLI agent is not configured: ${configured}`)
+    }
+    return configured
+  }
+}
+
+function buildSquadLeadTask(name: string): string {
+  return `Use the agent-team-mission-workflow skill.
+You are Squad Lead for mission \`${name}\`.
+Read:
+- agent-team/mission-workflow.md
+- agent-team/agents.md
+- agent-team/missions/${name}/mission.md
+- agent-team/missions/${name}/agents.md
+- agent-team/missions/${name}/kanban.md
+- agent-team/missions/${name}/roundtable.md
+- agent-team/missions/${name}/squad-lead.md
+
+Create or refine the mission squad, publish initial kanban tasks, and keep Markdown files as the source of truth.
+Do not implement product code unless the user explicitly asks.`
+}

@@ -1,10 +1,11 @@
-import { X, File, GitBranch, Shield, Activity, History, Eye, EyeOff } from 'lucide-react'
+import { X, File, GitBranch, Shield, Activity, History, Eye, EyeOff, Users } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import type { EditorTab } from '@/stores/workspaceStore'
 import { FileViewer } from './FileViewer'
 import { GitDiffPanel } from './GitDiffPanel'
 import { ActivityMap } from './ActivityMap'
 import { ReplayViewer } from './ReplayViewer'
+import { MissionPanel } from './missions/MissionPanel'
 import type { ClientEvent } from '@/types'
 
 interface EditorTabsProps {
@@ -23,9 +24,11 @@ function TabButton({ tab, isActive, onActivate, onClose }: {
     ? Activity
     : tab.type === 'review'
       ? (tab.paneId ? GitBranch : Shield)
-      : tab.type === 'replay'
-        ? History
-        : File
+      : tab.type === 'team'
+        ? Users
+        : tab.type === 'replay'
+          ? History
+          : File
 
   return (
     <div
@@ -138,6 +141,9 @@ export function EditorTabs({ send, isMaximized = false, onToggleMaximize }: Edit
         )}
         {activeTab?.type === 'review' && (
           <GitDiffPanel send={send} paneId={activeTab.paneId} />
+        )}
+        {activeTab?.type === 'team' && (
+          <MissionPanel />
         )}
         {activeTab?.type === 'replay' && (
           <ReplayViewer sessionId={activeTab.sessionId} />

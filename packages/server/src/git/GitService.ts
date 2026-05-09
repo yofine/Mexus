@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { simpleGit, type SimpleGit } from 'simple-git'
-import { watch, type FSWatcher } from 'chokidar'
+import watcher, { type AsyncSubscription } from '@parcel/watcher'
 import type { FileDiff } from '../types.ts'
 
 export interface GitDiffResult {
@@ -11,8 +11,7 @@ export interface GitDiffResult {
 export class GitService {
   private git: SimpleGit
   private projectDir: string
-  private gitWatcher: FSWatcher | null = null
-  private workWatcher: FSWatcher | null = null
+  private gitWatcher: AsyncSubscription | null = null
   private debounceTimer: ReturnType<typeof setTimeout> | null = null
   private workDebounceTimer: ReturnType<typeof setTimeout> | null = null
   private listeners = new Set<(result: GitDiffResult) => void>()
@@ -36,36 +35,28 @@ export class GitService {
       }, 1000)
     }
 
+    // Watch the .git directory itself — index/HEAD/refs all live here.
+    // @parcel/watcher requires a directory; that's fine, .git is small and
+    // its events are useful (commits, checkouts, refs/ updates).
     const gitDir = path.join(this.projectDir, '.git')
-    this.gitWatcher = watch([
-      path.join(gitDir, 'index'),
-      path.join(gitDir, 'HEAD'),
-      path.join(gitDir, 'refs'),
-    ], {
-      persistent: true,
-      ignoreInitial: true,
-    })
-    this.gitWatcher.on('all', scheduleRefresh)
-
-    // Working tree watcher — uses a longer debounce to avoid flooding
-    // git diff on every keystroke when agents are writing files
-    const scheduleWorkRefresh = () => {
-      if (this.workDebounceTimer) clearTimeout(this.workDebounceTimer)
-      this.workDebounceTimer = setTimeout(() => {
-        this.refresh()
-      }, 3000)
+    try {
+      this.gitWatcher = await watcher.subscribe(gitDir, (err) => {
+        if (err) return
+        scheduleRefresh()
+      })
+    } catch {
+      // .git not watchable (e.g. missing or detached worktree) — refresh
+      // is still triggered by FsWatcher → notifyWorkingTreeChange().
     }
+  }
 
-    this.workWatcher = watch(this.projectDir, {
-      ignored: (filePath: string) => {
-        const basename = path.basename(filePath)
-        return basename === '.git' || basename === 'node_modules' || basename === '.nexus' || basename === 'dist'
-      },
-      persistent: true,
-      ignoreInitial: true,
-      depth: 5,
-    })
-    this.workWatcher.on('all', scheduleWorkRefresh)
+  // Called by the upstream FsWatcher whenever a file in the working tree
+  // changes. Debounced so a burst of agent writes only triggers one diff.
+  notifyWorkingTreeChange(): void {
+    if (this.workDebounceTimer) clearTimeout(this.workDebounceTimer)
+    this.workDebounceTimer = setTimeout(() => {
+      this.refresh()
+    }, 1000)
   }
 
   async refresh(): Promise<void> {
@@ -173,13 +164,11 @@ export class GitService {
 
   // ─── Cleanup ──────────────────────────────────────────────
 
-  close(): void {
+  async close(): Promise<void> {
     if (this.debounceTimer) clearTimeout(this.debounceTimer)
     if (this.workDebounceTimer) clearTimeout(this.workDebounceTimer)
-    this.gitWatcher?.close()
+    await this.gitWatcher?.unsubscribe().catch(() => {})
     this.gitWatcher = null
-    this.workWatcher?.close()
-    this.workWatcher = null
   }
 
   // ─── Internal ─────────────────────────────────────────────
