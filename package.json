@@ -1,6 +1,6 @@
 {
   "name": "mexus-cli",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "description": "Execution layer for managing multiple CLI AI Agent instances from one local console",
   "type": "module",
   "bin": {
