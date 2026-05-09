@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { AlertTriangle, Bot, ClipboardList, Loader2 } from 'lucide-react'
 import { useMissionStore } from '@/stores/missionStore'
@@ -7,8 +7,10 @@ import { MissionSelector } from './MissionSelector'
 import { MissionOverview } from './MissionOverview'
 import { MissionKanban } from './MissionKanban'
 import { MissionAgents } from './MissionAgents'
+import { EnableAgentTeamBanner } from './EnableAgentTeamBanner'
 
 export const MISSION_DETAIL_REFRESH_MS = 15_000
+const AGENT_TEAM_PLUGIN_PROBE_PATH = '/.claude/plugins/mexus-agent-team/plugin.json'
 
 interface MissionDetailAutoRefreshOptions {
   missionName: string
@@ -16,6 +18,20 @@ interface MissionDetailAutoRefreshOptions {
   getIsLoading: () => boolean
   readDocumentHidden?: () => boolean
   intervalMs?: number
+}
+
+async function detectAgentTeamPluginInstalled(signal: AbortSignal): Promise<boolean> {
+  if (typeof fetch === 'undefined') return false
+  try {
+    const response = await fetch(AGENT_TEAM_PLUGIN_PROBE_PATH, { method: 'HEAD', signal })
+    return response.ok
+  } catch {
+    return false
+  }
+}
+
+export function shouldShowEnableAgentTeamBanner(missionCount: number, isPluginInstalled: boolean): boolean {
+  return missionCount === 0 && !isPluginInstalled
 }
 
 export function startMissionDetailAutoRefresh({
@@ -134,9 +150,10 @@ function ObservationShell() {
   )
 }
 
-function MissionOnboarding() {
+function MissionOnboarding({ showEnableAgentTeamBanner }: { showEnableAgentTeamBanner: boolean }) {
   return (
     <div className="mission-onboarding">
+      {showEnableAgentTeamBanner && <EnableAgentTeamBanner />}
       <div className="mission-onboarding-intro">
         <div>
           <div className="mission-onboarding-kicker">Team Workspace</div>
@@ -207,10 +224,20 @@ export function MissionPanel() {
   const error = useMissionStore((s) => s.error)
   const refresh = useMissionStore((s) => s.refresh)
   const loadMission = useMissionStore((s) => s.loadMission)
+  const [isAgentTeamPluginInstalled, setIsAgentTeamPluginInstalled] = useState(false)
 
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  useEffect(() => {
+    if (missions.length > 0) return undefined
+    const controller = new AbortController()
+    void detectAgentTeamPluginInstalled(controller.signal).then((installed) => {
+      if (!controller.signal.aborted) setIsAgentTeamPluginInstalled(installed)
+    })
+    return () => controller.abort()
+  }, [missions.length])
 
   useEffect(() => {
     if (!selectedMission?.name) return undefined
@@ -234,7 +261,7 @@ export function MissionPanel() {
         />
       )}
       {!showInitialLoading && missions.length === 0 && (
-        <MissionOnboarding />
+        <MissionOnboarding showEnableAgentTeamBanner={shouldShowEnableAgentTeamBanner(missions.length, isAgentTeamPluginInstalled)} />
       )}
       {!showInitialLoading && selectedMission?.incomplete && (
         <CenterState

@@ -254,7 +254,7 @@ export interface WorkspaceConfig {
   version: string
   name: string
   description?: string
-  active_mission?: string
+  active_mission?: string | null
   repository: {
     path: string
     git: boolean

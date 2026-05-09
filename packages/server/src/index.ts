@@ -19,6 +19,7 @@ import { testModelProviderConnection } from './models/ModelConnectionTester.ts'
 import { MissionService } from './mission/MissionService.ts'
 import { registerMissionRoutes } from './mission/routes.ts'
 import { MissionInboxPipeline } from './mission/MissionInboxPipeline.ts'
+import { registerPaneRoutes } from './pane/routes.ts'
 import type { GlobalConfig, ModelDefinition, ModelProviderConfig } from './types.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -178,6 +179,7 @@ export async function startServer(port: number, projectDir: string) {
   registerMissionRoutes(fastify, missionService, {
     onMissionChanged: () => missionInboxPipeline.restartForActiveMission(),
   })
+  registerPaneRoutes(fastify, workspaceManager, configManager)
 
   // Session discovery (claude sessions list)
   const sessionDiscovery = new SessionDiscovery(configManager)

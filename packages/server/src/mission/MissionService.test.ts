@@ -2,10 +2,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import yaml from 'js-yaml'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ConfigManager } from '../workspace/ConfigManager.ts'
-import type { PaneCreateConfig } from '../types.ts'
-import { MissionService, resolveMissionTemplatePaths } from './MissionService.ts'
+import type { PaneCreateConfig, PaneState } from '../types.ts'
+import { MissionArchiveBlockedError, MissionService, resolveMissionTemplatePaths } from './MissionService.ts'
 
 const repoRoot = path.resolve(__dirname, '../../../..')
 
@@ -17,11 +17,34 @@ function makeTempProject(): string {
     path.join(projectDir, '.claude', 'skills', 'agent-team-mission-workflow'),
     { recursive: true },
   )
+  const pluginReferencesDir = path.join(repoRoot, 'packages/plugin-agent-team/references')
+  const skillReferencesDir = path.join(projectDir, '.claude/skills/agent-team-mission-workflow/references')
+  if (fs.existsSync(pluginReferencesDir)) {
+    fs.mkdirSync(skillReferencesDir, { recursive: true })
+    for (const filename of fs.readdirSync(pluginReferencesDir)) {
+      fs.copyFileSync(path.join(pluginReferencesDir, filename), path.join(skillReferencesDir, filename))
+    }
+  }
   return projectDir
 }
 
 function read(projectDir: string, rel: string): string {
   return fs.readFileSync(path.join(projectDir, rel), 'utf-8')
+}
+
+function pane(overrides: Partial<PaneState>): PaneState {
+  return {
+    id: 'pane-1',
+    name: 'Pane',
+    agent: 'codex',
+    restore: 'manual',
+    isolation: 'shared',
+    yolo: false,
+    runtime: 'pty',
+    status: 'idle',
+    meta: {},
+    ...overrides,
+  }
 }
 
 const tempProjects: string[] = []
@@ -72,6 +95,30 @@ describe('Mission template resolution', () => {
     fs.rmSync(path.join(projectDir, '.claude/skills/agent-team-mission-workflow/references/kanban-template.md'))
 
     expect(() => resolveMissionTemplatePaths(projectDir)).toThrow(/Missing Mission template: kanban-template\.md/)
+  })
+
+  it('falls back to plugin references when Mission file templates are not present in the Skill references directory', () => {
+    const projectDir = makeTempProject()
+    tempProjects.push(projectDir)
+    const skillReferencesDir = path.join(projectDir, '.claude/skills/agent-team-mission-workflow/references')
+    const pluginReferencesDir = path.join(projectDir, 'packages/plugin-agent-team/references')
+    fs.mkdirSync(pluginReferencesDir, { recursive: true })
+    for (const filename of [
+      'mission-workflow.md',
+      'mission-template.md',
+      'agents-template.md',
+      'kanban-template.md',
+      'roundtable-template.md',
+      'squad-lead-template.md',
+    ]) {
+      fs.renameSync(path.join(skillReferencesDir, filename), path.join(pluginReferencesDir, filename))
+    }
+
+    const paths = resolveMissionTemplatePaths(projectDir)
+
+    expect(paths.mission).toBe(path.join(pluginReferencesDir, 'mission-template.md'))
+    expect(paths.kanban).toBe(path.join(pluginReferencesDir, 'kanban-template.md'))
+    expect(paths.agentRoster).toBe(path.join(skillReferencesDir, 'agent-roster-template.md'))
   })
 })
 
@@ -238,5 +285,116 @@ describe('MissionService lifecycle', () => {
 
     await expect(service.createMission({ name: '../escape', activate: true })).rejects.toThrow(/Invalid Mission name/)
     expect(() => service.getMission('nested/path')).toThrow(/Invalid Mission name/)
+  })
+
+  it('archives a Mission by moving its directory under _archived', async () => {
+    const projectDir = makeTempProject()
+    tempProjects.push(projectDir)
+    const service = new MissionService(projectDir, new ConfigManager(projectDir))
+    await service.createMission({ name: 'active-baseline', activate: true })
+    await service.createMission({ name: 'archive-me', activate: false })
+
+    const result = await service.archiveMission('archive-me', { force: false })
+
+    expect(result).toEqual({
+      name: 'archive-me',
+      path: 'agent-team/missions/_archived/archive-me',
+      closedPaneIds: [],
+      deactivated: false,
+    })
+    expect(fs.existsSync(path.join(projectDir, 'agent-team/missions/archive-me'))).toBe(false)
+    expect(fs.existsSync(path.join(projectDir, 'agent-team/missions/_archived/archive-me/mission.md'))).toBe(true)
+    expect(service.listMissions().map((mission) => mission.name)).not.toContain('archive-me')
+  })
+
+  it('deactivates the archived active Mission in workspace config', async () => {
+    const projectDir = makeTempProject()
+    tempProjects.push(projectDir)
+    const configManager = new ConfigManager(projectDir)
+    const service = new MissionService(projectDir, configManager)
+    await service.createMission({ name: 'active-archive', activate: true })
+
+    const result = await service.archiveMission('active-archive', { force: false })
+
+    expect(result.deactivated).toBe(true)
+    const config = yaml.load(read(projectDir, '.nexus/config.yaml')) as { active_mission?: string | null }
+    expect(config.active_mission).toBeNull()
+  })
+
+  it('blocks archive when Mission panes are running and force is false', async () => {
+    useTempGlobalConfigDir()
+    const projectDir = makeTempProject()
+    tempProjects.push(projectDir)
+    const configManager = new ConfigManager(projectDir)
+    const panes = [
+      pane({
+        id: 'pane-running',
+        status: 'running',
+        mission: {
+          name: 'blocked-mission',
+          path: 'agent-team/missions/blocked-mission',
+          role: 'mission-agent',
+          agentName: 'Bael',
+        },
+      }),
+    ]
+    const closePane = vi.fn()
+    const service = new MissionService(projectDir, configManager, {
+      createPane: vi.fn(),
+      getPanes: () => panes,
+      closePane,
+    })
+    await service.createMission({ name: 'blocked-mission', activate: false })
+
+    await expect(service.archiveMission('blocked-mission', { force: false })).rejects.toThrow(MissionArchiveBlockedError)
+    expect(closePane).not.toHaveBeenCalled()
+    expect(fs.existsSync(path.join(projectDir, 'agent-team/missions/blocked-mission'))).toBe(true)
+  })
+
+  it('force archives and closes all panes belonging to the Mission', async () => {
+    useTempGlobalConfigDir()
+    const projectDir = makeTempProject()
+    tempProjects.push(projectDir)
+    const configManager = new ConfigManager(projectDir)
+    const panes = [
+      pane({
+        id: 'pane-running',
+        status: 'running',
+        mission: {
+          name: 'force-mission',
+          path: 'agent-team/missions/force-mission',
+          role: 'mission-agent',
+          agentName: 'Bael',
+        },
+      }),
+      pane({
+        id: 'pane-idle',
+        status: 'idle',
+        mission: {
+          name: 'force-mission',
+          path: 'agent-team/missions/force-mission',
+          role: 'squad-lead',
+          agentName: 'Squad Lead',
+        },
+      }),
+      pane({ id: 'pane-other', mission: { name: 'other', path: 'agent-team/missions/other', role: 'mission-agent', agentName: 'Other' } }),
+    ]
+    const closePane = vi.fn(async (id: string) => {
+      const index = panes.findIndex((candidate) => candidate.id === id)
+      if (index >= 0) panes.splice(index, 1)
+    })
+    const service = new MissionService(projectDir, configManager, {
+      createPane: vi.fn(),
+      getPanes: () => panes,
+      closePane,
+    })
+    await service.createMission({ name: 'force-mission', activate: false })
+
+    const result = await service.archiveMission('force-mission', { force: true })
+
+    expect(result.closedPaneIds.sort()).toEqual(['pane-idle', 'pane-running'])
+    expect(closePane).toHaveBeenCalledTimes(2)
+    expect(panes.map((candidate) => candidate.id)).toEqual(['pane-other'])
+    expect(fs.existsSync(path.join(projectDir, 'agent-team/missions/_archived/force-mission'))).toBe(true)
   })
 })

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import type { MissionService } from './MissionService.ts'
+import { MissionArchiveBlockedError, type MissionService } from './MissionService.ts'
 
 export interface MissionRouteOptions {
   allowCreate?: boolean
@@ -10,6 +10,7 @@ export interface MissionRouteOptions {
 function errorStatus(err: unknown): number {
   const message = err instanceof Error ? err.message : String(err)
   if (/Invalid Mission name/.test(message)) return 400
+  if (err instanceof MissionArchiveBlockedError) return 409
   if (/not found/i.test(message)) return 404
   if (/already exists/i.test(message)) return 409
   if (/Missing Mission template/.test(message)) return 500
@@ -74,6 +75,22 @@ export function registerMissionRoutes(fastify: FastifyInstance, missionService: 
       const mission = missionService.activateMission(name)
       await options.onMissionChanged?.()
       return mission
+    } catch (err) {
+      reply.code(errorStatus(err))
+      return errorPayload(err)
+    }
+  })
+
+  fastify.post('/api/missions/:name/archive', async (request, reply) => {
+    try {
+      const { name } = request.params as { name: string }
+      const body = request.body as { force?: unknown } | undefined
+      const force = body?.force === true
+      const result = await missionService.archiveMission(name, { force })
+      if (result.deactivated) {
+        await options.onMissionChanged?.()
+      }
+      return result
     } catch (err) {
       reply.code(errorStatus(err))
       return errorPayload(err)

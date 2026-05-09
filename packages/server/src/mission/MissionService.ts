@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ConfigManager } from '../workspace/ConfigManager.ts'
-import type { AgentType, PaneCreateConfig } from '../types.ts'
+import type { AgentType, PaneCreateConfig, PaneState } from '../types.ts'
 import { parseMissionKanban, type MissionTask } from './missionParsers.ts'
 export type { MissionTask } from './missionParsers.ts'
 
@@ -52,6 +52,22 @@ export interface CreateMissionInput {
 
 export interface MissionPaneCreator {
   createPane(config: PaneCreateConfig): unknown | Promise<unknown>
+  getPanes?(): PaneState[]
+  closePane?(paneId: string): void | Promise<void>
+}
+
+export interface MissionArchiveResult {
+  name: string
+  path: string
+  closedPaneIds: string[]
+  deactivated: boolean
+}
+
+export class MissionArchiveBlockedError extends Error {
+  constructor(name: string, public readonly runningPaneIds: string[]) {
+    super(`Mission archive blocked by running panes for ${name}: ${runningPaneIds.join(', ')}`)
+    this.name = 'MissionArchiveBlockedError'
+  }
 }
 
 type TemplateKey = 'missionWorkflow' | 'agentRoster' | 'mission' | 'agents' | 'kanban' | 'roundtable' | 'squadLead'
@@ -76,13 +92,16 @@ const MISSION_FILENAMES: Record<MissionFileKey, string> = {
 }
 
 export function resolveMissionTemplatePaths(projectDir: string): Record<TemplateKey, string> {
-  const referencesDir = path.join(projectDir, '.claude', 'skills', 'agent-team-mission-workflow', 'references')
+  const skillReferencesDir = path.join(projectDir, '.claude', 'skills', 'agent-team-mission-workflow', 'references')
+  const pluginReferencesDir = path.join(projectDir, 'packages', 'plugin-agent-team', 'references')
   const resolved = {} as Record<TemplateKey, string>
 
   for (const [key, filename] of Object.entries(TEMPLATE_FILENAMES) as Array<[TemplateKey, string]>) {
-    const templatePath = path.join(referencesDir, filename)
-    if (!fs.existsSync(templatePath)) {
-      throw new Error(`Missing Mission template: ${filename} in ${referencesDir}`)
+    const templatePath = [skillReferencesDir, pluginReferencesDir]
+      .map((referencesDir) => path.join(referencesDir, filename))
+      .find((candidate) => fs.existsSync(candidate))
+    if (!templatePath) {
+      throw new Error(`Missing Mission template: ${filename} in ${skillReferencesDir} or ${pluginReferencesDir}`)
     }
     resolved[key] = templatePath
   }
@@ -264,6 +283,52 @@ export class MissionService {
     return this.getMission(name)
   }
 
+  async archiveMission(name: string, options: { force: boolean }): Promise<MissionArchiveResult> {
+    assertMissionName(name)
+    const sourceDir = path.join(this.projectDir, missionRelPath(name))
+    const missionPath = path.join(sourceDir, 'mission.md')
+    if (!fs.existsSync(missionPath)) {
+      throw new Error(`Mission not found: ${name}`)
+    }
+
+    const archivedRel = path.join('agent-team', 'missions', '_archived', name)
+    const archivedDir = path.join(this.projectDir, archivedRel)
+    if (fs.existsSync(archivedDir)) {
+      throw new Error(`Archived Mission already exists: ${name}`)
+    }
+
+    const missionPanes = this.getMissionPanes(name)
+    const runningPaneIds = missionPanes
+      .filter((pane) => pane.status === 'running')
+      .map((pane) => pane.id)
+    if (!options.force && runningPaneIds.length > 0) {
+      throw new MissionArchiveBlockedError(name, runningPaneIds)
+    }
+
+    const closedPaneIds: string[] = []
+    for (const pane of missionPanes) {
+      if (this.paneCreator?.closePane) {
+        await this.paneCreator.closePane(pane.id)
+      }
+      closedPaneIds.push(pane.id)
+    }
+
+    const deactivated = parseLifecycle(readOptional(missionPath)) === 'active'
+    if (deactivated) {
+      this.clearActiveMissionConfig()
+    }
+
+    fs.mkdirSync(path.dirname(archivedDir), { recursive: true })
+    fs.renameSync(sourceDir, archivedDir)
+
+    return {
+      name,
+      path: archivedRel,
+      closedPaneIds,
+      deactivated,
+    }
+  }
+
   private ensureRootFiles(templates: Record<TemplateKey, string>): void {
     const agentTeamDir = path.join(this.projectDir, 'agent-team')
     fs.mkdirSync(agentTeamDir, { recursive: true })
@@ -335,6 +400,16 @@ export class MissionService {
     const config = this.configManager.initWorkspace()
     config.active_mission = name
     this.configManager.saveWorkspaceConfig(config)
+  }
+
+  private clearActiveMissionConfig(): void {
+    const config = this.configManager.initWorkspace()
+    config.active_mission = null
+    this.configManager.saveWorkspaceConfig(config)
+  }
+
+  private getMissionPanes(name: string): PaneState[] {
+    return this.paneCreator?.getPanes?.().filter((pane) => pane.mission?.name === name) || []
   }
 
   private async createSquadLeadPane(name: string): Promise<void> {

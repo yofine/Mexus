@@ -18,6 +18,14 @@ function makeTempProject(): string {
     path.join(projectDir, '.claude', 'skills', 'agent-team-mission-workflow'),
     { recursive: true },
   )
+  const pluginReferencesDir = path.join(repoRoot, 'packages/plugin-agent-team/references')
+  const skillReferencesDir = path.join(projectDir, '.claude/skills/agent-team-mission-workflow/references')
+  if (fs.existsSync(pluginReferencesDir)) {
+    fs.mkdirSync(skillReferencesDir, { recursive: true })
+    for (const filename of fs.readdirSync(pluginReferencesDir)) {
+      fs.copyFileSync(path.join(pluginReferencesDir, filename), path.join(skillReferencesDir, filename))
+    }
+  }
   tempProjects.push(projectDir)
   return projectDir
 }
@@ -107,6 +115,33 @@ describe('Mission REST routes', () => {
     await fastify.inject({ method: 'POST', url: '/api/missions/two/activate' })
 
     expect(onMissionChanged).toHaveBeenCalledTimes(3)
+  })
+
+  it('archives Missions through REST and calls the mission changed hook when active Mission is deactivated', async () => {
+    const projectDir = makeTempProject()
+    const fastify = Fastify()
+    const onMissionChanged = vi.fn()
+    registerMissionRoutes(fastify, new MissionService(projectDir, new ConfigManager(projectDir)), { onMissionChanged })
+    await fastify.inject({
+      method: 'POST',
+      url: '/api/missions',
+      payload: { name: 'archive-route', activate: true },
+    })
+
+    const response = await fastify.inject({
+      method: 'POST',
+      url: '/api/missions/archive-route/archive',
+      payload: { force: true },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual(expect.objectContaining({
+      name: 'archive-route',
+      path: 'agent-team/missions/_archived/archive-route',
+      deactivated: true,
+    }))
+    expect(fs.existsSync(path.join(projectDir, 'agent-team/missions/archive-route'))).toBe(false)
+    expect(onMissionChanged).toHaveBeenCalledTimes(2)
   })
 
   it('returns safe errors for invalid Mission names', async () => {

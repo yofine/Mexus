@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { useMissionStore } from '@/stores/missionStore'
-import { MISSION_DETAIL_REFRESH_MS, MISSION_ONBOARDING_AGENTS, MISSION_ONBOARDING_KANBAN_COLUMNS, MissionPanel, startMissionDetailAutoRefresh } from './MissionPanel'
+import { MISSION_DETAIL_REFRESH_MS, MISSION_ONBOARDING_AGENTS, MISSION_ONBOARDING_KANBAN_COLUMNS, MissionPanel, shouldShowEnableAgentTeamBanner, startMissionDetailAutoRefresh } from './MissionPanel'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -36,6 +36,39 @@ describe('MissionPanel onboarding placeholder data', () => {
     expect(html).toContain('No Missions')
     expect(html).toContain('New Mission')
     expect(html).not.toContain('Create Mission')
+  })
+
+  it('shows the Enable Agent Team banner on the empty onboarding state', () => {
+    useMissionStore.setState({
+      missions: [],
+      activeMission: null,
+      selectedMission: null,
+      isLoading: false,
+      error: null,
+    })
+
+    const html = renderToStaticMarkup(createElement(MissionPanel))
+
+    expect(html).toContain('Enable Agent Team to dispatch Missions')
+    expect(html).toContain('claude /plugin install mexus-agent-team')
+    expect(html).toContain('Copy')
+    expect(html).toContain('Dismiss for this session')
+  })
+
+  it('hides the Enable Agent Team banner once a Mission exists or the plugin is detected', () => {
+    expect(shouldShowEnableAgentTeamBanner(0, false)).toBe(true)
+    expect(shouldShowEnableAgentTeamBanner(1, false)).toBe(false)
+    expect(shouldShowEnableAgentTeamBanner(0, true)).toBe(false)
+  })
+
+  it('keeps banner copy and dismiss behavior session-local in the component', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/missions/EnableAgentTeamBanner.tsx'), 'utf8')
+
+    expect(source).toContain('navigator.clipboard.writeText')
+    expect(source).toContain('useState(false)')
+    expect(source).toContain('setDismissed(true)')
+    expect(source).not.toContain('localStorage')
+    expect(source).not.toContain('sessionStorage')
   })
 
   it('keeps onboarding preview styles inside narrow editor widths', () => {
