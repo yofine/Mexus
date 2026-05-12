@@ -137,7 +137,7 @@ export function NotesDialog({ isOpen, onClose }: NotesDialogProps) {
               borderRadius: 'var(--radius-sm)',
               border: 'none',
               background: input.trim() ? 'var(--accent-primary)' : 'var(--bg-overlay)',
-              color: input.trim() ? '#fff' : 'var(--text-muted)',
+              color: input.trim() ? 'var(--fg-on-accent)' : 'var(--text-muted)',
               cursor: input.trim() ? 'pointer' : 'not-allowed',
               transition: 'background 0.15s',
               flexShrink: 0,
@@ -246,7 +246,7 @@ function NoteRow({
           transition: 'all 0.15s',
         }}
       >
-        {note.done && <Check size={12} style={{ color: '#fff' }} />}
+        {note.done && <Check size={12} style={{ color: 'var(--fg-on-accent)' }} />}
       </button>
 
       <span style={{

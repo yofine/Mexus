@@ -49,7 +49,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
         )}
         <button
           onClick={() => location.reload()}
-          style={{ marginTop: 16, padding: '8px 14px', background: '#2f6feb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+          style={{ marginTop: 16, padding: '8px 14px', background: 'var(--accent-primary)', color: 'var(--fg-on-accent)', border: 'none', borderRadius: 6, cursor: 'pointer' }}
         >
           Reload
         </button>

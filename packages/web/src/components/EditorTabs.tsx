@@ -1,12 +1,14 @@
+import { lazy, Suspense } from 'react'
 import { X, File, GitBranch, Shield, Activity, History, Eye, EyeOff, Users } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import type { EditorTab } from '@/stores/workspaceStore'
-import { FileViewer } from './FileViewer'
-import { GitDiffPanel } from './GitDiffPanel'
-import { ActivityMap } from './ActivityMap'
-import { ReplayViewer } from './ReplayViewer'
-import { MissionPanel } from './missions/MissionPanel'
 import type { ClientEvent } from '@/types'
+
+const ActivityMap = lazy(() => import('./ActivityMap').then((module) => ({ default: module.ActivityMap })))
+const GitDiffPanel = lazy(() => import('./GitDiffPanel').then((module) => ({ default: module.GitDiffPanel })))
+const ReplayViewer = lazy(() => import('./ReplayViewer').then((module) => ({ default: module.ReplayViewer })))
+const FileViewer = lazy(() => import('./FileViewer').then((module) => ({ default: module.FileViewer })))
+const MissionPanel = lazy(() => import('./missions/MissionPanel').then((module) => ({ default: module.MissionPanel })))
 
 interface EditorTabsProps {
   send: (event: ClientEvent) => void
@@ -47,6 +49,8 @@ function TabButton({ tab, isActive, onActivate, onClose }: {
         userSelect: 'none',
         whiteSpace: 'nowrap',
         flexShrink: 0,
+        height: 'var(--header-height)',
+        boxSizing: 'border-box',
       }}
       onMouseEnter={(e) => {
         if (!isActive) e.currentTarget.style.background = 'var(--bg-overlay)'
@@ -97,13 +101,16 @@ export function EditorTabs({ send, isMaximized = false, onToggleMaximize }: Edit
       <div
         style={{
           display: 'flex',
-          overflow: 'auto',
+          overflowX: 'auto',
+          overflowY: 'hidden',
           borderBottom: '1px solid var(--border-subtle)',
           background: 'var(--bg-surface)',
           flexShrink: 0,
+          height: 'var(--header-height)',
+          boxSizing: 'border-box',
         }}
       >
-        <div style={{ display: 'flex', overflow: 'auto', minWidth: 0, flex: 1 }}>
+        <div style={{ display: 'flex', overflowX: 'auto', overflowY: 'hidden', minWidth: 0, flex: 1 }}>
           {tabs.map((tab) => (
             <TabButton
               key={tab.id}
@@ -136,6 +143,7 @@ export function EditorTabs({ send, isMaximized = false, onToggleMaximize }: Edit
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <Suspense fallback={<div className="editor-tab-loading">Loading...</div>}>
         {activeTab?.type === 'activity' && (
           <ActivityMap />
         )}
@@ -151,6 +159,7 @@ export function EditorTabs({ send, isMaximized = false, onToggleMaximize }: Edit
         {activeTab?.type === 'file' && activeTab.filePath && (
           <FileViewer filePath={activeTab.filePath} />
         )}
+        </Suspense>
       </div>
     </div>
   )

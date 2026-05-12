@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PaneState } from '@/types'
-import { filterHubPanes, getHubPaneFilterOptions } from './hubPaneFilters'
+import { filterHubPanes, getExclusiveExpandedPaneId, getHubPaneFilterOptions } from './hubPaneFilters'
 
 function pane(id: string, agent: PaneState['agent'], missionName?: string): PaneState {
   return {
@@ -35,5 +35,11 @@ describe('Hub pane filters', () => {
       missions: ['mission-a', 'mission-b'],
       agents: ['claudecode', 'codex', 'opencode'],
     })
+  })
+
+  it('only applies exclusive expanded state when the active pane is visible in the stack', () => {
+    expect(getExclusiveExpandedPaneId(panes, 'bael')).toBe('bael')
+    expect(getExclusiveExpandedPaneId(filterHubPanes(panes, 'mission-a', 'all'), 'bael')).toBeNull()
+    expect(getExclusiveExpandedPaneId(panes, null)).toBeNull()
   })
 })

@@ -4,7 +4,6 @@ import {
   ChevronDown,
   ChevronRight,
   Pencil,
-  GitBranch,
   GitMerge,
   RotateCcw,
   Square,
@@ -12,7 +11,7 @@ import {
   Play,
 } from 'lucide-react'
 import { Terminal } from './Terminal'
-import { getAgentDisplayName, getPaneColor } from './AgentIcon'
+import { AgentIcon, getPaneColor } from './AgentIcon'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import {
   pauseTerminal,
@@ -28,31 +27,29 @@ interface AgentPaneProps {
   pane: PaneState
   paneIndex: number
   isExpanded: boolean
+  isHidden?: boolean
   onToggle: () => void
   send: (event: ClientEvent) => void
 }
 
-const statusColors: Record<string, string> = {
-  running: 'var(--status-running)',
-  waiting: 'var(--status-waiting)',
-  idle: 'var(--status-idle)',
-  stopped: 'var(--status-idle)',
-  error: 'var(--status-error)',
-}
-
-export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, onToggle, send }: AgentPaneProps) {
+export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, isHidden = false, onToggle, send }: AgentPaneProps) {
   const paneColor = getPaneColor(paneIndex)
   const paneDiffs = useWorkspaceStore((s) => s.paneDiffs[pane.id])
   const mergeResult = useWorkspaceStore((s) => s.mergeResults[pane.id])
-  const openReviewTab = useWorkspaceStore((s) => s.openReviewTab)
+  const conversation = useWorkspaceStore((s) => s.conversationByPane[pane.id] || [])
   const [isEditingName, setIsEditingName] = useState(false)
   const [draftName, setDraftName] = useState(pane.name)
+  const [taskOpen, setTaskOpen] = useState(false)
   const diffCount = paneDiffs?.length ?? 0
   const prevExpandedRef = useRef(isExpanded)
 
   useEffect(() => {
     if (!isEditingName) setDraftName(pane.name)
   }, [isEditingName, pane.name])
+
+  useEffect(() => {
+    if (!isExpanded) setTaskOpen(false)
+  }, [isExpanded, pane.id])
 
   // Handle pause/resume when expand state changes
   useEffect(() => {
@@ -158,143 +155,98 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
   }
 
   const hasSessionId = canResumePane(pane)
+  const previewParts = [
+    pane.mission
+      ? `${pane.mission.name} / ${pane.mission.role === 'squad-lead' ? 'lead' : 'agent'}${pane.mission.agentName ? ` / ${pane.mission.agentName}` : ''}`
+      : null,
+    pane.isolation === 'worktree' && pane.branch ? pane.branch.replace('nexus/', '') : null,
+    pane.workdir,
+  ].filter(Boolean)
+  const lastConversationPreview = [...conversation]
+    .reverse()
+    .find((event) => event.type === 'message' && event.text.trim())
+  const conversationPreview = lastConversationPreview?.type === 'message'
+    ? lastConversationPreview.text.replace(/\s+/g, ' ').trim()
+    : ''
+  const taskPreview = pane.task?.replace(/\s+/g, ' ').trim()
+  const panePreview = conversationPreview || taskPreview || previewParts.join(' · ')
+
   return (
     <div
-      style={{
-        border: `1px solid ${isExpanded ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-        borderRadius: 'var(--radius-md)',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        height: isExpanded ? 'clamp(300px, 60vh, 800px)' : 'auto',
-        position: 'relative',
-      }}
+      className={`agent-pane ${isExpanded ? 'agent-pane--expanded' : 'agent-pane--collapsed'} ${isHidden ? 'agent-pane--hidden' : ''}`}
+      style={{ '--pane-color': paneColor } as React.CSSProperties}
     >
       {/* Header */}
       <div
         onClick={onToggle}
         className="agent-pane-header"
-        style={{
-          background: isExpanded ? 'var(--bg-elevated)' : 'var(--bg-surface)',
-          borderBottom: isExpanded ? '1px solid var(--border-subtle)' : 'none',
-        }}
       >
         <div className="agent-pane-header__main">
           {isExpanded ? (
-            <ChevronDown className="icon-sm" style={{ color: 'var(--text-secondary)' }} />
+            <ChevronDown className="agent-pane-expand-icon icon-sm" />
           ) : (
-            <ChevronRight className="icon-sm" style={{ color: 'var(--text-secondary)' }} />
+            <ChevronRight className="agent-pane-expand-icon icon-sm" />
           )}
 
-          {/* Pane color dot */}
-          <div style={{
-            width: 'var(--space-md)',
-            height: 'var(--space-md)',
-            borderRadius: '50%',
-            background: paneColor,
-            flexShrink: 0,
-            boxShadow: `0 0 4px ${paneColor}66`,
-          }} />
-
-          {isEditingName ? (
-            <form
-              onSubmit={handleCommitRename}
-              onClick={(e) => e.stopPropagation()}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 120, maxWidth: 220 }}
-            >
-              <input
-                value={draftName}
-                onChange={(e) => setDraftName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') handleCancelRename()
-                }}
-                autoFocus
-                className="pane-title-input"
-              />
-              <button type="submit" className="pane-action-btn" title="Save title">
-                <Check size={13} />
-              </button>
-              <button type="button" onClick={handleCancelRename} className="pane-action-btn" title="Cancel title edit">
-                <X size={13} />
-              </button>
-            </form>
-          ) : (
-            <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 'var(--font-md)', whiteSpace: 'nowrap' }}>
-              {pane.name}
-            </span>
-          )}
-
-          <span
-            style={{
-              fontSize: 'var(--font-xs)',
-              color: 'var(--text-muted)',
-              fontFamily: 'var(--font-mono)',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            {getAgentDisplayName(pane.agent)}
+          <span className="agent-pane-avatar" aria-hidden="true">
+            <AgentIcon agent={pane.agent} size={22} />
           </span>
 
-          {/* Meta info (branch, workdir, context%, cost, diff count) */}
-          <div className="agent-pane-header__meta">
-            {pane.mission && (
-              <span className="agent-pane-mission-badge" title={`${pane.mission.name} / ${pane.mission.role}${pane.mission.agentName ? ` / ${pane.mission.agentName}` : ''}`}>
-                {pane.mission.name}
-                <span>{pane.mission.role === 'squad-lead' ? 'lead' : 'agent'}</span>
-                {pane.mission.agentName && <span>{pane.mission.agentName}</span>}
-              </span>
-            )}
-            {pane.isolation === 'worktree' && pane.branch && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 3,
-                  fontSize: 'var(--font-xs)',
-                  color: 'var(--accent-primary)',
-                  fontFamily: 'var(--font-mono)',
-                }}
+          <div className="agent-pane-copy">
+            {isEditingName ? (
+              <form
+                onSubmit={handleCommitRename}
+                onClick={(e) => e.stopPropagation()}
+                className="agent-pane-title-form"
               >
-                <GitBranch size={11} />
-                {pane.branch.replace('nexus/', '')}
+                <input
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') handleCancelRename()
+                  }}
+                  autoFocus
+                  className="pane-title-input"
+                />
+                <button type="submit" className="pane-action-btn" title="Save title">
+                  <Check size={13} />
+                </button>
+                <button type="button" onClick={handleCancelRename} className="pane-action-btn" title="Cancel title edit">
+                  <X size={13} />
+                </button>
+              </form>
+            ) : (
+              <span className="agent-pane-title">
+                {pane.name}
               </span>
             )}
-            {pane.workdir && (
-              <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                {pane.workdir}
-              </span>
-            )}
-            {pane.meta.contextUsedPct !== undefined && (
-              <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                {pane.meta.contextUsedPct}% ctx
-              </span>
-            )}
-            {pane.meta.costUsd !== undefined && (
-              <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                ${pane.meta.costUsd.toFixed(3)}
-              </span>
-            )}
-            {pane.isolation === 'worktree' && diffCount > 0 && (
-              <span
-                onClick={(e) => {
-                  e.stopPropagation()
-                  openReviewTab(pane.id, pane.name)
-                }}
-                style={{
-                  fontSize: 'var(--font-xs)',
-                  color: 'var(--status-waiting)',
-                  fontFamily: 'var(--font-mono)',
-                  cursor: 'pointer',
-                }}
-              >
-                {diffCount} file{diffCount !== 1 ? 's' : ''} changed
+            {panePreview && (
+              <span className="agent-pane-preview">
+                {panePreview}
               </span>
             )}
           </div>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-xs)', flexShrink: 0, alignItems: 'center' }}>
+          {isExpanded && pane.task && (
+            <button
+              type="button"
+              className="agent-pane-header__task-toggle"
+              onClick={(e) => {
+                e.stopPropagation()
+                setTaskOpen((open) => !open)
+              }}
+              aria-expanded={taskOpen}
+            >
+              {taskOpen ? (
+                <ChevronDown className="icon-xs" />
+              ) : (
+                <ChevronRight className="icon-xs" />
+              )}
+              <span>Task</span>
+            </button>
+          )}
+
+          <div className="agent-pane-actions">
             {!isEditingName && (
               <button
                 onClick={handleStartRename}
@@ -357,8 +309,8 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
           </div>
         </div>
 
-        {!isExpanded && pane.task && (
-          <div className="agent-pane-header__task">
+        {isExpanded && pane.task && taskOpen && (
+          <div className="agent-pane-header__task" onClick={(e) => e.stopPropagation()}>
             {pane.task}
           </div>
         )}

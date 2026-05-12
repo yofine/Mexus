@@ -107,7 +107,6 @@ const VIEW_ICONS: Record<ViewMode, typeof GitFork> = {
 
 export function ActivityMap() {
   const activities = useWorkspaceStore((s) => s.activities)
-  const paneCurrentFile = useWorkspaceStore((s) => s.paneCurrentFile)
   const panes = useWorkspaceStore((s) => s.panes)
   const openFileTab = useWorkspaceStore((s) => s.openFileTab)
   const depGraph = useWorkspaceStore((s) => s.depGraph)
@@ -236,54 +235,6 @@ export function ActivityMap() {
           ))}
         </div>
       </div>
-
-      {/* Row 2: Active agents */}
-      {panes.some((p) => paneCurrentFile[p.id]) && (
-        <div
-          style={{
-            flexShrink: 0,
-            borderBottom: '1px solid var(--border-subtle)',
-            padding: '4px 12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            flexWrap: 'wrap',
-            minHeight: 28,
-          }}
-        >
-          {panes.filter((p) => paneCurrentFile[p.id]).map((pane) => {
-            const current = paneCurrentFile[pane.id]
-            const color = getPaneColorById(pane.id, panes)
-            return (
-              <div
-                key={pane.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '3px 10px',
-                  borderRadius: 'var(--radius-md)',
-                  background: `color-mix(in srgb, ${color} 12%, transparent)`,
-                  border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
-                  fontSize: 'var(--font-xs)',
-                }}
-              >
-                <div
-                  className="agent-cursor-breathing"
-                  style={{ '--cursor-color': color } as React.CSSProperties}
-                />
-                <span style={{ color, fontWeight: 600 }}>{pane.name}</span>
-                <span style={{ color: getActionColor(current.action), display: 'flex', flexShrink: 0 }}>
-                  {getActionIcon(current.action, 10)}
-                </span>
-                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {current.file.split('/').slice(-2).join('/')}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      )}
 
       {/* Center: View content */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>

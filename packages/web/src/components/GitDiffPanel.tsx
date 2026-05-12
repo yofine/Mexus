@@ -140,7 +140,7 @@ function InlineCommentForm({ file, line, onSubmit, onCancel }: InlineCommentForm
             title="Send (⌘Enter)"
             style={{
               background: content.trim() && targetPaneId ? 'var(--accent-primary)' : 'var(--bg-overlay)',
-              color: content.trim() && targetPaneId ? '#fff' : 'var(--text-muted)',
+              color: content.trim() && targetPaneId ? 'var(--fg-on-accent)' : 'var(--text-muted)',
               border: 'none',
               borderRadius: 'var(--radius-sm)',
               padding: 'var(--space-sm)',
@@ -455,8 +455,8 @@ function DiffFileItem({ diff, mode, send, onStage, onUnstage, onDiscard, isRevie
         {importRefCount && importRefCount > 0 ? (
           <span style={{
             fontSize: '10px',
-            color: 'var(--accent-primary)',
-            background: 'var(--accent-subtle)',
+            color: 'var(--accent-text)',
+            background: 'var(--accent-muted)',
             padding: '1px 5px',
             borderRadius: 'var(--radius-sm)',
             fontWeight: 600,
@@ -805,9 +805,9 @@ export function GitDiffPanel({ send, paneId }: GitDiffPanelProps) {
               alignItems: 'center',
               gap: 3,
               fontSize: 'var(--font-xs)',
-              color: 'var(--accent-primary)',
+              color: 'var(--accent-text)',
               fontFamily: 'var(--font-mono)',
-              background: 'var(--accent-subtle)',
+              background: 'var(--accent-muted)',
               padding: '2px var(--space-sm)',
               borderRadius: 'var(--radius-sm)',
             }}
@@ -822,9 +822,9 @@ export function GitDiffPanel({ send, paneId }: GitDiffPanelProps) {
               alignItems: 'center',
               gap: 3,
               fontSize: 'var(--font-xs)',
-              color: 'var(--accent-primary)',
+              color: 'var(--accent-text)',
               fontFamily: 'var(--font-mono)',
-              background: 'var(--accent-subtle)',
+              background: 'var(--accent-muted)',
               padding: '2px var(--space-sm)',
               borderRadius: 'var(--radius-sm)',
             }}
@@ -1026,7 +1026,7 @@ export function GitDiffPanel({ send, paneId }: GitDiffPanelProps) {
                             width: '100%',
                             padding: 'var(--space-sm) var(--space-md)',
                             background: commitMessage.trim() ? 'var(--accent-primary)' : 'var(--bg-elevated)',
-                            color: commitMessage.trim() ? '#fff' : 'var(--text-muted)',
+                            color: commitMessage.trim() ? 'var(--fg-on-accent)' : 'var(--text-muted)',
                             border: 'none',
                             borderRadius: 'var(--radius-sm)',
                             cursor: commitMessage.trim() ? 'pointer' : 'not-allowed',

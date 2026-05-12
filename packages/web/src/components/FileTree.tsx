@@ -118,8 +118,8 @@ function FileTreeNode({ node, depth, expanded, onToggle, onSelect, openFilePaths
         className="file-tree-node"
         style={{
           paddingLeft: `calc(var(--space-md) + ${depth} * var(--space-xl))`,
-          color: isActive ? 'var(--text-primary)' : isOpen ? 'var(--accent-primary)' : 'var(--text-secondary)',
-          background: isActive ? 'var(--accent-subtle)' : 'transparent',
+          color: isActive ? 'var(--text-primary)' : isOpen ? 'var(--accent-text)' : 'var(--text-secondary)',
+          background: isActive ? 'var(--accent-muted)' : 'transparent',
         }}
         onMouseEnter={(e) => {
           if (!isActive) e.currentTarget.style.background = 'var(--bg-overlay)'

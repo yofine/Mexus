@@ -7,6 +7,7 @@ import { MissionSelector } from './MissionSelector'
 import { MissionOverview } from './MissionOverview'
 import { MissionKanban } from './MissionKanban'
 import { MissionAgents } from './MissionAgents'
+import { SquadLeadLog } from './SquadLeadLog'
 import { EnableAgentTeamBanner } from './EnableAgentTeamBanner'
 
 export const MISSION_DETAIL_REFRESH_MS = 15_000
@@ -123,7 +124,9 @@ function ObservationShell() {
   const overview = useMissionStore((s) => s.overview)
   const kanban = useMissionStore((s) => s.kanban)
   const agents = useMissionStore((s) => s.agents)
+  const squadLeadLog = useMissionStore((s) => s.squadLeadLog)
   const openFileTab = useWorkspaceStore((s) => s.openFileTab)
+  const [activeTab, setActiveTab] = useState<'kanban' | 'agents' | 'squad-log'>('kanban')
 
   if (!selectedMission) return null
 
@@ -143,8 +146,41 @@ function ObservationShell() {
         padding: 12,
         overflow: 'auto',
       }}>
-        <MissionKanban kanban={kanban} onOpenSource={openMissionSource} />
-        <MissionAgents agents={agents} />
+        <div className="mission-tabs" role="tablist" aria-label="Mission observation views">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'kanban'}
+            className={`mission-tab ${activeTab === 'kanban' ? 'mission-tab--active' : ''}`}
+            onClick={() => setActiveTab('kanban')}
+          >
+            Kanban
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'agents'}
+            className={`mission-tab ${activeTab === 'agents' ? 'mission-tab--active' : ''}`}
+            onClick={() => setActiveTab('agents')}
+          >
+            Mission Agents
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'squad-log'}
+            className={`mission-tab ${activeTab === 'squad-log' ? 'mission-tab--active' : ''}`}
+            onClick={() => setActiveTab('squad-log')}
+          >
+            Squad Lead Log
+          </button>
+        </div>
+
+        <div className="mission-tab-panel" role="tabpanel">
+          {activeTab === 'kanban' && <MissionKanban kanban={kanban} onOpenSource={openMissionSource} />}
+          {activeTab === 'agents' && <MissionAgents agents={agents} />}
+          {activeTab === 'squad-log' && <SquadLeadLog log={squadLeadLog} onOpenSource={openMissionSource} />}
+        </div>
       </div>
     </>
   )

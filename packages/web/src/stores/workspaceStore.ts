@@ -210,9 +210,9 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
         shellPanes: shells,
         activeShellPaneId: nextActiveShellPaneId,
         conversationByPane,
-        activePaneId: state.panes.length === 0 && state.activePaneId === null
-          ? (visible.length > 0 ? visible[0].id : null)
-          : state.activePaneId,
+        activePaneId: state.activePaneId && visible.some((pane) => pane.id === state.activePaneId)
+          ? state.activePaneId
+          : null,
       }
     }),
 
@@ -289,9 +289,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
       }
       return {
         panes: state.panes.filter((p) => p.id !== paneId),
-        activePaneId: state.activePaneId === paneId
-          ? (state.panes.find((p) => p.id !== paneId)?.id ?? null)
-          : state.activePaneId,
+        activePaneId: state.activePaneId === paneId ? null : state.activePaneId,
         paneDiffs: restPaneDiffs,
         conversationByPane: restConversations,
         diffViewPaneId: state.diffViewPaneId === paneId ? null : state.diffViewPaneId,

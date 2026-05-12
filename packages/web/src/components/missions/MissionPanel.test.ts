@@ -80,13 +80,17 @@ describe('MissionPanel onboarding placeholder data', () => {
     expect(css).toMatch(/\.mission-onboarding-card\s*(?:strong|p)[\s\S]*overflow-wrap:\s*anywhere;/)
   })
 
-  it('places Mission Agents below Kanban in the active observation shell', () => {
+  it('places Kanban, Mission Agents, and Squad Lead log behind observation tabs', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/missions/MissionPanel.tsx'), 'utf8')
     const kanbanIndex = source.indexOf('<MissionKanban')
     const agentsIndex = source.indexOf('<MissionAgents')
+    const logIndex = source.indexOf('<SquadLeadLog')
 
     expect(kanbanIndex).toBeGreaterThan(-1)
     expect(agentsIndex).toBeGreaterThan(kanbanIndex)
+    expect(logIndex).toBeGreaterThan(agentsIndex)
+    expect(source).toContain('mission-tabs')
+    expect(source).toContain('Squad Lead Log')
     expect(source).toContain("display: 'flex'")
     expect(source).toContain("flexDirection: 'column'")
     expect(source).not.toContain('gridTemplateColumns')

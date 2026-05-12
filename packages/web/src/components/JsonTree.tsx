@@ -13,8 +13,8 @@ function JsonNode({ keyName, value, depth }: { keyName?: string; value: JsonValu
   const toggle = useCallback(() => setExpanded((v) => !v), [])
 
   const renderValue = () => {
-    if (value === null) return <span style={{ color: '#7c6af7' }}>null</span>
-    if (typeof value === 'boolean') return <span style={{ color: '#7c6af7' }}>{String(value)}</span>
+    if (value === null) return <span style={{ color: 'var(--accent-text)' }}>null</span>
+    if (typeof value === 'boolean') return <span style={{ color: 'var(--accent-text)' }}>{String(value)}</span>
     if (typeof value === 'number') return <span style={{ color: '#79c0ff' }}>{value}</span>
     if (typeof value === 'string') return <span style={{ color: '#a5d6ff' }}>"{value}"</span>
     return null

@@ -251,7 +251,7 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
                     title={!installed ? `Not installed. ${hint}` : getAgentDisplayName(a)}
                     className={`apd-agent-card${agent === a ? ' apd-agent-card--active' : ''}${!installed ? ' apd-agent-card--disabled' : ''}`}
                   >
-                    <AgentIcon agent={a} size="20px" />
+                    <AgentIcon agent={a} size="20px" className="apd-agent-icon" />
                     <span className="apd-agent-name">{getAgentDisplayName(a)}</span>
                     {!installed && <span className="apd-agent-na">N/A</span>}
                   </button>

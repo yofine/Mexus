@@ -41,14 +41,19 @@ export function MissionAgents({ agents }: MissionAgentsProps) {
       <div className="mission-agent-list">
         {agents.agents.map((agent) => (
           <article className="mission-agent-card" key={agent.name}>
-            <div className="mission-agent-avatar" aria-hidden="true">
-              {agent.name.slice(0, 1).toUpperCase()}
-            </div>
-            <div className="mission-agent-profile">
+            <div className="mission-agent-card-head">
+              <div className="mission-agent-avatar" aria-hidden="true">
+                {agent.name.slice(0, 1).toUpperCase()}
+              </div>
               <div className="mission-agent-card-top">
-                <strong>{agent.name}</strong>
+                <div>
+                  <strong>{agent.name}</strong>
+                  <span>Mission Agent</span>
+                </div>
                 <span>{agent.taskCounts.total} tasks</span>
               </div>
+            </div>
+            <div className="mission-agent-profile">
               <p>{agent.responsibility || 'No responsibility recorded.'}</p>
               <div className="mission-agent-counts">
                 <span>{agent.taskCounts.toClaim} to claim</span>

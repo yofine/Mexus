@@ -155,7 +155,7 @@ export function TimelineSwimlane() {
               background:
                 rangeMs === r.ms ? 'var(--accent-primary)' : 'transparent',
               color:
-                rangeMs === r.ms ? '#fff' : 'var(--text-muted)',
+                rangeMs === r.ms ? 'var(--fg-on-accent)' : 'var(--text-muted)',
               cursor: 'pointer',
               fontSize: 'var(--font-xs)',
               fontFamily: 'var(--font-mono)',

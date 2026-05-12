@@ -1,11 +1,9 @@
 import { useMemo, useEffect, useState } from 'react'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import type { ActivityEntry } from '@/stores/workspaceStore'
-import { getPaneColorById } from './AgentIcon'
+import { AgentIcon, getPaneColorById } from './AgentIcon'
 import type { PaneState, FileDiff } from '@/types'
 import { Activity, FileCode2, DollarSign, Brain, Clock, AlertTriangle } from 'lucide-react'
-
-// ── Helpers ──
 
 function formatUptime(startedAt?: string): string {
   if (!startedAt) return '-'
@@ -119,7 +117,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 
 // ── Context Bar ──
 
-function ContextBar({ pct, color }: { pct: number; color: string }) {
+function ContextBar({ pct }: { pct: number }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <Brain width={10} height={10} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
@@ -137,7 +135,7 @@ function ContextBar({ pct, color }: { pct: number; color: string }) {
             width: `${pct}%`,
             height: '100%',
             borderRadius: 2,
-            background: pct > 80 ? 'var(--status-error)' : pct > 50 ? color : 'var(--status-running)',
+            background: pct > 80 ? 'var(--status-error)' : 'var(--text-muted)',
             transition: 'width 0.3s',
           }}
         />
@@ -169,7 +167,15 @@ const STATUS_STYLES: Record<string, { bg: string; color: string; label: string }
 
 // ── Agent Card ──
 
-function AgentCard({ pane, color, stats }: { pane: PaneState; color: string; stats: AgentStats }) {
+function AgentCard({
+  pane,
+  color,
+  stats,
+}: {
+  pane: PaneState
+  color: string
+  stats: AgentStats
+}) {
   const style = STATUS_STYLES[pane.status] || STATUS_STYLES.idle
   const [uptime, setUptime] = useState(() => formatUptime(pane.startedAt))
 
@@ -190,26 +196,28 @@ function AgentCard({ pane, color, stats }: { pane: PaneState; color: string; sta
         flexDirection: 'column',
       }}
     >
-      {/* Color header bar */}
-      <div style={{ height: 3, background: color }} />
-
       <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {/* Row 1: Name + status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div
+          <span
             style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: color,
-              boxShadow: `0 0 6px ${color}66`,
-              flexShrink: 0,
+              display: 'grid',
+              placeItems: 'center',
+              width: 24,
+              height: 24,
+              flex: '0 0 24px',
+              border: `1px solid color-mix(in srgb, ${color} 56%, var(--border-subtle))`,
+              borderRadius: 'var(--radius-sm)',
+              background: `color-mix(in srgb, ${color} 72%, var(--bg-base))`,
             }}
-          />
+          >
+            <AgentIcon agent={pane.agent} size={16} />
+          </span>
           <span
             style={{
               fontWeight: 700,
               fontSize: 'var(--font-md)',
+              lineHeight: '24px',
               color: 'var(--text-primary)',
               flex: 1,
               overflow: 'hidden',
@@ -252,8 +260,8 @@ function AgentCard({ pane, color, stats }: { pane: PaneState; color: string; sta
           {stats.linesAdded + stats.linesRemoved > 0 && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
               <Activity width={11} height={11} style={{ color: 'var(--text-muted)' }} />
-              <span style={{ color: 'var(--status-running)' }}>+{stats.linesAdded}</span>
-              <span style={{ color: 'var(--status-error)' }}>-{stats.linesRemoved}</span>
+              <span style={{ color: 'var(--text-secondary)' }}>+{stats.linesAdded}</span>
+              <span style={{ color: 'var(--text-muted)' }}>-{stats.linesRemoved}</span>
             </span>
           )}
           {pane.meta.costUsd !== undefined && (
@@ -270,7 +278,7 @@ function AgentCard({ pane, color, stats }: { pane: PaneState; color: string; sta
 
         {/* Row 3: Context bar */}
         {pane.meta.contextUsedPct !== undefined && (
-          <ContextBar pct={pane.meta.contextUsedPct} color={color} />
+          <ContextBar pct={pane.meta.contextUsedPct} />
         )}
 
         {/* Row 4: Sparkline + conflicts */}

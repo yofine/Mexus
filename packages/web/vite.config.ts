@@ -1,12 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
 const serverPort = process.env.NEXUS_PORT || '7700'
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ command }) => ({
+  plugins: command === 'serve' ? [react()] : [],
+  build: {
+    minify: false,
+    reportCompressedSize: false,
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -23,4 +26,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

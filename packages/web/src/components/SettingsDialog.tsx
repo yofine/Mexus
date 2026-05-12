@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
-  X,
   Palette,
   Keyboard,
   Bot,
@@ -20,7 +19,6 @@ import {
 } from 'lucide-react'
 import { AgentIcon } from './AgentIcon'
 import { Button } from './ui/button'
-import { Card } from './ui/card'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 import { Select } from './ui/select'
@@ -31,7 +29,6 @@ interface SettingsDialogProps {
   isOpen: boolean
   onClose: () => void
   scope?: 'server' | 'hub'
-  mode?: 'dialog' | 'page'
 }
 
 type SettingsTab = 'general' | 'shortcuts' | 'agents' | 'models'
@@ -43,7 +40,7 @@ type ModelConnectionResult = {
 }
 
 const THEMES = [
-  { id: 'dark-ide', name: 'Dark IDE', desc: 'Deep purple accents' },
+  { id: 'dark-ide', name: 'Dark IDE', desc: 'Brand green accents' },
   { id: 'github-dark', name: 'GitHub Dark', desc: 'GitHub-style dark' },
   { id: 'dracula', name: 'Dracula', desc: 'Classic Dracula palette' },
   { id: 'tokyo-night', name: 'Tokyo Night', desc: 'Soft blue tones' },
@@ -95,7 +92,7 @@ async function readJsonResponse<T>(response: Response, label: string): Promise<T
   return response.json() as Promise<T>
 }
 
-export function SettingsDialog({ isOpen, onClose, scope = 'server', mode = 'dialog' }: SettingsDialogProps) {
+export function SettingsDialog({ isOpen, onClose, scope = 'server' }: SettingsDialogProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [config, setConfig] = useState<GlobalConfig | null>(null)
   const [initialConfig, setInitialConfig] = useState<GlobalConfig | null>(null)
@@ -295,70 +292,67 @@ export function SettingsDialog({ isOpen, onClose, scope = 'server', mode = 'dial
     currentTheme !== (initialTheme ?? currentTheme)
   ))
 
-  const tabs: Array<{ id: SettingsTab; label: string; icon: React.ReactNode }> = [
-    { id: 'general', label: 'General', icon: <Settings size={16} /> },
-    { id: 'models', label: 'Models', icon: <Server size={16} /> },
-    { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={16} /> },
-    { id: 'agents', label: 'Agents', icon: <Bot size={16} /> },
+  const tabs: Array<{ id: SettingsTab; label: string; description: string; icon: React.ReactNode }> = [
+    { id: 'general', label: 'General', description: 'Interface defaults', icon: <Settings size={15} /> },
+    { id: 'models', label: 'Models', description: 'Providers and tool model', icon: <Server size={15} /> },
+    { id: 'agents', label: 'Agents', description: 'CLI execution profiles', icon: <Bot size={15} /> },
+    { id: 'shortcuts', label: 'Shortcuts', description: 'Keyboard reference', icon: <Keyboard size={15} /> },
   ]
 
-  const content = (
-    <div className={`settings-dialog ${mode === 'page' ? 'settings-dialog--page' : ''}`} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="settings-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', minWidth: 0 }}>
-            <Settings className="icon-md" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 'var(--font-xl)', fontWeight: 600 }}>
-                {scope === 'hub' ? 'Mexus Settings' : 'Settings'}
-              </div>
-              <div className="settings-subtitle">
-                {loading ? 'Loading settings...'
-                  : saveError ? saveError
-                    : savedFeedback ? 'Changes saved.'
-                      : dirty ? 'Unsaved changes'
-                        : scope === 'hub'
-                          ? 'Global Mexus preferences and agent configuration'
-                          : 'System preferences and agent configuration'}
-              </div>
+  return (
+    <div className="settings-page">
+      <div className="settings-shell">
+        <header className="settings-header">
+          <div className="settings-title-block">
+            <div className="settings-kicker">{scope === 'hub' ? 'Hub control plane' : 'Workspace control plane'}</div>
+            <div className="settings-title-row">
+              <Settings className="icon-md settings-title-icon" />
+              <h1>{scope === 'hub' ? 'Mexus Settings' : 'Settings'}</h1>
+            </div>
+            <div className={`settings-subtitle ${saveError ? 'settings-subtitle--error' : ''}`}>
+              {loading ? 'Loading settings...'
+                : saveError ? saveError
+                  : savedFeedback ? 'Changes saved.'
+                    : dirty ? 'Unsaved changes'
+                      : scope === 'hub'
+                        ? 'Global preferences, model routing, and agent execution configuration.'
+                        : 'Workspace preferences, model routing, and agent execution configuration.'}
             </div>
           </div>
           <div className="settings-header-actions">
-            <Button className="settings-header-btn" variant="secondary" onClick={handleClose}>
-              {mode === 'page' ? 'Close Tab' : 'Cancel'}
+            <Button className="settings-header-btn settings-header-btn--secondary" variant="secondary" onClick={handleClose}>
+              Close
             </Button>
             {activeTab !== 'models' && (
-              <Button className="settings-header-btn" variant="primary" onClick={handleSave} disabled={!dirty || saving || loading || !config}>
+              <Button className="settings-header-btn settings-header-btn--primary" variant="primary" onClick={handleSave} disabled={!dirty || saving || loading || !config}>
                 {saving ? <LoaderCircle size={14} className="settings-spin" /> : <Save size={14} />}
                 <span>{saving ? 'Saving...' : 'Save'}</span>
               </Button>
             )}
-            <Button variant="ghost" size="icon" onClick={handleClose}>
-              <X className="icon-md" style={{ color: 'var(--text-secondary)' }} />
-            </Button>
           </div>
-        </div>
+        </header>
 
         <div className="settings-body">
-          {/* Left menu */}
           <nav className="settings-nav">
             {tabs.map(tab => (
-              <Button
+              <button
+                type="button"
                 key={tab.id}
-                variant="ghost"
                 className={`settings-nav-item ${activeTab === tab.id ? 'settings-nav-item--active' : ''}`}
                 onClick={() => { setActiveTab(tab.id); setEditingAgent(null) }}
               >
-                <span style={{ color: activeTab === tab.id ? 'var(--accent-primary)' : 'var(--text-muted)', flexShrink: 0 }}>
+                <span className="settings-nav-item__icon">
                   {tab.icon}
                 </span>
-                <span>{tab.label}</span>
-              </Button>
+                <span className="settings-nav-item__copy">
+                  <span className="settings-nav-item__label">{tab.label}</span>
+                  <span className="settings-nav-item__description">{tab.description}</span>
+                </span>
+              </button>
             ))}
           </nav>
 
-          {/* Right content */}
-          <div className="settings-content">
+          <main className="settings-content">
             {loadError && (
               <div className="settings-banner settings-banner--error">
                 <AlertCircle size={14} />
@@ -408,18 +402,9 @@ export function SettingsDialog({ isOpen, onClose, scope = 'server', mode = 'dial
                 onEnvChange={handleEnvChange}
               />
             )}
-          </div>
+          </main>
         </div>
-    </div>
-  )
-
-  if (mode === 'page') {
-    return <div className="settings-page">{content}</div>
-  }
-
-  return (
-    <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}>
-      {content}
+      </div>
     </div>
   )
 }
@@ -453,8 +438,11 @@ function GeneralTab({
     <div className="settings-section-list">
       <section className="settings-section">
         <div className="settings-section-header">
-          <Palette className="icon-sm" style={{ color: 'var(--accent-primary)' }} />
-          <h3>Theme</h3>
+          <Palette className="icon-sm" />
+          <div>
+            <h3>Theme</h3>
+            <p>Choose the application color system used by workspaces and Hub.</p>
+          </div>
         </div>
         <div className="theme-grid">
           {THEMES.map(theme => (
@@ -479,8 +467,11 @@ function GeneralTab({
       {/* Font */}
       <section className="settings-section">
         <div className="settings-section-header">
-          <Terminal className="icon-sm" style={{ color: 'var(--accent-primary)' }} />
-          <h3>Terminal Font</h3>
+          <Terminal className="icon-sm" />
+          <div>
+            <h3>Terminal Font</h3>
+            <p>Set the monospace face used in terminals, logs, and code-like metadata.</p>
+          </div>
         </div>
         <div className="font-grid">
           {FONT_OPTIONS.map(font => (
@@ -502,56 +493,73 @@ function GeneralTab({
       {/* Defaults */}
       <section className="settings-section">
         <div className="settings-section-header">
-          <CircleDot className="icon-sm" style={{ color: 'var(--accent-primary)' }} />
-          <h3>Defaults</h3>
+          <CircleDot className="icon-sm" />
+          <div>
+            <h3>Defaults</h3>
+            <p>Baseline runtime behavior for new sessions and mission orchestration.</p>
+          </div>
         </div>
         <div className="settings-field-list">
-          <div className="settings-field">
-            <Label>Shell</Label>
+          <div className="settings-field settings-field--row">
+            <div className="settings-field__copy">
+              <Label>Shell</Label>
+              <span>Default shell used when Mexus starts local terminal sessions.</span>
+            </div>
             <Input
               value={config?.defaults.shell || ''}
               onChange={(e) => onDefaultsChange('shell', e.target.value)}
               placeholder="/bin/zsh"
             />
           </div>
-          <div className="settings-field">
-            <Label>Scrollback Lines</Label>
+          <div className="settings-field settings-field--row">
+            <div className="settings-field__copy">
+              <Label>Scrollback Lines</Label>
+              <span>Maximum terminal history retained in memory per pane.</span>
+            </div>
             <Input
               type="number"
               value={config?.defaults.scrollback_lines || 5000}
               onChange={(e) => onDefaultsChange('scrollback_lines', parseInt(e.target.value) || 5000)}
             />
           </div>
-          <div className="settings-field">
-            <Label>History Retention (days)</Label>
+          <div className="settings-field settings-field--row">
+            <div className="settings-field__copy">
+              <Label>History Retention</Label>
+              <span>Number of days to keep workspace history.</span>
+            </div>
             <Input
               type="number"
               value={config?.defaults.history_retention_days || 30}
               onChange={(e) => onDefaultsChange('history_retention_days', parseInt(e.target.value) || 30)}
             />
           </div>
-          <div className="settings-field">
-            <Label>Mission Default Agent</Label>
-            <Select
-              value={missionDefaultAgent}
-              onChange={(e) => onMissionDefaultAgentChange(e.target.value)}
-            >
-              <option value="">Not configured</option>
-              {missionAgentOptions.map((agentType) => {
-                const display = AGENT_DISPLAY[agentType] || { name: agentType, desc: '' }
-                const installed = availability[agentType]?.installed
-                return (
-                  <option key={agentType} value={agentType}>
-                    {display.name}{installed === false ? ' (not found)' : ''}
-                  </option>
-                )
-              })}
-            </Select>
-            {selectedMissionAgentAvailability?.installed === false && (
-              <span style={{ fontSize: 'var(--font-xs)', color: '#F0883E' }}>
-                {selectedMissionAgentAvailability.installHint}
-              </span>
-            )}
+          <div className="settings-field settings-field--row">
+            <div className="settings-field__copy">
+              <Label>Mission Default Agent</Label>
+              <span>Agent selected by default when mission workflows need one.</span>
+            </div>
+            <div className="settings-field__control">
+              <Select
+                value={missionDefaultAgent}
+                onChange={(e) => onMissionDefaultAgentChange(e.target.value)}
+              >
+                <option value="">Not configured</option>
+                {missionAgentOptions.map((agentType) => {
+                  const display = AGENT_DISPLAY[agentType] || { name: agentType, desc: '' }
+                  const installed = availability[agentType]?.installed
+                  return (
+                    <option key={agentType} value={agentType}>
+                      {display.name}{installed === false ? ' (not found)' : ''}
+                    </option>
+                  )
+                })}
+              </Select>
+              {selectedMissionAgentAvailability?.installed === false && (
+                <span className="settings-field__hint">
+                  {selectedMissionAgentAvailability.installHint}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -562,13 +570,13 @@ function GeneralTab({
 // ─── Theme Preview ───────────────────────────────────────────
 
 const THEME_COLORS: Record<string, { bg: string; surface: string; accent: string; text: string; border: string }> = {
-  'dark-ide':     { bg: '#0d0d0d', surface: '#161616', accent: '#7c6af7', text: '#e8e8e8', border: '#2a2a2a' },
-  'github-dark':  { bg: '#0d1117', surface: '#010409', accent: '#58a6ff', text: '#e6edf3', border: '#21262d' },
-  'dracula':      { bg: '#282a36', surface: '#21222c', accent: '#bd93f9', text: '#f8f8f2', border: '#44475a' },
-  'tokyo-night':  { bg: '#1a1b26', surface: '#16161e', accent: '#7aa2f7', text: '#c0caf5', border: '#292e42' },
-  'catppuccin':   { bg: '#1e1e2e', surface: '#181825', accent: '#cba6f7', text: '#cdd6f4', border: '#313244' },
-  'nord':         { bg: '#2e3440', surface: '#272c36', accent: '#88c0d0', text: '#eceff4', border: '#3b4252' },
-  'light-ide':    { bg: '#ffffff', surface: '#f5f5f5', accent: '#6b57e8', text: '#1a1a1a', border: '#e0e0e0' },
+  'dark-ide':     { bg: '#0d0d0d', surface: '#161616', accent: '#3CCFAB', text: '#e8e8e8', border: '#2a2a2a' },
+  'github-dark':  { bg: '#0d1117', surface: '#010409', accent: '#3CCFAB', text: '#e6edf3', border: '#21262d' },
+  'dracula':      { bg: '#282a36', surface: '#21222c', accent: '#3CCFAB', text: '#f8f8f2', border: '#44475a' },
+  'tokyo-night':  { bg: '#1a1b26', surface: '#16161e', accent: '#3CCFAB', text: '#c0caf5', border: '#292e42' },
+  'catppuccin':   { bg: '#1e1e2e', surface: '#181825', accent: '#3CCFAB', text: '#cdd6f4', border: '#313244' },
+  'nord':         { bg: '#2e3440', surface: '#272c36', accent: '#3CCFAB', text: '#eceff4', border: '#3b4252' },
+  'light-ide':    { bg: '#ffffff', surface: '#f5f5f5', accent: '#3CCFAB', text: '#1a1a1a', border: '#e0e0e0' },
 }
 
 function ThemePreview({ themeId }: { themeId: string }) {
@@ -601,12 +609,12 @@ function ShortcutsTab() {
     <div className="settings-section-list">
       <section className="settings-section">
         <div className="settings-section-header">
-          <Keyboard className="icon-sm" style={{ color: 'var(--accent-primary)' }} />
-          <h3>Keyboard Shortcuts</h3>
+          <Keyboard className="icon-sm" />
+          <div>
+            <h3>Keyboard Shortcuts</h3>
+            <p>Reference for global navigation and pane commands.</p>
+          </div>
         </div>
-        <p style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)' }}>
-          On macOS use ⌘, on Windows/Linux use Ctrl.
-        </p>
         <div className="shortcuts-list">
           {SHORTCUTS.map((shortcut, i) => (
             <div key={i} className="shortcut-row">
@@ -802,10 +810,52 @@ function ModelsTab({
   return (
     <div className="settings-section-list">
       <section className="settings-section">
+        <div className="settings-section-header">
+          <Server className="icon-sm" />
+          <div>
+            <h3>Mexus Tool Model</h3>
+            <p>Model used by Mexus-owned tooling when an internal model selection is required.</p>
+          </div>
+        </div>
+        <div className="tool-model-picker">
+          <div className="settings-field">
+            <Label>Provider</Label>
+            <Select
+              value={selectedToolProviderId}
+              onChange={(e) => selectToolProvider(e.target.value)}
+            >
+              <option value="">Not configured</option>
+              {providerEntries
+                .filter(([, provider]) => provider.enabled)
+                .map(([providerId, provider]) => (
+                  <option key={providerId} value={providerId}>{provider.name || providerId}</option>
+                ))}
+            </Select>
+          </div>
+          <div className="settings-field">
+            <Label>Model</Label>
+            <Select
+              value={selectedToolModels.some((model) => model.id === toolModelId) ? toolModelId : ''}
+              onChange={(e) => selectToolModel(e.target.value)}
+              disabled={!selectedToolProviderId || selectedToolModels.length === 0}
+            >
+              <option value="">Not configured</option>
+              {selectedToolModels.map((model) => (
+                <option key={model.id} value={model.id}>{model.name || model.id}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-section">
         <div className="settings-section-header settings-section-header--split">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <KeyRound className="icon-sm" style={{ color: 'var(--accent-primary)' }} />
-            <h3>Model Providers</h3>
+          <div className="settings-section-header__copy">
+            <KeyRound className="icon-sm" />
+            <div>
+              <h3>Model Providers</h3>
+              <p>Configure provider endpoints, credentials, proxy behavior, and available models.</p>
+            </div>
           </div>
           <div className="models-toolbar">
             <Button
@@ -823,7 +873,7 @@ function ModelsTab({
         </div>
 
         {draftProvider && (
-          <Card className="model-provider-form">
+          <div className="model-provider-form">
             <div className="model-form-grid">
               <div className="settings-field">
                 <Label>Name</Label>
@@ -935,7 +985,7 @@ function ModelsTab({
                 {saving ? 'Saving...' : 'Save Provider'}
               </Button>
             </div>
-          </Card>
+          </div>
         )}
 
         <div className="model-provider-list">
@@ -943,7 +993,7 @@ function ModelsTab({
             const isEditing = editingProviderId === providerId && editingProvider
             const cardProvider = isEditing ? editingProvider : provider
             return (
-              <Card key={providerId} className="model-provider-card">
+              <div key={providerId} className="model-provider-card">
                 <div className="model-provider-card__header">
                   <div style={{ minWidth: 0 }}>
                     <div className="model-provider-card__title">{provider.name || providerId}</div>
@@ -1106,45 +1156,9 @@ function ModelsTab({
                     <span>{testingProvider === providerId ? 'Testing...' : 'Test Connection'}</span>
                   </Button>
                 </div>
-              </Card>
+              </div>
             )
           })}
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <div className="settings-section-header">
-          <Server className="icon-sm" style={{ color: 'var(--accent-primary)' }} />
-          <h3>Mexus Tool Model</h3>
-        </div>
-        <div className="tool-model-picker">
-          <div className="settings-field">
-            <Label>Provider</Label>
-            <Select
-              value={selectedToolProviderId}
-              onChange={(e) => selectToolProvider(e.target.value)}
-            >
-              <option value="">Not configured</option>
-              {providerEntries
-                .filter(([, provider]) => provider.enabled)
-                .map(([providerId, provider]) => (
-                  <option key={providerId} value={providerId}>{provider.name || providerId}</option>
-                ))}
-            </Select>
-          </div>
-          <div className="settings-field">
-            <Label>Model</Label>
-            <Select
-              value={selectedToolModels.some((model) => model.id === toolModelId) ? toolModelId : ''}
-              onChange={(e) => selectToolModel(e.target.value)}
-              disabled={!selectedToolProviderId || selectedToolModels.length === 0}
-            >
-              <option value="">Not configured</option>
-              {selectedToolModels.map((model) => (
-                <option key={model.id} value={model.id}>{model.name || model.id}</option>
-              ))}
-            </Select>
-          </div>
         </div>
       </section>
     </div>
@@ -1190,12 +1204,12 @@ function AgentsTab({
     <div className="settings-section-list">
       <section className="settings-section">
         <div className="settings-section-header">
-          <Bot className="icon-sm" style={{ color: 'var(--accent-primary)' }} />
-          <h3>Installed Agents</h3>
+          <Bot className="icon-sm" />
+          <div>
+            <h3>Agent Profiles</h3>
+            <p>Configure the CLI binaries and execution flags Mexus can launch.</p>
+          </div>
         </div>
-        <p style={{ fontSize: 'var(--font-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)' }}>
-          Configure CLI agents detected on your system. Click an agent to edit its settings.
-        </p>
 
         <div className="agents-list">
           {agentKeys.map(key => {
@@ -1212,7 +1226,9 @@ function AgentsTab({
                   onClick={() => onEditAgent(isEditing ? null : key)}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', flex: 1, minWidth: 0 }}>
-                    <AgentIcon agent={key as any} size={20} />
+                    <span className="settings-agent-icon" aria-hidden="true">
+                      <AgentIcon agent={key} size={18} className="settings-agent-icon__image" />
+                    </span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
                         <span style={{ fontWeight: 600, fontSize: 'var(--font-md)' }}>{display.name}</span>
@@ -1220,7 +1236,9 @@ function AgentsTab({
                           {installed ? 'Installed' : 'Not Found'}
                         </span>
                       </div>
-                      <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>{display.desc}</span>
+                      <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>
+                        {agent.bin || display.desc}
+                      </span>
                     </div>
                   </div>
                   <ChevronRight
@@ -1305,49 +1323,6 @@ function AgentsTab({
           })}
         </div>
       </section>
-
-      {/* Capabilities summary */}
-      <section className="settings-section">
-        <div className="settings-section-header">
-          <Zap className="icon-sm" style={{ color: 'var(--accent-primary)' }} />
-          <h3>Agent Capabilities</h3>
-        </div>
-        <div className="capabilities-grid">
-          {agentKeys.map(key => {
-            const agent = config.agents[key]
-            const avail = availability[key]
-            const display = AGENT_DISPLAY[key] || { name: key, desc: '' }
-            return (
-              <div key={key} className="capability-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
-                  <AgentIcon agent={key as any} size={16} />
-                  <span style={{ fontWeight: 600, fontSize: 'var(--font-sm)' }}>{display.name}</span>
-                </div>
-                <div className="capability-list">
-                  <CapabilityRow label="Statusline" enabled={agent.statusline} />
-                  <CapabilityRow label="Continue Mode" enabled={!!agent.continue_flag} />
-                  <CapabilityRow label="YOLO Mode" enabled={!!agent.yolo_flag} />
-                  <CapabilityRow label="Worktree Isolation" enabled={true} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </section>
-    </div>
-  )
-}
-
-function CapabilityRow({ label, enabled }: { label: string; enabled: boolean }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', fontSize: 'var(--font-xs)' }}>
-      <div style={{
-        width: 6,
-        height: 6,
-        borderRadius: '50%',
-        background: enabled ? 'var(--status-running)' : 'var(--text-muted)',
-      }} />
-      <span style={{ color: enabled ? 'var(--text-secondary)' : 'var(--text-muted)' }}>{label}</span>
     </div>
   )
 }

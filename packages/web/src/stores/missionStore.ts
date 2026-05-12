@@ -52,6 +52,21 @@ export interface MissionAgentsParseResult {
   agents: MissionAgentObservation[]
 }
 
+export interface SquadLeadLogEntry {
+  id: string
+  date: string
+  actor: string
+  detail: string
+  line: number
+}
+
+export interface SquadLeadLogParseResult {
+  ok: boolean
+  raw: string
+  error?: string
+  entries: SquadLeadLogEntry[]
+}
+
 export interface MissionOverview {
   name: string
   lifecycle: string
@@ -94,6 +109,7 @@ interface MissionStore {
   error: string | null
   kanban: MissionKanbanParseResult | null
   agents: MissionAgentsParseResult | null
+  squadLeadLog: SquadLeadLogParseResult | null
   overview: MissionOverview | null
   loadMissions: () => Promise<void>
   loadActiveMission: () => Promise<void>
@@ -349,6 +365,46 @@ export function parseMissionAgents(markdown: string, tasks: MissionKanbanTask[] 
   }
 }
 
+export function parseSquadLeadLog(markdown: string): SquadLeadLogParseResult {
+  try {
+    const section = sectionAfterHeading(markdown, 'Work Log')
+    if (section === null) {
+      return { ok: false, raw: markdown, error: 'No Work Log section found in squad-lead.md.', entries: [] }
+    }
+
+    const sectionStart = markdown.indexOf(section)
+    const entries: SquadLeadLogEntry[] = []
+    for (const match of section.matchAll(/^\s*-\s+(.+)$/gm)) {
+      const raw = match[1].trim()
+      const line = markdown.slice(0, sectionStart + (match.index || 0)).split(/\r?\n/).length
+      const parts = raw.split(/,\s*/)
+      const date = parts[0] || ''
+      const actor = parts[1] || 'Squad Lead'
+      const detail = parts.slice(2).join(', ').trim() || raw
+      entries.push({
+        id: `${line}:${raw}`,
+        date,
+        actor,
+        detail,
+        line,
+      })
+    }
+
+    if (entries.length === 0) {
+      return { ok: false, raw: markdown, error: 'No Work Log entries found in squad-lead.md.', entries: [] }
+    }
+
+    return { ok: true, raw: markdown, entries }
+  } catch (error) {
+    return {
+      ok: false,
+      raw: markdown,
+      error: error instanceof Error ? error.message : 'Unable to parse Squad Lead work log.',
+      entries: [],
+    }
+  }
+}
+
 function missionFileKeys(file: string): string[] {
   const aliases: Record<string, string> = {
     'mission.md': 'mission',
@@ -385,10 +441,11 @@ function readMissionFileParseError(details: MissionDetails | null, file: string)
   return readFilePayloadParseError(readMissionFileValue(details, file))
 }
 
-function deriveMissionState(details: MissionDetails | null): Pick<MissionStore, 'kanban' | 'agents' | 'overview'> {
+function deriveMissionState(details: MissionDetails | null): Pick<MissionStore, 'kanban' | 'agents' | 'squadLeadLog' | 'overview'> {
   const missionRaw = readMissionFile(details, 'mission.md')
   const kanbanRaw = readMissionFile(details, 'kanban.md')
   const agentsRaw = readMissionFile(details, 'agents.md')
+  const squadLeadRaw = readMissionFile(details, 'squad-lead.md')
   const kanbanParseError = readMissionFileParseError(details, 'kanban.md')
   const kanban = kanbanRaw
     ? (kanbanParseError
@@ -396,8 +453,9 @@ function deriveMissionState(details: MissionDetails | null): Pick<MissionStore, 
       : parseMissionKanban(kanbanRaw))
     : null
   const agents = agentsRaw ? parseMissionAgents(agentsRaw, kanban?.tasks || []) : null
+  const squadLeadLog = squadLeadRaw ? parseSquadLeadLog(squadLeadRaw) : null
   const overview = missionRaw ? parseMissionOverview(missionRaw) : null
-  return { kanban, agents, overview }
+  return { kanban, agents, squadLeadLog, overview }
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
@@ -424,6 +482,7 @@ export const useMissionStore = create<MissionStore>((set) => ({
   error: null,
   kanban: null,
   agents: null,
+  squadLeadLog: null,
   overview: null,
 
   loadMissions: async () => {
@@ -442,7 +501,7 @@ export const useMissionStore = create<MissionStore>((set) => ({
       const activeMission = normalizeMissionDetails(await fetchJson<MissionDetails | { mission?: MissionDetails }>('/api/missions/active'))
       set({ activeMission, selectedMission: activeMission, ...deriveMissionState(activeMission), isLoading: false })
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'Unable to load active mission.', activeMission: null, selectedMission: null, kanban: null, agents: null, overview: null, isLoading: false })
+      set({ error: error instanceof Error ? error.message : 'Unable to load active mission.', activeMission: null, selectedMission: null, kanban: null, agents: null, squadLeadLog: null, overview: null, isLoading: false })
     }
   },
 
@@ -467,7 +526,7 @@ export const useMissionStore = create<MissionStore>((set) => ({
       const selected = useMissionStore.getState().selectedMission
       set({ activeMission: selected?.lifecycle === 'active' ? selected : useMissionStore.getState().activeMission })
     } else {
-      set({ activeMission: null, selectedMission: null, kanban: null, agents: null, overview: null })
+      set({ activeMission: null, selectedMission: null, kanban: null, agents: null, squadLeadLog: null, overview: null })
     }
   },
 

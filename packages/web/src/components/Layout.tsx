@@ -1,19 +1,18 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { Sidebar } from './Sidebar'
 import { AgentPane } from './AgentPane'
 import { AddPaneDialog } from './AddPaneDialog'
 import { SettingsDialog } from './SettingsDialog'
-import { NotesDialog } from './NotesDialog'
 import { CommandPalette } from './CommandPalette'
 import { ResizeHandle } from './ResizeHandle'
 import { FileTree } from './FileTree'
 import { EditorTabs } from './EditorTabs'
 import { BottomTerminal } from './BottomTerminal'
 import { BrandLockup } from './BrandMark'
+import { Button } from './ui'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import type { ClientEvent } from '@/types'
-import { Monitor, PanelsTopLeft, FolderTree, FolderOpen, Folder, Plus } from 'lucide-react'
+import { Monitor, PanelsTopLeft, FolderTree, FolderOpen, Folder, Plus, SlidersHorizontal, X } from 'lucide-react'
 import {
   AGENT_WIDTH_STEPS,
   DEFAULT_WIDTHS,
@@ -27,7 +26,7 @@ import {
   type LayoutPanel,
   type PanelWidths,
 } from '@/lib/layoutPreferences'
-import { filterHubPanes, getHubPaneFilterOptions } from './hubPaneFilters'
+import { filterHubPanes, getExclusiveExpandedPaneId, getHubPaneFilterOptions } from './hubPaneFilters'
 
 interface LayoutProps {
   send: (event: ClientEvent) => void
@@ -49,9 +48,9 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [showNotes, setShowNotes] = useState(false)
   const [missionFilter, setMissionFilter] = useState('all')
   const [agentFilter, setAgentFilter] = useState('all')
+  const [paneFiltersOpen, setPaneFiltersOpen] = useState(false)
   const [fileTreeActions, setFileTreeActions] = useState<FileTreeHeaderActions | null>(null)
   const [layoutPrefs, setLayoutPrefs] = useState(loadLayoutPreferences)
   const [widths, setWidths] = useState<PanelWidths>(() => loadLayoutPreferences().widthsByMode[loadLayoutPreferences().mode])
@@ -88,10 +87,6 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
   const handleOpenAddPane = useCallback(() => setShowAddDialog(true), [])
   const handleToggleCommandPalette = useCallback(() => setShowCommandPalette(v => !v), [])
   const handleOpenSettings = useCallback(() => setShowSettings(true), [])
-  const handleOpenNotes = useCallback(() => setShowNotes(true), [])
-  const handleOpenReplay = useCallback(() => {
-    useWorkspaceStore.getState().openReplayTab()
-  }, [])
 
   const persistWidths = useCallback((next: PanelWidths) => {
     saveModeWidths(mode, next)
@@ -154,6 +149,19 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
   const missionFilterOptions = paneFilterOptions.missions
   const agentFilterOptions = paneFilterOptions.agents
   const filteredPanes = useMemo(() => filterHubPanes(panes, missionFilter, agentFilter), [agentFilter, missionFilter, panes])
+  const exclusiveExpandedPaneId = useMemo(
+    () => getExclusiveExpandedPaneId(filteredPanes, activePaneId),
+    [activePaneId, filteredPanes],
+  )
+  const paneFilterActive = missionFilter !== 'all' || agentFilter !== 'all'
+  const paneFilterSummary = [
+    missionFilter === 'all' ? null : missionFilter === '__none__' ? 'No mission' : missionFilter,
+    agentFilter === 'all' ? null : agentFilter,
+  ].filter(Boolean).join(' / ')
+  const clearPaneFilters = useCallback(() => {
+    setMissionFilter('all')
+    setAgentFilter('all')
+  }, [])
 
   useKeyboardShortcuts({
     send,
@@ -210,21 +218,23 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
         </div>
       )}
 
-      <div
-        style={{
-          display: 'flex',
-          flex: 1,
-          minHeight: 0,
-          width: '100%',
-          overflow: 'hidden',
-        }}
-      >
-        {!hubMode && (
-          <div style={{ width: 'var(--sidebar-width)', flexShrink: 0 }}>
-            <Sidebar onAddPane={handleOpenAddPane} onOpenSettings={handleOpenSettings} onOpenReplay={handleOpenReplay} onOpenNotes={handleOpenNotes} />
-          </div>
-        )}
-
+      {showSettings ? (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <SettingsDialog
+            isOpen={showSettings}
+            onClose={() => setShowSettings(false)}
+          />
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            flex: 1,
+            minHeight: 0,
+            width: '100%',
+            overflow: 'hidden',
+          }}
+        >
         {!isEditorFullscreen && (
           <>
             <div
@@ -237,72 +247,69 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
                 flexShrink: 0,
               }}
             >
-              {hubMode && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 'var(--space-md)',
-                    padding: '0 var(--space-xl)',
-                    borderBottom: '1px solid var(--border-subtle)',
-                    background: 'var(--bg-surface)',
-                    flexShrink: 0,
-                    height: 'var(--header-height)',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <PanelsTopLeft className="icon-sm" style={{ color: 'var(--text-secondary)' }} />
-                  <span style={{ fontSize: 'var(--font-md)', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    Panes
-                  </span>
-                  <button
-                    type="button"
-                    className="pane-action-btn"
-                    title="Add pane"
-                    onClick={handleOpenAddPane}
-                    style={{ marginLeft: 'auto' }}
-                  >
-                    <Plus className="icon-sm" />
-                  </button>
+              <div className="pane-panel-header">
+                <div className="pane-panel-header__title">
+                  <PanelsTopLeft className="icon-sm" />
+                  <span>Panes</span>
                 </div>
-              )}
-              {hubMode && panes.length > 0 && (
+                <div className="pane-panel-header__actions">
+                  {panes.length > 0 && (
+                    <button
+                      type="button"
+                      className={`pane-filter-toggle ${paneFiltersOpen ? 'pane-filter-toggle--open' : ''} ${paneFilterActive ? 'pane-filter-toggle--active' : ''}`}
+                      title="Filter panes"
+                      onClick={() => setPaneFiltersOpen((open) => !open)}
+                    >
+                      <SlidersHorizontal size={13} />
+                      <span>{paneFilterActive ? paneFilterSummary : 'Filter'}</span>
+                    </button>
+                  )}
+                  <Button variant="secondary" size="sm" onClick={handleOpenAddPane} title="Add pane">
+                    <Plus size={14} />
+                    Add
+                  </Button>
+                </div>
+              </div>
+              {panes.length > 0 && paneFiltersOpen && (
                 <div className="pane-filter-bar">
-                  <select
-                    value={missionFilter}
-                    onChange={(e) => setMissionFilter(e.target.value)}
-                    className="pane-filter-select"
-                    title="Filter by mission"
-                  >
-                    <option value="all">All missions</option>
-                    <option value="__none__">No mission</option>
-                    {missionFilterOptions.map((missionName) => (
-                      <option key={missionName} value={missionName}>{missionName}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={agentFilter}
-                    onChange={(e) => setAgentFilter(e.target.value)}
-                    className="pane-filter-select"
-                    title="Filter by agent type"
-                  >
-                    <option value="all">All agents</option>
-                    {agentFilterOptions.map((agentType) => (
-                      <option key={agentType} value={agentType}>{agentType}</option>
-                    ))}
-                  </select>
+                  <label className="pane-filter-field">
+                    <span>Mission</span>
+                    <select
+                      value={missionFilter}
+                      onChange={(e) => setMissionFilter(e.target.value)}
+                      className="pane-filter-select"
+                      title="Filter by mission"
+                    >
+                      <option value="all">All missions</option>
+                      <option value="__none__">No mission</option>
+                      {missionFilterOptions.map((missionName) => (
+                        <option key={missionName} value={missionName}>{missionName}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="pane-filter-field">
+                    <span>Agent</span>
+                    <select
+                      value={agentFilter}
+                      onChange={(e) => setAgentFilter(e.target.value)}
+                      className="pane-filter-select"
+                      title="Filter by agent type"
+                    >
+                      <option value="all">All agents</option>
+                      {agentFilterOptions.map((agentType) => (
+                        <option key={agentType} value={agentType}>{agentType}</option>
+                      ))}
+                    </select>
+                  </label>
+                  {paneFilterActive && (
+                    <button type="button" className="pane-filter-clear" onClick={clearPaneFilters} title="Clear pane filters">
+                      <X size={13} />
+                    </button>
+                  )}
                 </div>
               )}
               <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4,
-                  padding: 8,
-                  overflow: 'auto',
-                  minHeight: 0,
-                }}
+                className={`pane-stack ${exclusiveExpandedPaneId ? 'pane-stack--exclusive-expanded' : ''}`}
               >
                 {panes.length === 0 && (
                   <div
@@ -318,22 +325,9 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
                   >
                     <Monitor className="icon-hero" />
                     <span style={{ fontSize: 'var(--font-lg)' }}>No execution panes yet</span>
-                    {!hubMode && (
-                      <button
-                        onClick={handleOpenAddPane}
-                        style={{
-                          background: 'var(--accent-primary)',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: 'var(--radius-sm)',
-                          padding: 'var(--space-md) var(--space-xl)',
-                          cursor: 'pointer',
-                          fontSize: 'var(--font-md)',
-                        }}
-                      >
+                    <Button variant="primary" onClick={handleOpenAddPane}>
                         Create execution pane
-                      </button>
-                    )}
+                    </Button>
                   </div>
                 )}
 
@@ -349,6 +343,7 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
                     pane={pane}
                     paneIndex={index}
                     isExpanded={activePaneId === pane.id}
+                    isHidden={Boolean(exclusiveExpandedPaneId && exclusiveExpandedPaneId !== pane.id)}
                     onToggle={() => handleTogglePane(pane.id)}
                     send={send}
                   />
@@ -444,22 +439,13 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
             </div>
           </>
         )}
-      </div>
+        </div>
+      )}
 
       <AddPaneDialog
         isOpen={showAddDialog}
         onClose={() => setShowAddDialog(false)}
         send={send}
-      />
-
-      <SettingsDialog
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-      />
-
-      <NotesDialog
-        isOpen={showNotes}
-        onClose={() => setShowNotes(false)}
       />
 
       <CommandPalette

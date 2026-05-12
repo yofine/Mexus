@@ -1,94 +1,62 @@
+import type { CSSProperties } from 'react'
+
 interface AgentIconProps {
   agent: string
   size?: number | string
   className?: string
 }
 
+const AGENT_ICON_SRC: Record<string, string> = {
+  claudecode: '/assets/claude.svg',
+  claude: '/assets/claude.svg',
+  codex: '/assets/codex.svg',
+  opencode: '/assets/opencode.svg',
+  gemini: '/assets/gemini.svg',
+}
+
+export function getAgentIconSrc(agent: string): string | null {
+  return AGENT_ICON_SRC[agent.toLowerCase()] || null
+}
+
 export function AgentIcon({ agent, size = 16, className }: AgentIconProps) {
   const normalized = agent.toLowerCase()
-  const sizeStyle = { width: size, height: size, flexShrink: 0 } as React.CSSProperties
+  const sizeStyle: CSSProperties = {
+    width: size,
+    height: size,
+    flexShrink: 0,
+  }
+  const iconSrc = getAgentIconSrc(normalized)
 
-  if (normalized === 'claudecode' || normalized === 'claude') {
+  if (iconSrc) {
     return (
-      <svg className={className} style={sizeStyle} viewBox="0 0 24 24" fill="none">
-        <path d="M16.862 3.487c-.46-.27-1.077-.09-1.378.401L9.37 13.895a.24.24 0 0 0 .093.326l1.558.907a.24.24 0 0 0 .327-.088l4.08-6.985a.12.12 0 0 1 .212.027l1.584 6.56c.178.738-.257 1.48-.972 1.66l-5.507 1.378c-.357.09-.734.035-1.048-.152L4.34 13.265a1.15 1.15 0 0 1-.42-1.572L8.858 3.12A1.15 1.15 0 0 1 10.43 2.7l6.432 3.787" stroke="#D97757" strokeWidth="1.5" strokeLinecap="round"/>
-        <circle cx="17.5" cy="4.5" r="1.5" fill="#D97757"/>
-      </svg>
+      <img
+        src={iconSrc}
+        alt=""
+        aria-hidden="true"
+        className={className}
+        style={{ ...sizeStyle, display: 'block', objectFit: 'contain' }}
+      />
     )
   }
 
-  if (normalized === 'opencode') {
-    return (
-      <svg className={className} style={sizeStyle} viewBox="0 0 24 24" fill="none">
-        <rect x="3" y="3" width="18" height="18" rx="4" stroke="#58A6FF" strokeWidth="1.5"/>
-        <path d="M8 12l3-4v3h2v-3l3 4-3 4v-3h-2v3z" fill="#58A6FF" opacity="0.8"/>
-      </svg>
-    )
-  }
-
-  if (normalized === 'codex' || normalized === 'openai') {
-    return (
-      <svg className={className} style={sizeStyle} viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="#10A37F" strokeWidth="1.5"/>
-        <path d="M12 7v5l3.5 2" stroke="#10A37F" strokeWidth="1.5" strokeLinecap="round"/>
-        <circle cx="12" cy="12" r="1.5" fill="#10A37F"/>
-      </svg>
-    )
-  }
-
-  if (normalized === 'kimi-cli' || normalized === 'kimi' || normalized === 'kimicode') {
-    return (
-      <svg className={className} style={sizeStyle} viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="#6366F1" strokeWidth="1.5"/>
-        <path d="M8 10c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="#6366F1" strokeWidth="1.5" strokeLinecap="round"/>
-        <circle cx="9.5" cy="12.5" r="1.2" fill="#6366F1"/>
-        <circle cx="14.5" cy="12.5" r="1.2" fill="#6366F1"/>
-        <path d="M9.5 16c1 1.2 3.5 1.2 5 0" stroke="#6366F1" strokeWidth="1.2" strokeLinecap="round"/>
-      </svg>
-    )
-  }
-
-  if (normalized === 'qodercli' || normalized === 'qoder') {
-    return (
-      <svg className={className} style={sizeStyle} viewBox="0 0 24 24" fill="none">
-        <rect x="4" y="4" width="16" height="16" rx="4" stroke="#0EA5E9" strokeWidth="1.5"/>
-        <path d="M12 8a4 4 0 1 0 2.8 6.85L18 18" stroke="#0EA5E9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-    )
-  }
-
-  if (normalized === 'gemini' || normalized === 'google') {
-    return (
-      <svg className={className} style={sizeStyle} viewBox="0 0 24 24" fill="none">
-        <path d="M12 3c0 4.97-4.03 9-9 9 4.97 0 9 4.03 9 9 0-4.97 4.03-9 9-9-4.97 0-9-4.03-9-9z" stroke="#8B5CF6" strokeWidth="1.5" strokeLinejoin="round"/>
-      </svg>
-    )
-  }
-
-  if (normalized === 'aider') {
-    return (
-      <svg className={className} style={sizeStyle} viewBox="0 0 24 24" fill="none">
-        <path d="M4 20L12 4l8 16" stroke="#22C55E" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M7.5 14h9" stroke="#22C55E" strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    )
-  }
-
-  if (normalized === 'cursor') {
-    return (
-      <svg className={className} style={sizeStyle} viewBox="0 0 24 24" fill="none">
-        <path d="M5 3l14 9-6 2-3 7z" stroke="#F59E0B" strokeWidth="1.5" strokeLinejoin="round"/>
-      </svg>
-    )
-  }
-
-  // Default: terminal icon for unknown agents
+  const initial = getAgentDisplayName(normalized).slice(0, 1).toUpperCase()
   return (
-    <svg className={className} style={sizeStyle} viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="4" width="18" height="16" rx="2" stroke="var(--text-secondary)" strokeWidth="1.5"/>
-      <path d="M7 9l3 3-3 3" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M13 15h4" stroke="var(--text-secondary)" strokeWidth="1.5" strokeLinecap="round"/>
-    </svg>
+    <span
+      aria-hidden="true"
+      className={className}
+      style={{
+        ...sizeStyle,
+        display: 'inline-grid',
+        placeItems: 'center',
+        color: 'var(--text-muted)',
+        fontFamily: 'var(--font-mono)',
+        fontSize: '10px',
+        fontWeight: 700,
+        lineHeight: 1,
+      }}
+    >
+      {initial}
+    </span>
   )
 }
 

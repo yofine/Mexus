@@ -1,8 +1,20 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { FolderPlus, Play, Power, Server, Settings, Trash2, X } from 'lucide-react'
+import { FolderPlus, PanelRightOpen, Play, Power, Server, Settings, Trash2, X } from 'lucide-react'
 import { WorkspaceApp } from './WorkspaceApp'
 import { BrandLockup } from './BrandMark'
 import { SettingsDialog } from './SettingsDialog'
+import {
+  Button,
+  EmptyState,
+  ErrorBanner,
+  Field,
+  HubInstanceCard,
+  InlineNotice,
+  Input,
+  KeyValueMeta,
+  MetaRow,
+  SectionHeader,
+} from './ui'
 import { hubApi } from '@/lib/apiBase'
 import {
   buildHubTabSnapshot,
@@ -257,10 +269,10 @@ export function HubApp() {
   }, [refresh, tabs])
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
-      <div style={{ height: 40, display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#000' }}>
+      <div style={{ height: 40, display: 'flex', alignItems: 'stretch', borderBottom: '1px solid #22211f', background: '#050505', overflow: 'hidden' }}>
         <div style={brandAreaStyle}>
-          <BrandLockup subtitle="Operator console" />
+          <BrandLockup subtitle="Multi-agent execution" />
         </div>
         <div style={tabRailStyle}>
         <button onClick={() => setActiveTabId(DASHBOARD_TAB)} style={tabStyle(activeTabId === DASHBOARD_TAB)}>
@@ -296,7 +308,7 @@ export function HubApp() {
           ].join('\n')
           return (
             <button key={tab.id} onClick={() => activateTab(tab)} title={tabTitle} style={tabStyle(activeTabId === tab.id)}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: connected ? 'var(--accent-primary)' : status === 'running' ? 'var(--status-running)' : 'var(--status-error)', flexShrink: 0 }} />
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: connected ? '#25d764' : status === 'running' ? '#7d7a72' : '#4a4741', flexShrink: 0 }} />
               <span style={tabTitleStyle}>{snapshot.projectName || tab.title}</span>
               <span style={tabMetaStyle}>:{snapshot.port}</span>
               <span style={{ ...tabMetaStyle, maxWidth: 128 }}>{formatShortPath(snapshot.cwd)}</span>
@@ -323,94 +335,89 @@ export function HubApp() {
             </div>
           )}
           {activeTabId === DASHBOARD_TAB ? (
-            <div style={{ position: 'absolute', inset: 0, display: 'grid', gridTemplateColumns: 'minmax(560px, 1fr) 360px', overflow: 'hidden' }}>
-            <div style={{ padding: 20, overflow: 'auto' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div>
-                  <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0, color: 'var(--text-secondary)', marginBottom: 4 }}>Local execution servers</div>
-                  <div style={{ fontSize: 24, fontWeight: 600 }}>{instances.length} tracked instances</div>
-                </div>
-                <button onClick={openSettingsTab} title="Mexus Settings" style={settingsButtonStyle}>
-                  <Settings size={15} />
-                  Settings
-                </button>
-              </div>
-              {error && (
-                <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(248,81,73,0.35)', color: 'var(--status-error)', background: 'rgba(248,81,73,0.08)' }}>
-                  {error}
-                </div>
-              )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 12 }}>
-                {instances.length === 0 && (
-                  <div style={{ padding: 36, borderRadius: 10, border: '1px dashed var(--border-default)', color: 'var(--text-muted)', textAlign: 'center' }}>
-                    No execution servers tracked. Start one from the panel on the right.
-                  </div>
-                )}
-                {instances.map((instance) => (
-                  <div key={instance.port} style={{ border: '1px solid var(--border-subtle)', borderRadius: 10, background: 'var(--bg-surface)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: instance.status === 'running' ? 'var(--status-running)' : 'var(--status-error)' }} />
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{instance.projectName}</span>
-                        </div>
-                        <div style={{ marginTop: 4, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{instance.cwd}</div>
-                      </div>
-                      <span style={{ borderRadius: 6, padding: '2px 8px', background: 'var(--accent-subtle)', color: 'var(--accent-primary)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>:{instance.port}</span>
-                    </div>
-                    <div style={{ display: 'grid', gap: 4, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-                      <div>pid: {instance.pid || '—'}</div>
-                      <div>status: {instance.status}</div>
-                      <div>started: {formatUptime(instance.startedAt)}</div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 8, alignItems: 'center' }}>
-                      <button onClick={() => openTab(instance)} style={primaryButtonStyle}>
-                        {tabs.some((tab) => tab.serverId === serverIdFor(instance.port)) ? 'Focus Tab' : 'Open Tab'}
-                      </button>
-                      {instance.status === 'running' ? (
-                        <button onClick={() => stopInstance(instance)} style={ghostButtonStyle}>
-                          <Power size={14} />
-                          Stop
-                        </button>
-                      ) : (
-                        <button onClick={() => startInstance(instance)} style={ghostButtonStyle}>
-                          <Play size={14} />
-                          Start
-                        </button>
+            <div className="hub-dashboard">
+              <div className="hub-dashboard__main">
+                <SectionHeader
+                  title={`${instances.length} tracked instances`}
+                  description="Local execution servers"
+                  actions={(
+                    <Button variant="secondary" size="sm" onClick={openSettingsTab} title="Mexus Settings">
+                      <Settings size={15} />
+                      Settings
+                    </Button>
+                  )}
+                />
+                {error && <ErrorBanner className="hub-dashboard__error" message={error} />}
+                <div className="hub-instance-list">
+                  {instances.length === 0 && (
+                    <EmptyState
+                      title="No execution servers tracked"
+                      description="Start one from the panel on the right."
+                    />
+                  )}
+                  {instances.map((instance) => (
+                    <HubInstanceCard
+                      key={instance.port}
+                      name={instance.projectName}
+                      cwd={instance.cwd}
+                      port={instance.port}
+                      status={instance.status === 'running' ? 'running' : 'stopped'}
+                      meta={(
+                        <MetaRow>
+                          <KeyValueMeta label="pid" value={instance.pid || '—'} />
+                          <KeyValueMeta label="started" value={formatUptime(instance.startedAt)} />
+                        </MetaRow>
                       )}
-                      <button onClick={() => removeInstance(instance)} style={dangerButtonStyle}>
-                        <Trash2 size={14} />
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                      actions={(
+                        <>
+                          <Button className="hub-instance-action hub-instance-action--primary" variant="secondary" size="sm" onClick={() => openTab(instance)}>
+                            <PanelRightOpen size={14} />
+                            Open
+                          </Button>
+                          {instance.status === 'running' ? (
+                            <Button className="hub-instance-action" variant="ghost" size="sm" onClick={() => stopInstance(instance)}>
+                              <Power size={14} />
+                              Stop
+                            </Button>
+                          ) : (
+                            <Button className="hub-instance-action" variant="ghost" size="sm" onClick={() => startInstance(instance)}>
+                              <Play size={14} />
+                              Start
+                            </Button>
+                          )}
+                          <Button className="hub-instance-action hub-instance-action--danger" variant="ghost" size="sm" onClick={() => removeInstance(instance)}>
+                            <Trash2 size={14} />
+                            Remove
+                          </Button>
+                        </>
+                      )}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <div style={{ borderLeft: '1px solid var(--border-subtle)', padding: 20, background: 'var(--bg-surface)', overflow: 'auto' }}>
-              <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 0, color: 'var(--text-secondary)', marginBottom: 8 }}>New execution server</div>
-              <div style={{ fontSize: 20, fontWeight: 600, marginBottom: 18 }}>Start execution server</div>
-              <label style={labelStyle}>
-                Project path
-                <input value={cwdInput} onChange={(event) => setCwdInput(event.target.value)} placeholder="~/projects/my-app" style={inputStyle} />
-              </label>
-              <label style={labelStyle}>
-                Port
-                <input value={portInput} onChange={(event) => setPortInput(event.target.value)} placeholder="Auto assign" style={inputStyle} />
-              </label>
-              <button onClick={createInstance} disabled={isCreating} style={{ ...primaryButtonStyle, width: '100%', justifyContent: 'center', marginTop: 6 }}>
-                <FolderPlus size={14} />
-                {isCreating ? 'Starting…' : 'Create server'}
-              </button>
-              <div style={{ marginTop: 14, color: 'var(--text-muted)', fontSize: 12, lineHeight: 1.5 }}>
-                Mexus Hub owns the tabs and connection state. The Hub view keeps the current server connection alive; opening another running server switches the active connection.
-              </div>
+              <aside className="hub-dashboard__side">
+                <SectionHeader title="Start execution server" description="New execution server" />
+                <div className="hub-create-form">
+                  <Field label="Project path">
+                    <Input value={cwdInput} onChange={(event) => setCwdInput(event.target.value)} placeholder="~/projects/my-app" />
+                  </Field>
+                  <Field label="Port">
+                    <Input value={portInput} onChange={(event) => setPortInput(event.target.value)} placeholder="Auto assign" />
+                  </Field>
+                </div>
+                <Button className="hub-create-form__submit" variant="primary" onClick={createInstance} disabled={isCreating}>
+                  <FolderPlus size={14} />
+                  {isCreating ? 'Starting…' : 'Create server'}
+                </Button>
+                <InlineNotice>
+                  Mexus Hub owns the tabs and connection state. The Hub view keeps the current server connection alive; opening another running server switches the active connection.
+                </InlineNotice>
+              </aside>
             </div>
-          </div>
           ) : activeTabId === SETTINGS_TAB && settingsTabOpen ? (
             <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-              <SettingsDialog isOpen onClose={closeSettingsTab} scope="hub" mode="page" />
+              <SettingsDialog isOpen onClose={closeSettingsTab} scope="hub" />
             </div>
           ) : activeTabId === connectedTabId && connectedTarget ? null : (
             <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--text-secondary)', padding: 24 }}>
@@ -421,14 +428,14 @@ export function HubApp() {
                 </div>
                 {activeInstance ? (
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
-                    <button onClick={() => startInstance(activeInstance)} style={primaryButtonStyle}>
+                    <Button variant="primary" onClick={() => startInstance(activeInstance)}>
                       <Play size={14} />
                       Start server
-                    </button>
-                    <button onClick={() => removeInstance(activeInstance)} style={dangerButtonStyle}>
+                    </Button>
+                    <Button variant="danger" onClick={() => removeInstance(activeInstance)}>
                       <Trash2 size={14} />
                       Remove Record
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
               </div>
@@ -447,8 +454,8 @@ function tabStyle(active: boolean): CSSProperties {
     gap: 8,
     padding: '0 11px',
     border: 'none',
-    borderRight: '1px solid var(--border-subtle)',
-    background: active ? 'var(--bg-base)' : 'var(--bg-surface)',
+    borderRight: '1px solid #22211f',
+    background: active ? '#000' : '#050505',
     color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
     cursor: 'pointer',
     minWidth: 0,
@@ -467,7 +474,7 @@ const brandAreaStyle: CSSProperties = {
   alignItems: 'center',
   gap: 10,
   padding: '0 18px',
-  borderRight: '1px solid var(--border-subtle)',
+  borderRight: '1px solid #22211f',
 }
 
 const tabRailStyle: CSSProperties = {
@@ -477,6 +484,7 @@ const tabRailStyle: CSSProperties = {
   overflowX: 'auto',
   flex: 1,
   paddingLeft: 8,
+  background: '#050505',
 }
 
 const tabTextTrackStyle: CSSProperties = {
@@ -508,62 +516,4 @@ const tabCloseStyle: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   lineHeight: '18px',
-}
-
-const inputStyle: CSSProperties = {
-  width: '100%',
-  marginTop: 6,
-  borderRadius: 8,
-  border: '1px solid var(--border-default)',
-  background: 'var(--bg-base)',
-  color: 'var(--text-primary)',
-  padding: '10px 12px',
-  outline: 'none',
-}
-
-const labelStyle: CSSProperties = {
-  display: 'block',
-  color: 'var(--text-secondary)',
-  fontSize: 12,
-  marginBottom: 14,
-}
-
-const baseButtonStyle: CSSProperties = {
-  border: '1px solid transparent',
-  borderRadius: 8,
-  padding: '8px 12px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 8,
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-}
-
-const primaryButtonStyle: CSSProperties = {
-  ...baseButtonStyle,
-  background: 'var(--accent-primary)',
-  color: '#fff',
-}
-
-const ghostButtonStyle: CSSProperties = {
-  ...baseButtonStyle,
-  background: 'transparent',
-  color: 'var(--text-primary)',
-  border: '1px solid var(--border-default)',
-}
-
-const dangerButtonStyle: CSSProperties = {
-  ...baseButtonStyle,
-  background: 'transparent',
-  color: 'var(--status-error)',
-  border: '1px solid rgba(248,81,73,0.35)',
-}
-
-const settingsButtonStyle: CSSProperties = {
-  ...baseButtonStyle,
-  background: 'var(--bg-surface)',
-  color: 'var(--text-primary)',
-  border: '1px solid var(--border-default)',
-  padding: '8px 10px',
-  flexShrink: 0,
 }

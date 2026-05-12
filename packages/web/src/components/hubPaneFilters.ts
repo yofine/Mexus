@@ -16,3 +16,8 @@ export function filterHubPanes(panes: PaneState[], missionFilter: string, agentF
     return missionMatch && agentMatch
   })
 }
+
+export function getExclusiveExpandedPaneId(panes: PaneState[], activePaneId: string | null): string | null {
+  if (!activePaneId) return null
+  return panes.some((pane) => pane.id === activePaneId) ? activePaneId : null
+}

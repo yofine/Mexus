@@ -1,8 +1,4 @@
-import { isValidElement, useState, useEffect, useRef, useMemo, type ComponentPropsWithoutRef, type ReactNode } from 'react'
-import { createHighlighter, type Highlighter } from 'shiki'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { MermaidRenderer } from './MermaidRenderer'
+import { lazy, Suspense, useState, useEffect, useMemo } from 'react'
 import { ImagePreview } from './ImagePreview'
 import { HtmlPreview } from './HtmlPreview'
 import { CsvTable } from './CsvTable'
@@ -14,84 +10,9 @@ interface FileViewerProps {
   filePath: string
 }
 
-// Shared highlighter instance
-let highlighterPromise: Promise<Highlighter> | null = null
-function getHighlighter() {
-  if (!highlighterPromise) {
-    highlighterPromise = createHighlighter({
-      themes: ['github-dark'],
-      langs: [
-        'typescript', 'javascript', 'tsx', 'jsx', 'json', 'html', 'css',
-        'yaml', 'markdown', 'bash', 'python', 'go', 'rust', 'toml',
-        'sql', 'graphql', 'dockerfile', 'xml',
-      ],
-    })
-  }
-  return highlighterPromise
-}
+const MarkdownPreview = lazy(() => import('./MarkdownPreview').then((module) => ({ default: module.MarkdownPreview })))
 
 type FileType = 'markdown' | 'svg' | 'mermaid' | 'image' | 'html' | 'csv' | 'tsv' | 'pdf' | 'json' | 'code'
-
-function extractText(node: ReactNode): string {
-  if (typeof node === 'string' || typeof node === 'number') return String(node)
-  if (Array.isArray(node)) return node.map(extractText).join('')
-  if (isValidElement<{ children?: ReactNode }>(node)) return extractText(node.props.children)
-  return ''
-}
-
-function hasMermaidCode(node: ReactNode): boolean {
-  if (Array.isArray(node)) return node.some(hasMermaidCode)
-  if (!isValidElement<{ className?: string; children?: ReactNode }>(node)) return false
-  if (/\blanguage-mermaid\b/.test(node.props.className || '')) return true
-  return hasMermaidCode(node.props.children)
-}
-
-function copyTextFallback(text: string): boolean {
-  const textarea = document.createElement('textarea')
-  textarea.value = text
-  textarea.setAttribute('readonly', '')
-  textarea.style.position = 'fixed'
-  textarea.style.top = '-1000px'
-  textarea.style.left = '-1000px'
-  document.body.appendChild(textarea)
-  textarea.select()
-  const success = document.execCommand('copy')
-  document.body.removeChild(textarea)
-  return success
-}
-
-function CopyCodeButton({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = async () => {
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(code)
-      } else {
-        copyTextFallback(code)
-      }
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1200)
-    } catch {
-      if (copyTextFallback(code)) {
-        setCopied(true)
-        window.setTimeout(() => setCopied(false), 1200)
-      }
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      className="markdown-code-copy"
-      onClick={handleCopy}
-      aria-label="Copy code block"
-      title="Copy code"
-    >
-      {copied ? 'Copied' : 'Copy'}
-    </button>
-  )
-}
 
 function detectFileType(filePath: string): FileType {
   const ext = filePath.split('.').pop()?.toLowerCase() || ''
@@ -113,33 +34,15 @@ const BINARY_TYPES: Set<FileType> = new Set(['image', 'pdf'])
 // Types that have a preview/raw toggle
 const PREVIEWABLE: Set<FileType> = new Set(['markdown', 'svg', 'mermaid', 'html', 'csv', 'tsv', 'json'])
 
-function getLang(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase() || ''
-  const map: Record<string, string> = {
-    ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx',
-    json: 'json', html: 'html', htm: 'html', css: 'css',
-    yaml: 'yaml', yml: 'yaml',
-    md: 'markdown', sh: 'bash', bash: 'bash', zsh: 'bash',
-    py: 'python', go: 'go', rs: 'rust', toml: 'toml',
-    sql: 'sql', graphql: 'graphql', gql: 'graphql',
-    xml: 'xml', svg: 'xml',
-  }
-  const name = filePath.split('/').pop()?.toLowerCase() || ''
-  if (name === 'dockerfile') return 'dockerfile'
-  return map[ext] || ''
-}
-
 export function FileViewer({ filePath }: FileViewerProps) {
   const fileType = useMemo(() => detectFileType(filePath), [filePath])
   const isBinary = BINARY_TYPES.has(fileType)
   const hasPreview = PREVIEWABLE.has(fileType)
 
   const [content, setContent] = useState<string | null>(null)
-  const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [viewRaw, setViewRaw] = useState(false)
-  const codeRef = useRef<HTMLDivElement>(null)
 
   // Fetch text content for non-binary files
   useEffect(() => {
@@ -151,7 +54,6 @@ export function FileViewer({ filePath }: FileViewerProps) {
 
     setLoading(true)
     setError(null)
-    setHighlightedHtml(null)
     setViewRaw(false)
 
     fetch(api(`/api/file?path=${encodeURIComponent(filePath)}`))
@@ -161,29 +63,10 @@ export function FileViewer({ filePath }: FileViewerProps) {
       })
       .then((data: { content: string }) => {
         setContent(data.content)
-        // Skip highlighting for previewable types (will highlight on raw toggle)
-        if (hasPreview) return
-        const lang = getLang(filePath)
-        if (lang) {
-          getHighlighter().then((hl) => {
-            setHighlightedHtml(hl.codeToHtml(data.content, { lang, theme: 'github-dark' }))
-          }).catch(() => {/* fallback to plain text */})
-        }
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [filePath, isBinary, hasPreview])
-
-  // Highlight on demand when switching to raw view for previewable files
-  useEffect(() => {
-    if (!viewRaw || !content || highlightedHtml) return
-    const lang = getLang(filePath)
-    if (lang) {
-      getHighlighter().then((hl) => {
-        setHighlightedHtml(hl.codeToHtml(content, { lang, theme: 'github-dark' }))
-      }).catch(() => {/* fallback to plain text */})
-    }
-  }, [viewRaw, content, filePath, highlightedHtml])
+  }, [filePath, isBinary])
 
   // Render the preview content for the current file type
   const renderPreview = () => {
@@ -191,38 +74,13 @@ export function FileViewer({ filePath }: FileViewerProps) {
     switch (fileType) {
       case 'markdown':
         return (
-          <div className="markdown-body" style={{ padding: '16px 24px' }}>
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                pre({ children, ...props }: ComponentPropsWithoutRef<'pre'>) {
-                  if (hasMermaidCode(children)) return <>{children}</>
-                  const code = extractText(children).replace(/\n$/, '')
-                  return (
-                    <div className="markdown-code-block">
-                      <CopyCodeButton code={code} />
-                      <pre {...props}>{children}</pre>
-                    </div>
-                  )
-                },
-                code({ className, children, ...props }: ComponentPropsWithoutRef<'code'>) {
-                  const match = /language-(\w+)/.exec(className || '')
-                  if (match?.[1] === 'mermaid') {
-                    return <MermaidRenderer chart={String(children)} />
-                  }
-                  return <code className={className} {...props}>{children}</code>
-                },
-              }}
-            >
-              {content}
-            </ReactMarkdown>
-          </div>
+          <Suspense fallback={<div className="editor-tab-loading">Loading preview...</div>}>
+            <MarkdownPreview content={content} />
+          </Suspense>
         )
       case 'mermaid':
         return (
-          <div style={{ padding: 24, display: 'flex', justifyContent: 'center' }}>
-            <MermaidRenderer chart={content} />
-          </div>
+          <pre className="plain-code-view">{content}</pre>
         )
       case 'svg':
         return (
@@ -255,23 +113,9 @@ export function FileViewer({ filePath }: FileViewerProps) {
   // Code view (syntax highlighted or plain text with line numbers)
   const renderCode = () => {
     if (!content) return null
-    if (highlightedHtml && !viewRaw) {
-      return (
-        <div
-          ref={codeRef}
-          className="shiki-wrapper"
-          dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-          style={{ fontSize: 12, lineHeight: 1.5, fontFamily: 'var(--font-mono)' }}
-        />
-      )
-    }
     return (
       <pre
-        style={{
-          margin: 0, padding: '8px 0',
-          fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.5,
-          color: 'var(--text-code)',
-        }}
+        className="plain-code-view"
       >
         {content.split('\n').map((line, i) => (
           <div key={i} style={{ display: 'flex', padding: '0 12px' }}>
