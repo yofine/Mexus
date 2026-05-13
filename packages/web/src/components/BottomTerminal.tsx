@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
-import { Terminal as TerminalIcon, ChevronDown, ChevronUp, Maximize2, Minimize2, RotateCcw, RefreshCw, Square, Eraser, Plus, X, GitBranch, GitCompare, Folder } from 'lucide-react'
+import { Terminal as TerminalIcon, ChevronDown, ChevronUp, Maximize2, Minimize2, RotateCcw, RefreshCw, Square, Eraser, Plus, X, GitBranch, GitCompare, Folder, Pencil } from 'lucide-react'
 import { Terminal } from './Terminal'
 import type { ClientEvent, PaneState } from '@/types'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
@@ -78,6 +78,8 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
   const [projectCommands, setProjectCommands] = useState<string[]>([])
   const [lastCommand, setLastCommand] = useState<string | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
+  const [renamingPaneId, setRenamingPaneId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
 
   // Pending commands: when a shell is created with a command, we wait for shell output before sending
   const pendingCommandRef = useRef<{ name: string; command: string } | null>(null)
@@ -134,17 +136,32 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
     }
   }, [])
 
-  // Load project commands
+  // Load project commands. Re-fetch when the connected workspace changes —
+  // in Hub mode the active target is set after BottomTerminal first mounts,
+  // and projectDir is the reliable "connected" signal that also updates when
+  // switching between server tabs.
   useEffect(() => {
+    if (!projectDir) {
+      setProjectCommands([])
+      return
+    }
+    let cancelled = false
     fetch(api('/api/file?path=package.json'))
       .then((res) => res.ok ? res.json() : null)
       .then((data: { content: string } | null) => {
-        if (!data?.content) return
+        if (cancelled) return
+        if (!data?.content) {
+          setProjectCommands([])
+          return
+        }
         const parsed = JSON.parse(data.content) as { scripts?: Record<string, string> }
         setProjectCommands(getProjectCommands(parsed.scripts || {}))
       })
-      .catch(() => setProjectCommands([]))
-  }, [])
+      .catch(() => {
+        if (!cancelled) setProjectCommands([])
+      })
+    return () => { cancelled = true }
+  }, [projectDir])
 
   // Listen for shell terminal output to detect readiness and send pending commands
   useEffect(() => {
@@ -248,6 +265,27 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
     readyShellsRef.current.delete(paneId)
   }, [send])
 
+  const beginRename = useCallback((paneId: string, currentName: string) => {
+    setRenamingPaneId(paneId)
+    setRenameDraft(currentName)
+  }, [])
+
+  const cancelRename = useCallback(() => {
+    setRenamingPaneId(null)
+    setRenameDraft('')
+  }, [])
+
+  const commitRename = useCallback(() => {
+    if (!renamingPaneId) return
+    const trimmed = renameDraft.trim()
+    const pane = shellPanes.find((p) => p.id === renamingPaneId)
+    if (trimmed && pane && trimmed !== pane.name) {
+      send({ type: 'pane.rename', paneId: renamingPaneId, name: trimmed })
+    }
+    setRenamingPaneId(null)
+    setRenameDraft('')
+  }, [renameDraft, renamingPaneId, send, shellPanes])
+
   const setAndPersistHeight = useCallback((next: number) => {
     setHeightPct(next)
     saveModeTerminalHeight(layoutMode, next)
@@ -302,7 +340,7 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
   const renderShellList = () => (
     <div
       style={{
-        width: 160,
+        width: 220,
         flexShrink: 0,
         borderRight: '1px solid var(--border-subtle)',
         background: 'var(--bg-surface)',
@@ -362,40 +400,93 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
           No shells yet
         </div>
       ) : (
-        shellPanes.map((pane) => (
-          <div
-            key={pane.id}
-            onClick={() => setActiveShellPaneId(pane.id)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 12px',
-              cursor: 'pointer',
-              fontSize: 'var(--font-xs)',
-              color: activeShellPaneId === pane.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-              background: activeShellPaneId === pane.id ? 'var(--bg-elevated)' : 'transparent',
-              borderLeft: activeShellPaneId === pane.id ? '2px solid var(--accent-primary)' : '2px solid transparent',
-            }}
-          >
-            <TerminalIcon style={{ width: 12, height: 12, flexShrink: 0 }} />
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {pane.name}
-            </span>
-            <button
-              type="button"
-              className="pane-action-btn"
-              title="Close terminal"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleCloseShell(pane.id)
+        shellPanes.map((pane) => {
+          const isRenaming = renamingPaneId === pane.id
+          return (
+            <div
+              key={pane.id}
+              onClick={() => !isRenaming && setActiveShellPaneId(pane.id)}
+              title={isRenaming ? undefined : pane.name}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 12px',
+                cursor: isRenaming ? 'text' : 'pointer',
+                fontSize: 'var(--font-xs)',
+                color: activeShellPaneId === pane.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                background: activeShellPaneId === pane.id ? 'var(--bg-elevated)' : 'transparent',
+                borderLeft: activeShellPaneId === pane.id ? '2px solid var(--accent-primary)' : '2px solid transparent',
               }}
-              style={{ padding: 2, opacity: 0.6 }}
             >
-              <X style={{ width: 10, height: 10 }} />
-            </button>
-          </div>
-        ))
+              <TerminalIcon style={{ width: 12, height: 12, flexShrink: 0 }} />
+              {isRenaming ? (
+                <input
+                  autoFocus
+                  value={renameDraft}
+                  onChange={(e) => setRenameDraft(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      commitRename()
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault()
+                      cancelRename()
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    background: 'var(--bg-base)',
+                    border: '1px solid var(--accent-primary)',
+                    borderRadius: 3,
+                    color: 'var(--text-primary)',
+                    fontSize: 'var(--font-xs)',
+                    fontFamily: 'inherit',
+                    padding: '1px 4px',
+                    outline: 'none',
+                  }}
+                />
+              ) : (
+                <span
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    beginRename(pane.id, pane.name)
+                  }}
+                  style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >
+                  {pane.name}
+                </span>
+              )}
+              {!isRenaming && (
+                <button
+                  type="button"
+                  className="shell-row-action"
+                  title="Rename terminal"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    beginRename(pane.id, pane.name)
+                  }}
+                >
+                  <Pencil style={{ width: 11, height: 11 }} />
+                </button>
+              )}
+              <button
+                type="button"
+                className="shell-row-action"
+                title="Close terminal"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleCloseShell(pane.id)
+                }}
+              >
+                <X style={{ width: 11, height: 11 }} />
+              </button>
+            </div>
+          )
+        })
       )}
       {createError && (
         <div style={{ margin: 8, padding: 8, borderRadius: 6, color: 'var(--status-error)', background: 'color-mix(in srgb, var(--status-error) 10%, transparent)', fontSize: 'var(--font-xs)', lineHeight: 1.4 }}>

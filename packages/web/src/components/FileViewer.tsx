@@ -43,6 +43,18 @@ export function FileViewer({ filePath }: FileViewerProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [viewRaw, setViewRaw] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    if (!content) return
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // ignore
+    }
+  }
 
   // Fetch text content for non-binary files
   useEffect(() => {
@@ -147,20 +159,34 @@ export function FileViewer({ filePath }: FileViewerProps) {
         }}
         title={filePath}
       >
-        <span>{filePath}</span>
-        {hasPreview && (
-          <button
-            onClick={() => setViewRaw((v) => !v)}
-            style={{
-              background: 'var(--bg-overlay)', border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)',
-              fontSize: 10, padding: '1px 6px', cursor: 'pointer',
-              flexShrink: 0, marginLeft: 8,
-            }}
-          >
-            {viewRaw ? 'Preview' : 'Raw'}
-          </button>
-        )}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{filePath}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 8 }}>
+          {hasPreview && (
+            <button
+              onClick={() => setViewRaw((v) => !v)}
+              style={{
+                background: 'var(--bg-overlay)', border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)',
+                fontSize: 10, padding: '1px 6px', cursor: 'pointer',
+              }}
+            >
+              {viewRaw ? 'Preview' : 'Raw'}
+            </button>
+          )}
+          {!isBinary && content !== null && (
+            <button
+              onClick={handleCopy}
+              title="Copy full content"
+              style={{
+                background: 'var(--bg-overlay)', border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)',
+                fontSize: 10, padding: '1px 6px', cursor: 'pointer',
+              }}
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Content */}

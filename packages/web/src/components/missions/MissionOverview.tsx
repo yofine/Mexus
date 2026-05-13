@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleDot, ClipboardList, Clock3 } from 'lucide-react'
+import { AlertTriangle, ClipboardList, Clock3 } from 'lucide-react'
 import type { MissionKanbanParseResult, MissionOverview as MissionOverviewData, MissionSummary } from '@/stores/missionStore'
 
 function lifecycleColor(lifecycle?: string): string {
@@ -25,7 +25,6 @@ export function MissionOverview({ mission, overview, kanban }: {
       flexShrink: 0,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-        <CircleDot className="icon-sm" style={{ color: lifecycleColor(lifecycle), flexShrink: 0 }} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <h2 style={{

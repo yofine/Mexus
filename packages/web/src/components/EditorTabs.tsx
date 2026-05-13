@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { X, File, GitBranch, Shield, Activity, History, Eye, EyeOff, Users } from 'lucide-react'
+import { X, File, GitBranch, Shield, Activity, History, Focus, Minimize2, Users } from 'lucide-react'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import type { EditorTab } from '@/stores/workspaceStore'
 import type { ClientEvent } from '@/types'
@@ -104,7 +104,7 @@ export function EditorTabs({ send, isMaximized = false, onToggleMaximize }: Edit
           overflowX: 'auto',
           overflowY: 'hidden',
           borderBottom: '1px solid var(--border-subtle)',
-          background: 'var(--bg-surface)',
+          background: 'var(--bg-header)',
           flexShrink: 0,
           height: 'var(--header-height)',
           boxSizing: 'border-box',
@@ -132,9 +132,9 @@ export function EditorTabs({ send, isMaximized = false, onToggleMaximize }: Edit
               onClick={onToggleMaximize}
             >
               {isMaximized ? (
-                <EyeOff className="icon-xs" style={{ color: 'var(--accent-primary)' }} />
+                <Minimize2 className="icon-xs" style={{ color: 'var(--accent-primary)' }} />
               ) : (
-                <Eye className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
+                <Focus className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
               )}
             </button>
           )}

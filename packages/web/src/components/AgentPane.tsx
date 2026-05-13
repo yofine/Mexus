@@ -3,6 +3,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Pencil,
   GitMerge,
   RotateCcw,
@@ -220,31 +221,12 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
                 {pane.name}
               </span>
             )}
-            {panePreview && (
+            {!isExpanded && panePreview && (
               <span className="agent-pane-preview">
                 {panePreview}
               </span>
             )}
           </div>
-
-          {isExpanded && pane.task && (
-            <button
-              type="button"
-              className="agent-pane-header__task-toggle"
-              onClick={(e) => {
-                e.stopPropagation()
-                setTaskOpen((open) => !open)
-              }}
-              aria-expanded={taskOpen}
-            >
-              {taskOpen ? (
-                <ChevronDown className="icon-xs" />
-              ) : (
-                <ChevronRight className="icon-xs" />
-              )}
-              <span>Task</span>
-            </button>
-          )}
 
           <div className="agent-pane-actions">
             {!isEditingName && (
@@ -309,10 +291,31 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
           </div>
         </div>
 
-        {isExpanded && pane.task && taskOpen && (
-          <div className="agent-pane-header__task" onClick={(e) => e.stopPropagation()}>
-            {pane.task}
-          </div>
+        {isExpanded && pane.task && (
+          <>
+            {taskOpen && (
+              <div className="agent-pane-header__task" onClick={(e) => e.stopPropagation()}>
+                {pane.task}
+              </div>
+            )}
+            <button
+              type="button"
+              className="agent-pane-task-bar"
+              onClick={(e) => {
+                e.stopPropagation()
+                setTaskOpen((open) => !open)
+              }}
+              title={taskOpen ? 'Collapse task' : 'Expand task'}
+              aria-label={taskOpen ? 'Collapse task' : 'Expand task'}
+              aria-expanded={taskOpen}
+            >
+              {taskOpen ? (
+                <ChevronUp className="icon-xs" />
+              ) : (
+                <ChevronDown className="icon-xs" />
+              )}
+            </button>
+          </>
         )}
       </div>
 

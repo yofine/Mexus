@@ -70,6 +70,7 @@ interface WorkspaceStore {
 
   // File tree and git diff
   fileTree: FileNode[]
+  fileTreeLoaded: boolean
   gitDiffs: FileDiff[]
   gitStagedDiffs: FileDiff[]
   gitBranchInfo: { branch: string; remote?: string; ahead: number; behind: number } | null
@@ -163,6 +164,7 @@ function getInitialWorkspaceState(): Omit<WorkspaceStore,
     activePaneId: null,
     connectionStatus: 'disconnected',
     fileTree: [],
+    fileTreeLoaded: false,
     gitDiffs: [],
     gitStagedDiffs: [],
     gitBranchInfo: null,
@@ -300,6 +302,13 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
 
   renamePane: (paneId, name) =>
     set((state) => {
+      const shellIdx = state.shellPanes.findIndex((p) => p.id === paneId)
+      if (shellIdx !== -1) {
+        if (state.shellPanes[shellIdx].name === name) return state
+        const shellPanes = state.shellPanes.slice()
+        shellPanes[shellIdx] = { ...shellPanes[shellIdx], name }
+        return { shellPanes }
+      }
       const idx = state.panes.findIndex((p) => p.id === paneId)
       if (idx === -1 || state.panes[idx].name === name) return state
       const panes = state.panes.slice()
@@ -335,7 +344,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
 
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
 
-  setFileTree: (fileTree) => set({ fileTree }),
+  setFileTree: (fileTree) => set({ fileTree, fileTreeLoaded: true }),
 
   setGitDiffs: (gitDiffs) =>
     set((state) => {

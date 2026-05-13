@@ -114,9 +114,7 @@ export async function startServer(port: number, projectDir: string) {
 
       // Send initial file tree and git diffs to new client
       const tree = fsWatcher.getTree()
-      if (tree.length > 0) {
-        socket.send(JSON.stringify({ type: 'fs.tree', tree }))
-      }
+      socket.send(JSON.stringify({ type: 'fs.tree', tree }))
       const { unstaged, staged } = gitService.getCurrentDiffs()
       if (unstaged.length > 0 || staged.length > 0) {
         socket.send(JSON.stringify({ type: 'git.diff', unstaged, staged }))

@@ -61,3 +61,30 @@ describe('workspaceStore active pane', () => {
     expect(useWorkspaceStore.getState().activePaneId).toBeNull()
   })
 })
+
+describe('workspaceStore renamePane', () => {
+  it('renames a shell pane in shellPanes without touching panes', () => {
+    useWorkspaceStore.getState().resetWorkspace()
+    useWorkspaceStore.getState().setWorkspace('Nexus', '', '/repo', [
+      pane('pane-1'),
+      pane('__shell__:1', { name: 'Shell 1', agent: '__shell__' }),
+    ])
+
+    useWorkspaceStore.getState().renamePane('__shell__:1', 'Build runner')
+
+    const state = useWorkspaceStore.getState()
+    expect(state.shellPanes.find((p) => p.id === '__shell__:1')?.name).toBe('Build runner')
+    expect(state.panes.find((p) => p.id === 'pane-1')?.name).toBe('pane-1')
+  })
+
+  it('still renames agent panes via panes list', () => {
+    useWorkspaceStore.getState().resetWorkspace()
+    useWorkspaceStore.getState().setWorkspace('Nexus', '', '/repo', [
+      pane('pane-1'),
+    ])
+
+    useWorkspaceStore.getState().renamePane('pane-1', 'Renamed')
+
+    expect(useWorkspaceStore.getState().panes.find((p) => p.id === 'pane-1')?.name).toBe('Renamed')
+  })
+})

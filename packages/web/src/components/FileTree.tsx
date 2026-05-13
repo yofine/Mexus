@@ -12,6 +12,7 @@ import {
   FileSpreadsheet,
   FileText,
   FileVideo,
+  Loader2,
   ChevronRight,
   ChevronDown,
   type LucideIcon,
@@ -169,6 +170,7 @@ function FileTreeNode({ node, depth, expanded, onToggle, onSelect, openFilePaths
 
 export function FileTree({ onActionsReady }: FileTreeProps) {
   const fileTree = useWorkspaceStore((s) => s.fileTree)
+  const fileTreeLoaded = useWorkspaceStore((s) => s.fileTreeLoaded)
   const tabs = useWorkspaceStore((s) => s.tabs)
   const activeTabId = useWorkspaceStore((s) => s.activeTabId)
   const openFileTab = useWorkspaceStore((s) => s.openFileTab)
@@ -235,19 +237,22 @@ export function FileTree({ onActionsReady }: FileTreeProps) {
     })
   }, [onActionsReady, handleExpandAll, handleCollapseAll])
 
+  if (!fileTreeLoaded) {
+    return (
+      <div className="file-tree-state">
+        <Loader2 size={18} className="file-tree-state__spinner" />
+        <span>Loading workspace files...</span>
+        <small>Scanning project structure. This usually takes a moment.</small>
+      </div>
+    )
+  }
+
   if (fileTree.length === 0) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          color: 'var(--text-muted)',
-          fontSize: 'var(--font-sm)',
-        }}
-      >
-        No files
+      <div className="file-tree-state">
+        <FolderOpen size={22} className="file-tree-state__icon" />
+        <span>No files found</span>
+        <small>The workspace file tree is empty or all files are ignored.</small>
       </div>
     )
   }

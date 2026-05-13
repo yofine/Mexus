@@ -12,7 +12,7 @@ import { Button } from './ui'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import type { ClientEvent } from '@/types'
-import { Monitor, PanelsTopLeft, FolderTree, FolderOpen, Folder, Plus, SlidersHorizontal, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Monitor, PanelsTopLeft, FolderTree, FolderMinus, Plus, Settings, SlidersHorizontal, X } from 'lucide-react'
 import {
   AGENT_WIDTH_STEPS,
   DEFAULT_WIDTHS,
@@ -39,23 +39,87 @@ type FileTreeHeaderActions = {
   collapseAll: () => void
 }
 
+type PaneFilterMenuOption = {
+  value: string
+  label: string
+}
+
+function PaneFilterMenu({
+  label,
+  title,
+  value,
+  options,
+  isOpen,
+  onToggle,
+  onChange,
+}: {
+  label: string
+  title: string
+  value: string
+  options: PaneFilterMenuOption[]
+  isOpen: boolean
+  onToggle: () => void
+  onChange: (value: string) => void
+}) {
+  const selected = options.find((option) => option.value === value) || options[0]
+
+  return (
+    <div className={`pane-filter-menu ${isOpen ? 'pane-filter-menu--open' : ''}`}>
+      <span className="pane-filter-menu__label">{label}</span>
+      <button
+        type="button"
+        className="pane-filter-menu__trigger"
+        title={title}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+      >
+        <span>{selected?.label || 'All'}</span>
+        <ChevronDown size={12} />
+      </button>
+      {isOpen && (
+        <div className="pane-filter-menu__popover" role="listbox" aria-label={title}>
+          {options.map((option) => {
+            const active = option.value === value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className={`pane-filter-menu__option ${active ? 'pane-filter-menu__option--active' : ''}`}
+                role="option"
+                aria-selected={active}
+                onClick={() => onChange(option.value)}
+              >
+                <span>{option.label}</span>
+                {active && <Check size={12} />}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProps) {
   const panes = useWorkspaceStore((s) => s.panes)
   const activePaneId = useWorkspaceStore((s) => s.activePaneId)
   const setActivePaneId = useWorkspaceStore((s) => s.setActivePaneId)
   const name = useWorkspaceStore((s) => s.name)
-  const connectionStatus = useWorkspaceStore((s) => s.connectionStatus)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [missionFilter, setMissionFilter] = useState('all')
   const [agentFilter, setAgentFilter] = useState('all')
   const [paneFiltersOpen, setPaneFiltersOpen] = useState(false)
+  const [openPaneFilterMenu, setOpenPaneFilterMenu] = useState<'mission' | 'agent' | null>(null)
+  const [filesCollapsed, setFilesCollapsed] = useState(false)
   const [fileTreeActions, setFileTreeActions] = useState<FileTreeHeaderActions | null>(null)
   const [layoutPrefs, setLayoutPrefs] = useState(loadLayoutPreferences)
   const [widths, setWidths] = useState<PanelWidths>(() => loadLayoutPreferences().widthsByMode[loadLayoutPreferences().mode])
   const [maximizedPanel, setMaximizedPanel] = useState<Exclude<LayoutPanel, 'terminal'> | null>(null)
   const widthsRef = useRef(widths)
+  const paneFilterBarRef = useRef<HTMLDivElement | null>(null)
   widthsRef.current = widths
 
   const mode: LayoutMode = layoutPrefs.mode
@@ -148,6 +212,15 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
   const paneFilterOptions = useMemo(() => getHubPaneFilterOptions(panes), [panes])
   const missionFilterOptions = paneFilterOptions.missions
   const agentFilterOptions = paneFilterOptions.agents
+  const missionFilterMenuOptions = useMemo<PaneFilterMenuOption[]>(() => [
+    { value: 'all', label: 'All missions' },
+    { value: '__none__', label: 'No mission' },
+    ...missionFilterOptions.map((missionName) => ({ value: missionName, label: missionName })),
+  ], [missionFilterOptions])
+  const agentFilterMenuOptions = useMemo<PaneFilterMenuOption[]>(() => [
+    { value: 'all', label: 'All agents' },
+    ...agentFilterOptions.map((agentType) => ({ value: agentType, label: agentType })),
+  ], [agentFilterOptions])
   const filteredPanes = useMemo(() => filterHubPanes(panes, missionFilter, agentFilter), [agentFilter, missionFilter, panes])
   const exclusiveExpandedPaneId = useMemo(
     () => getExclusiveExpandedPaneId(filteredPanes, activePaneId),
@@ -161,7 +234,30 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
   const clearPaneFilters = useCallback(() => {
     setMissionFilter('all')
     setAgentFilter('all')
+    setOpenPaneFilterMenu(null)
   }, [])
+
+  useEffect(() => {
+    if (!paneFiltersOpen || !openPaneFilterMenu) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!paneFilterBarRef.current?.contains(event.target as Node)) {
+        setOpenPaneFilterMenu(null)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenPaneFilterMenu(null)
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [openPaneFilterMenu, paneFiltersOpen])
 
   useKeyboardShortcuts({
     send,
@@ -188,33 +284,45 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
             gap: 'var(--space-md)',
             padding: '0 var(--space-lg)',
             borderBottom: '1px solid var(--border-subtle)',
-            background: 'var(--bg-surface)',
+            background: 'var(--bg-header)',
             flexShrink: 0,
             height: 'var(--header-height)',
             boxSizing: 'border-box',
+            position: 'relative',
           }}
         >
           <BrandLockup subtitle="Multi-agent execution" />
           {name && (
-            <span style={{ fontSize: 'var(--font-sm)', fontWeight: 600, color: 'var(--text-secondary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            <span
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                maxWidth: 'min(420px, calc(100% - 320px))',
+                fontSize: 'var(--font-sm)',
+                fontWeight: 600,
+                color: 'var(--text-secondary)',
+                overflow: 'hidden',
+                textAlign: 'center',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+              }}
+            >
               {name}
             </span>
           )}
-          <div
-            style={{
-              marginLeft: 'auto',
-              width: 'var(--space-md)',
-              height: 'var(--space-md)',
-              borderRadius: '50%',
-              background:
-                connectionStatus === 'connected'
-                  ? 'var(--status-running)'
-                  : connectionStatus === 'reconnecting'
-                    ? 'var(--status-waiting)'
-                    : 'var(--status-error)',
-            }}
-            title={connectionStatus}
-          />
+          <button
+            type="button"
+            className="app-header-icon-btn"
+            onClick={handleOpenSettings}
+            title="Settings"
+            aria-label="Settings"
+            style={{ marginLeft: 'auto' }}
+          >
+            <Settings size={15} />
+          </button>
         </div>
       )}
 
@@ -271,36 +379,31 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
                 </div>
               </div>
               {panes.length > 0 && paneFiltersOpen && (
-                <div className="pane-filter-bar">
-                  <label className="pane-filter-field">
-                    <span>Mission</span>
-                    <select
-                      value={missionFilter}
-                      onChange={(e) => setMissionFilter(e.target.value)}
-                      className="pane-filter-select"
-                      title="Filter by mission"
-                    >
-                      <option value="all">All missions</option>
-                      <option value="__none__">No mission</option>
-                      {missionFilterOptions.map((missionName) => (
-                        <option key={missionName} value={missionName}>{missionName}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="pane-filter-field">
-                    <span>Agent</span>
-                    <select
-                      value={agentFilter}
-                      onChange={(e) => setAgentFilter(e.target.value)}
-                      className="pane-filter-select"
-                      title="Filter by agent type"
-                    >
-                      <option value="all">All agents</option>
-                      {agentFilterOptions.map((agentType) => (
-                        <option key={agentType} value={agentType}>{agentType}</option>
-                      ))}
-                    </select>
-                  </label>
+                <div className="pane-filter-bar" ref={paneFilterBarRef}>
+                  <PaneFilterMenu
+                    label="Mission"
+                    title="Filter by mission"
+                    value={missionFilter}
+                    options={missionFilterMenuOptions}
+                    isOpen={openPaneFilterMenu === 'mission'}
+                    onToggle={() => setOpenPaneFilterMenu((current) => (current === 'mission' ? null : 'mission'))}
+                    onChange={(nextValue) => {
+                      setMissionFilter(nextValue)
+                      setOpenPaneFilterMenu(null)
+                    }}
+                  />
+                  <PaneFilterMenu
+                    label="Agent"
+                    title="Filter by agent type"
+                    value={agentFilter}
+                    options={agentFilterMenuOptions}
+                    isOpen={openPaneFilterMenu === 'agent'}
+                    onToggle={() => setOpenPaneFilterMenu((current) => (current === 'agent' ? null : 'agent'))}
+                    onChange={(nextValue) => {
+                      setAgentFilter(nextValue)
+                      setOpenPaneFilterMenu(null)
+                    }}
+                  />
                   {paneFilterActive && (
                     <button type="button" className="pane-filter-clear" onClick={clearPaneFilters} title="Clear pane filters">
                       <X size={13} />
@@ -379,63 +482,70 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
 
         {!isEditorFullscreen && (
           <>
-            <ResizeHandle
-              onResize={handleResizeFiles}
-              onResizeEnd={handleSaveWidths}
-              onCycleWidth={handleCycleFilesWidth}
-              onResetWidth={handleResetFilesWidth}
-            />
+            {!filesCollapsed && (
+              <ResizeHandle
+                onResize={handleResizeFiles}
+                onResizeEnd={handleSaveWidths}
+                onCycleWidth={handleCycleFilesWidth}
+                onResetWidth={handleResetFilesWidth}
+              />
+            )}
 
             <div
+              className={`files-panel ${filesCollapsed ? 'files-panel--collapsed' : ''}`}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
-                width: widths.files,
+                width: filesCollapsed ? 14 : widths.files,
                 flexShrink: 0,
               }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-md)',
-                  padding: '0 var(--space-xl)',
-                  borderBottom: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-surface)',
-                  flexShrink: 0,
-                  height: 'var(--header-height)',
-                  boxSizing: 'border-box',
-                }}
+              <button
+                type="button"
+                className="files-panel-toggle"
+                title={filesCollapsed ? 'Show files' : 'Hide files'}
+                onClick={() => setFilesCollapsed((collapsed) => !collapsed)}
               >
-                <FolderTree className="icon-sm" style={{ color: 'var(--text-secondary)' }} />
-                <span style={{ fontSize: 'var(--font-md)', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  Files
-                </span>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
-                  <button
-                    type="button"
-                    className="pane-action-btn"
-                    title="Expand all"
-                    onClick={() => fileTreeActions?.expandAll()}
-                    disabled={!fileTreeActions}
+                {filesCollapsed ? <ChevronLeft size={11} /> : <ChevronRight size={11} />}
+              </button>
+
+              {!filesCollapsed && (
+                <>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-md)',
+                      padding: '0 var(--space-xl)',
+                      borderBottom: '1px solid var(--border-subtle)',
+                      background: 'var(--bg-header)',
+                      flexShrink: 0,
+                      height: 'var(--header-height)',
+                      boxSizing: 'border-box',
+                    }}
                   >
-                    <FolderOpen className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
-                  </button>
-                  <button
-                    type="button"
-                    className="pane-action-btn"
-                    title="Collapse all"
-                    onClick={() => fileTreeActions?.collapseAll()}
-                    disabled={!fileTreeActions}
-                  >
-                    <Folder className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
-                  </button>
-                </div>
-              </div>
-              <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-                <FileTree onActionsReady={setFileTreeActions} />
-              </div>
+                    <FolderTree className="icon-sm" style={{ color: 'var(--text-secondary)' }} />
+                    <span style={{ fontSize: 'var(--font-md)', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      Files
+                    </span>
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--space-xs)' }}>
+                      <button
+                        type="button"
+                        className="pane-action-btn"
+                        title="Collapse all"
+                        onClick={() => fileTreeActions?.collapseAll()}
+                        disabled={!fileTreeActions}
+                      >
+                        <FolderMinus className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
+                    <FileTree onActionsReady={setFileTreeActions} />
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}

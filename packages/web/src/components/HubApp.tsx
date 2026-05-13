@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { FolderPlus, PanelRightOpen, Play, Power, Server, Settings, Trash2, X } from 'lucide-react'
+import { ArrowUpRight, FolderPlus, Play, Power, Server, Settings, Trash2, X } from 'lucide-react'
 import { WorkspaceApp } from './WorkspaceApp'
 import { BrandLockup } from './BrandMark'
 import { SettingsDialog } from './SettingsDialog'
@@ -269,8 +269,8 @@ export function HubApp() {
   }, [refresh, tabs])
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#000' }}>
-      <div style={{ height: 40, display: 'flex', alignItems: 'stretch', borderBottom: '1px solid #22211f', background: '#050505', overflow: 'hidden' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
+      <div style={{ height: 40, display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-header)', overflow: 'hidden' }}>
         <div style={brandAreaStyle}>
           <BrandLockup subtitle="Multi-agent execution" />
         </div>
@@ -279,21 +279,6 @@ export function HubApp() {
           <Server size={13} />
           Hub
         </button>
-        {settingsTabOpen && (
-          <button onClick={() => setActiveTabId(SETTINGS_TAB)} style={tabStyle(activeTabId === SETTINGS_TAB)}>
-            <Settings size={13} />
-            Settings
-            <span
-              onClick={(event) => {
-                event.stopPropagation()
-                closeSettingsTab()
-              }}
-              style={{ marginLeft: 4, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}
-            >
-              <X size={12} />
-            </span>
-          </button>
-        )}
         {tabs.map((tab) => {
           const instance = instanceByServerId.get(tab.serverId)
           const status = instance?.status || tab.snapshot.status
@@ -325,6 +310,17 @@ export function HubApp() {
           )
         })}
         </div>
+        <div style={headerActionsStyle}>
+          <button
+            type="button"
+            className={`app-header-icon-btn ${activeTabId === SETTINGS_TAB ? 'app-header-icon-btn--active' : ''}`}
+            onClick={openSettingsTab}
+            title="Mexus Settings"
+            aria-label="Mexus Settings"
+          >
+            <Settings size={15} />
+          </button>
+        </div>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -340,12 +336,6 @@ export function HubApp() {
                 <SectionHeader
                   title={`${instances.length} tracked instances`}
                   description="Local execution servers"
-                  actions={(
-                    <Button variant="secondary" size="sm" onClick={openSettingsTab} title="Mexus Settings">
-                      <Settings size={15} />
-                      Settings
-                    </Button>
-                  )}
                 />
                 {error && <ErrorBanner className="hub-dashboard__error" message={error} />}
                 <div className="hub-instance-list">
@@ -371,7 +361,7 @@ export function HubApp() {
                       actions={(
                         <>
                           <Button className="hub-instance-action hub-instance-action--primary" variant="secondary" size="sm" onClick={() => openTab(instance)}>
-                            <PanelRightOpen size={14} />
+                            <ArrowUpRight className="hub-instance-action__open-icon" size={14} />
                             Open
                           </Button>
                           {instance.status === 'running' ? (
@@ -454,8 +444,8 @@ function tabStyle(active: boolean): CSSProperties {
     gap: 8,
     padding: '0 11px',
     border: 'none',
-    borderRight: '1px solid #22211f',
-    background: active ? '#000' : '#050505',
+    borderRight: '1px solid var(--border-subtle)',
+    background: active ? 'var(--bg-base)' : 'var(--bg-header)',
     color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
     cursor: 'pointer',
     minWidth: 0,
@@ -474,7 +464,7 @@ const brandAreaStyle: CSSProperties = {
   alignItems: 'center',
   gap: 10,
   padding: '0 18px',
-  borderRight: '1px solid #22211f',
+  borderRight: '1px solid var(--border-subtle)',
 }
 
 const tabRailStyle: CSSProperties = {
@@ -483,8 +473,16 @@ const tabRailStyle: CSSProperties = {
   minWidth: 0,
   overflowX: 'auto',
   flex: 1,
-  paddingLeft: 8,
-  background: '#050505',
+  background: 'var(--bg-header)',
+}
+
+const headerActionsStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0,
+  padding: '0 12px',
+  background: 'var(--bg-header)',
 }
 
 const tabTextTrackStyle: CSSProperties = {

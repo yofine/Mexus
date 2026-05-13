@@ -1,5 +1,5 @@
-import { Plus } from 'lucide-react'
-import { useState } from 'react'
+import { Check, ChevronDown, Plus } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useMissionStore, type MissionSummary } from '@/stores/missionStore'
 import { MissionCreateDialog } from './MissionCreateDialog'
 
@@ -10,6 +10,8 @@ function lifecycleLabel(mission: MissionSummary): string {
 
 export function MissionSelector() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
   const missions = useMissionStore((s) => s.missions)
   const selectedMission = useMissionStore((s) => s.selectedMission)
   const activeMission = useMissionStore((s) => s.activeMission)
@@ -24,42 +26,66 @@ export function MissionSelector() {
     await activateMission(selectedMission.name)
   }
 
+  useEffect(() => {
+    if (!menuOpen) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [menuOpen])
+
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      padding: '10px 16px',
-      borderBottom: '1px solid var(--border-subtle)',
-      background: 'var(--bg-surface)',
-      flexShrink: 0,
-      minWidth: 0,
-    }}>
-      <select
-        value={selectedMission?.name || ''}
-        onChange={(event) => {
-          if (event.target.value) void loadMission(event.target.value)
-        }}
-        disabled={isLoading || missions.length === 0}
-        style={{
-          minWidth: 180,
-          maxWidth: 360,
-          flex: '1 1 220px',
-          background: 'var(--bg-primary)',
-          color: 'var(--text-primary)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '6px 8px',
-          fontSize: 'var(--font-sm)',
-        }}
-      >
-        {missions.length === 0 && <option value="">No Missions</option>}
-        {missions.map((mission) => (
-          <option key={mission.name} value={mission.name}>
-            {mission.name} - {lifecycleLabel(mission)}
-          </option>
-        ))}
-      </select>
+    <div className="mission-selector">
+      <div className={`mission-selector-menu ${menuOpen ? 'mission-selector-menu--open' : ''}`} ref={menuRef}>
+        <button
+          type="button"
+          className="mission-selector-trigger"
+          disabled={isLoading || missions.length === 0}
+          aria-haspopup="listbox"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((open) => !open)}
+          title={selectedMission?.name || 'No Missions'}
+        >
+          <span className="mission-selector-trigger__name">{selectedMission?.name || 'No Missions'}</span>
+          {selectedMission && (
+            <span className="mission-selector-trigger__state">{lifecycleLabel(selectedMission)}</span>
+          )}
+          <ChevronDown className="icon-xs" />
+        </button>
+
+        {menuOpen && (
+          <div className="mission-selector-popover" role="listbox" aria-label="Mission selector">
+            {missions.map((mission) => {
+              const active = mission.name === selectedMission?.name
+              return (
+                <button
+                  key={mission.name}
+                  type="button"
+                  className={`mission-selector-option ${active ? 'mission-selector-option--active' : ''}`}
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => {
+                    void loadMission(mission.name)
+                    setMenuOpen(false)
+                  }}
+                >
+                  <span className="mission-selector-option__name">{mission.name}</span>
+                  <span className="mission-selector-option__state">{lifecycleLabel(mission)}</span>
+                  {active && <Check className="icon-xs" />}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
       {selectedMission && selectedMission.lifecycle !== 'active' && !selectedMission.incomplete && (
         <button className="pane-action-btn" onClick={handleActivate} disabled={isLoading} title="Activate Mission">

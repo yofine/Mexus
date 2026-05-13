@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react'
-import { GitBranch, Share2, Zap, History, Plus, Loader2, X, FolderOpen, MessageSquare } from 'lucide-react'
+import { GitBranch, Share2, Zap, X, MessageSquare } from 'lucide-react'
 import { AgentIcon, getAgentDisplayName } from './AgentIcon'
-import { useMissionStore, type MissionAgentObservation } from '@/stores/missionStore'
-import type { ClientEvent, AgentType, RestoreMode, IsolationMode, AgentAvailability, DiscoveredSession, PaneMission, GlobalConfig } from '@/types'
+import type { MissionAgentObservation } from '@/stores/missionStore'
+import type { ClientEvent, AgentType, IsolationMode, AgentAvailability, PaneMission } from '@/types'
 import { loadLayoutPreferences } from '@/lib/layoutPreferences'
 import { api } from '@/lib/apiBase'
 
 const AGENT_TYPES: AgentType[] = ['claudecode', 'codex', 'opencode', 'kimi-cli', 'qodercli']
-const EMPTY_MISSION_AGENTS: MissionAgentObservation[] = []
 
 function estimateTerminalDimensions(): { cols: number; rows: number } {
   const FONT_SIZE = 13
@@ -30,18 +29,6 @@ function estimateTerminalDimensions(): { cols: number; rows: number } {
   const cols = Math.max(40, Math.floor(containerWidth / charWidth))
   const rows = Math.max(10, Math.floor(termHeight / LINE_HEIGHT))
   return { cols, rows }
-}
-
-function formatTimeAgo(dateStr?: string): string {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  const diff = Date.now() - date.getTime()
-  const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
 }
 
 function missionPathForDetails(mission: { name: string; path?: string }): string {
@@ -107,120 +94,61 @@ interface AddPaneDialogProps {
 export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
   const [name, setName] = useState('')
   const [agent, setAgent] = useState<AgentType>('claudecode')
-  const [workdir, setWorkdir] = useState('')
   const [task, setTask] = useState('')
-  const [restore, setRestore] = useState<RestoreMode>('restart')
   const [isolation, setIsolation] = useState<IsolationMode>('shared')
   const [yolo, setYolo] = useState(false)
   const [agentAvailability, setAgentAvailability] = useState<Record<string, AgentAvailability> | null>(null)
   const [agentChangedByUser, setAgentChangedByUser] = useState(false)
-  const [missionDefaultAgent, setMissionDefaultAgent] = useState<AgentType | null>(null)
-  const [selectedMissionAgentName, setSelectedMissionAgentName] = useState('')
-
-  const [sessions, setSessions] = useState<DiscoveredSession[]>([])
-  const [sessionsLoading, setSessionsLoading] = useState(false)
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
-  const activeMission = useMissionStore((s) => s.activeMission)
-  const missionAgentsResult = useMissionStore((s) => s.agents)
-  const missionAgents = missionAgentsResult?.agents ?? EMPTY_MISSION_AGENTS
-  const loadActiveMission = useMissionStore((s) => s.loadActiveMission)
 
   useEffect(() => {
     if (!isOpen) return
-    loadActiveMission().catch(() => {})
-    fetch(api('/api/config'))
-      .then(res => res.json())
-      .then((data: GlobalConfig) => {
-        const configured = data.mission_defaults?.agent_type
-        if (configured && configured !== '__shell__') {
-          setMissionDefaultAgent(configured)
-          if (!agentChangedByUser) setAgent(configured)
-        }
-      })
-      .catch(() => {})
     fetch(api('/api/agents'))
       .then(res => res.json())
       .then(data => {
         setAgentAvailability(data)
-        if (data[agent] && !data[agent].installed) {
-          const firstInstalled = AGENT_TYPES.find(a => data[a]?.installed)
-          if (firstInstalled) setAgent(firstInstalled)
+        const firstInstalled = AGENT_TYPES.find(a => data[a]?.installed)
+        if (firstInstalled && (!data[agent] || !data[agent].installed)) {
+          setAgent(firstInstalled)
         }
       })
       .catch(() => {})
   }, [isOpen])
-
-  useEffect(() => {
-    if (!isOpen || restore !== 'resume') return
-    setSessionsLoading(true)
-    setSessions([])
-    setSelectedSessionId(null)
-    fetch(api(`/api/sessions?agent=${agent}`))
-      .then(res => res.json())
-      .then((data: DiscoveredSession[]) => setSessions(data))
-      .catch(() => setSessions([]))
-      .finally(() => setSessionsLoading(false))
-  }, [isOpen, agent, restore])
 
   if (!isOpen) return null
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
-    if (restore === 'resume' && !selectedSessionId) return
 
     const estimatedDims = estimateTerminalDimensions()
-    const submitRestoreMode: RestoreMode = restore === 'resume' ? 'resume' : 'restart'
-    const selectedMissionAgent = missionAgents.find((missionAgent) => missionAgent.name === selectedMissionAgentName)
-    const mission = buildPaneMission(activeMission, selectedMissionAgent)
 
     send({
       type: 'pane.create',
       config: {
         name: name.trim(),
         agent,
-        workdir: workdir.trim() || undefined,
         task: task.trim() || undefined,
-        mission,
-        restore: submitRestoreMode,
+        restore: 'restart',
         isolation,
         yolo: yolo || undefined,
-        sessionId: submitRestoreMode === 'resume' ? (selectedSessionId || undefined) : undefined,
         ...estimatedDims,
       },
     })
 
     setName('')
-    setWorkdir('')
     setTask('')
-    setRestore('restart')
     setIsolation('shared')
     setYolo(false)
     setAgentChangedByUser(false)
-    setSelectedMissionAgentName('')
-    setSelectedSessionId(null)
-    setSessions([])
     onClose()
   }
 
-  const isAgentInstalled = (a: AgentType) => !agentAvailability || agentAvailability[a]?.installed !== false
-  const isResume = restore === 'resume'
+  const isAgentInstalled = (a: AgentType) => !agentAvailability || agentAvailability[a]?.installed === true
+  const visibleAgentTypes = agentAvailability ? AGENT_TYPES.filter((a) => isAgentInstalled(a)) : AGENT_TYPES
 
   const handleAgentSelect = (nextAgent: AgentType) => {
     setAgentChangedByUser(true)
     setAgent(nextAgent)
-  }
-
-  const handleMissionAgentSelect = (agentName: string) => {
-    setSelectedMissionAgentName(agentName)
-    const missionAgent = missionAgents.find((item) => item.name === agentName)
-    if (!activeMission || !missionAgent) return
-    const defaults = buildMissionAgentPaneDefaults(activeMission, missionAgent)
-    setName(defaults.name)
-    setTask(defaults.task)
-    if (!agentChangedByUser && missionDefaultAgent) {
-      setAgent(missionDefaultAgent)
-    }
   }
 
   return (
@@ -239,48 +167,24 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
           <div className="apd-section">
             <label className="apd-label">Agent</label>
             <div className="apd-agent-grid">
-              {AGENT_TYPES.map((a) => {
-                const installed = isAgentInstalled(a)
-                const hint = agentAvailability?.[a]?.installHint
+              {visibleAgentTypes.map((a) => {
                 return (
                   <button
                     key={a}
                     type="button"
-                    onClick={() => installed && handleAgentSelect(a)}
-                    disabled={!installed}
-                    title={!installed ? `Not installed. ${hint}` : getAgentDisplayName(a)}
-                    className={`apd-agent-card${agent === a ? ' apd-agent-card--active' : ''}${!installed ? ' apd-agent-card--disabled' : ''}`}
+                    onClick={() => handleAgentSelect(a)}
+                    title={getAgentDisplayName(a)}
+                    className={`apd-agent-card${agent === a ? ' apd-agent-card--active' : ''}`}
                   >
-                    <AgentIcon agent={a} size="20px" className="apd-agent-icon" />
-                    <span className="apd-agent-name">{getAgentDisplayName(a)}</span>
-                    {!installed && <span className="apd-agent-na">N/A</span>}
+                    <AgentIcon agent={a} size="22px" className="apd-agent-icon" />
                   </button>
                 )
               })}
+              {visibleAgentTypes.length === 0 && (
+                <div className="apd-agent-empty">No configured agents available.</div>
+              )}
             </div>
           </div>
-
-          {activeMission && missionAgents.length > 0 && (
-            <div className="apd-section">
-              <label className="apd-label" htmlFor="apd-mission-agent">
-                Mission Agent
-                <span className="apd-label-hint">{activeMission.name}</span>
-              </label>
-              <select
-                id="apd-mission-agent"
-                value={selectedMissionAgentName}
-                onChange={(e) => handleMissionAgentSelect(e.target.value)}
-                className="apd-input"
-              >
-                <option value="">No mission association</option>
-                {missionAgents.map((missionAgent) => (
-                  <option key={missionAgent.name} value={missionAgent.name}>
-                    {missionAgent.name}{missionAgent.responsibility ? ` - ${missionAgent.responsibility}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {/* Name input */}
           <div className="apd-section">
@@ -294,93 +198,6 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
               required
               className="apd-input"
               autoFocus
-            />
-          </div>
-
-          {/* Start Mode toggle */}
-          <div className="apd-section">
-            <label className="apd-label">Start Mode</label>
-            <div className="apd-mode-toggle">
-              <button
-                type="button"
-                onClick={() => {
-                  setRestore('restart')
-                  setSelectedSessionId(null)
-                }}
-                className={`apd-mode-btn${!isResume ? ' apd-mode-btn--active' : ''}`}
-              >
-                <Plus size={14} />
-                New Session
-              </button>
-              <button
-                type="button"
-                onClick={() => setRestore('resume')}
-                className={`apd-mode-btn${isResume ? ' apd-mode-btn--active' : ''}`}
-              >
-                <History size={14} />
-                Resume Session
-              </button>
-            </div>
-          </div>
-
-          {/* Conditional content based on mode */}
-          {isResume ? (
-            /* Session list for resume mode */
-            <div className="apd-section">
-              <label className="apd-label">Select Session</label>
-              <div className="apd-session-list">
-                {sessionsLoading && (
-                  <div className="apd-session-empty">
-                    <Loader2 size={16} className="apd-spinner" />
-                    <span>Loading sessions...</span>
-                  </div>
-                )}
-                {!sessionsLoading && sessions.length === 0 && (
-                  <div className="apd-session-empty">
-                    <span>No sessions found</span>
-                  </div>
-                )}
-                {sessions.map((s) => {
-                  const selected = selectedSessionId === s.sessionId
-                  return (
-                    <button
-                      key={s.sessionId}
-                      type="button"
-                      onClick={() => setSelectedSessionId(selected ? null : s.sessionId)}
-                      className={`apd-session-item${selected ? ' apd-session-item--selected' : ''}`}
-                    >
-                      <div className="apd-session-top">
-                        <span className="apd-session-id">{s.sessionId.slice(0, 10)}</span>
-                        {s.source === 'nexus' && <span className="apd-session-badge">nexus</span>}
-                        <span className="apd-session-time">{formatTimeAgo(s.updatedAt || s.createdAt)}</span>
-                      </div>
-                      {s.summary && <div className="apd-session-summary">{s.summary}</div>}
-                      <div className="apd-session-meta">
-                        {s.model && <span>{s.model.replace('claude-', '').replace(/-\d{8}$/, '')}</span>}
-                        {s.costUsd != null && <span>${s.costUsd.toFixed(3)}</span>}
-                        {s.numTurns != null && <span>{s.numTurns}t</span>}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ) : null}
-
-          {/* Session startup context */}
-          <div className="apd-section">
-            <label className="apd-label" htmlFor="apd-workdir">
-              <FolderOpen size={12} />
-              Work Directory
-              <span className="apd-label-hint">optional</span>
-            </label>
-            <input
-              id="apd-workdir"
-              type="text"
-              value={workdir}
-              onChange={(e) => setWorkdir(e.target.value)}
-              placeholder="e.g. src/auth"
-              className="apd-input"
             />
           </div>
 
@@ -416,6 +233,7 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
                 type="button"
                 onClick={() => setYolo(!yolo)}
                 className={`apd-option-chip${yolo ? ' apd-option-chip--warning' : ''}`}
+                aria-pressed={yolo}
               >
                 <Zap size={13} />
                 YOLO {yolo ? 'ON' : 'OFF'}
@@ -431,9 +249,9 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
             <button
               type="submit"
               className="btn btn--primary"
-              disabled={!name.trim() || (isResume && !selectedSessionId)}
+              disabled={!name.trim() || visibleAgentTypes.length === 0}
             >
-              {isResume ? 'Resume' : 'Create Pane'}
+              Create Pane
             </button>
           </div>
         </form>

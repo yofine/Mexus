@@ -182,6 +182,7 @@ export function CommandPalette({ open, onClose, send, onAddPane }: CommandPalett
                 key={theme}
                 onSelect={() => runAndClose(() => {
                   document.documentElement.setAttribute('data-theme', theme)
+                  localStorage.setItem('nexus-theme', theme)
                 })}
                 icon={<Palette size={14} />}
               >
