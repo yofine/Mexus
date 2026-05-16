@@ -1,0 +1,589 @@
+/* @mexus/ui — design tokens + minimal component styles.
+ * Visually mirrors the real Mexus workspace + Hub screenshots.
+ * No xterm/diff/file-viewer styles — landing-only scope.
+ */
+
+:root,
+[data-theme="dark-ide"] {
+  --mx-font-ui: 'Geist', system-ui, sans-serif;
+  --mx-font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  --mx-bg-base: #0d0d0d;
+  --mx-bg-surface: #161616;
+  --mx-bg-header: #0d0d0d;
+  --mx-bg-elevated: #1a1a1a;
+  --mx-bg-overlay: #1e1e1e;
+
+  --mx-border-subtle: #1f1f1f;
+  --mx-border-default: #2a2a2a;
+
+  --mx-text-primary: #e8e8e8;
+  --mx-text-secondary: #9aa0a6;
+  --mx-text-muted: #5a5d63;
+  --mx-text-code: #d4d4d4;
+
+  --mx-accent: #3CCFAB;
+  --mx-accent-hover: #2AB89A;
+  --mx-accent-text: #5DDDC0;
+  --mx-accent-subtle: rgba(60, 207, 171, 0.08);
+  --mx-accent-muted: rgba(60, 207, 171, 0.14);
+  --mx-fg-on-accent: #0F0F0F;
+
+  --mx-status-running: #3fb950;
+  --mx-status-waiting: #d29922;
+  --mx-status-idle: #6e7681;
+  --mx-status-error: #f85149;
+}
+
+.mx-root {
+  font-family: var(--mx-font-ui);
+  color: var(--mx-text-primary);
+  background: var(--mx-bg-base);
+  -webkit-font-smoothing: antialiased;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.mx-mono { font-family: var(--mx-font-mono); }
+.mx-text-primary   { color: var(--mx-text-primary); }
+.mx-text-secondary { color: var(--mx-text-secondary); }
+.mx-text-muted     { color: var(--mx-text-muted); }
+.mx-text-accent    { color: var(--mx-accent-text); }
+.mx-text-running   { color: var(--mx-status-running); }
+.mx-text-waiting   { color: var(--mx-status-waiting); }
+.mx-text-error     { color: var(--mx-status-error); }
+
+/* ── Outer frame ── */
+.mx-frame {
+  border: 1px solid var(--mx-border-default);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--mx-bg-base);
+  box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Top app bar ── */
+.mx-appbar {
+  display: flex;
+  align-items: stretch;
+  background: var(--mx-bg-base);
+  border-bottom: 1px solid var(--mx-border-default);
+  height: 44px;
+  min-height: 44px;
+}
+.mx-appbar__brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 16px;
+  width: 156px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--mx-border-default);
+}
+.mx-appbar__brand-name {
+  font-family: var(--mx-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--mx-accent-text);
+  letter-spacing: 0;
+  line-height: 1;
+}
+.mx-appbar__brand-sub {
+  font-family: var(--mx-font-mono);
+  font-size: 9px;
+  color: var(--mx-text-muted);
+  margin-top: 3px;
+  font-weight: 500;
+}
+.mx-appbar__tabs {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.mx-appbar__settings {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  flex-shrink: 0;
+  color: var(--mx-text-muted);
+  border-left: 1px solid var(--mx-border-default);
+}
+
+/* Hub button — black square, accent text */
+.mx-appbar__hub {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  font-family: var(--mx-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mx-text-primary);
+  background: var(--mx-bg-elevated);
+  border-right: 1px solid var(--mx-border-default);
+}
+.mx-appbar__hub--active {
+  color: var(--mx-accent-text);
+}
+
+.mx-appbar__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--mx-text-secondary);
+  border-right: 1px solid var(--mx-border-default);
+  background: transparent;
+  white-space: nowrap;
+  min-width: 0;
+}
+.mx-appbar__tab--active {
+  background: var(--mx-bg-elevated);
+  color: var(--mx-text-primary);
+}
+.mx-appbar__tab-name {
+  font-weight: 600;
+}
+.mx-appbar__tab-port {
+  font-family: var(--mx-font-mono);
+  font-size: 10.5px;
+  color: var(--mx-text-secondary);
+}
+.mx-appbar__tab-path {
+  font-family: var(--mx-font-mono);
+  font-size: 10.5px;
+  color: var(--mx-text-muted);
+}
+.mx-appbar__tab-close {
+  margin-left: 4px;
+  color: var(--mx-text-muted);
+  display: inline-grid;
+  place-items: center;
+}
+
+/* ── Status dot ── */
+.mx-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  display: inline-block; flex-shrink: 0;
+}
+.mx-dot--running { background: var(--mx-status-running); box-shadow: 0 0 6px rgba(63,185,80,.55); }
+.mx-dot--waiting { background: var(--mx-status-waiting); box-shadow: 0 0 6px rgba(210,153,34,.55); }
+.mx-dot--idle    { background: var(--mx-status-idle); }
+.mx-dot--error   { background: var(--mx-status-error); box-shadow: 0 0 6px rgba(248,81,73,.55); }
+
+/* ── Panel header (Panes / Files header bar) ── */
+.mx-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  height: 36px;
+  border-bottom: 1px solid var(--mx-border-subtle);
+  background: var(--mx-bg-base);
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.mx-panel-header__title {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--mx-text-primary); font-weight: 600;
+}
+.mx-panel-header__actions {
+  display: flex; align-items: center; gap: 6px;
+}
+
+/* ── Inline ghost button (Filter / Add) ── */
+.mx-ghost-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  color: var(--mx-text-secondary);
+  background: transparent;
+  border: 1px solid var(--mx-border-default);
+  border-radius: 4px;
+  font-family: var(--mx-font-mono);
+}
+.mx-ghost-btn:hover {
+  border-color: var(--mx-accent);
+  color: var(--mx-accent-text);
+}
+
+/* ── Activity / Team / Review / Replay tabs ── */
+.mx-tabs {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--mx-border-subtle);
+  background: var(--mx-bg-base);
+  height: 36px;
+}
+.mx-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--mx-text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: default;
+  font-weight: 500;
+}
+.mx-tab--active {
+  color: var(--mx-accent-text);
+  border-bottom-color: var(--mx-accent);
+}
+
+/* ── Subtab pills (Agent / Modules / ...) ── */
+.mx-subtabs {
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 12px;
+  font-size: 11.5px;
+  background: var(--mx-bg-base);
+  border-bottom: 1px solid var(--mx-border-subtle);
+}
+.mx-subtab {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  color: var(--mx-text-muted);
+}
+.mx-subtab--active {
+  background: var(--mx-bg-elevated);
+  color: var(--mx-text-primary);
+}
+
+/* ── Pane accordion row ── */
+.mx-pane-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--mx-border-subtle);
+  font-size: 13px;
+  background: var(--mx-bg-base);
+}
+.mx-pane-row__chev {
+  color: var(--mx-text-muted);
+  display: inline-grid; place-items: center;
+  width: 12px;
+}
+.mx-pane-row__main { flex: 1; min-width: 0; }
+.mx-pane-row__name { color: var(--mx-text-primary); font-weight: 600; font-size: 13px; }
+.mx-pane-row__desc {
+  color: var(--mx-text-muted);
+  font-size: 11.5px;
+  margin-top: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ── Activity card ── */
+.mx-card {
+  border: 1px solid var(--mx-border-default);
+  background: var(--mx-bg-surface);
+  border-radius: 8px;
+  padding: 12px;
+}
+.mx-card--running { border-color: rgba(63,185,80,.45); }
+
+.mx-card__head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.mx-card__title {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--mx-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 0;
+}
+.mx-card__meta {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--mx-font-mono);
+  font-size: 11px;
+  color: var(--mx-text-muted);
+}
+.mx-card__duration {
+  font-family: var(--mx-font-mono);
+  font-size: 10.5px;
+  color: var(--mx-text-muted);
+  margin-top: 6px;
+}
+
+/* ── Status pill (corner of card) ── */
+.mx-pill {
+  display: inline-flex; align-items: center;
+  font-family: var(--mx-font-mono);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--mx-border-default);
+  color: var(--mx-text-secondary);
+  background: transparent;
+}
+.mx-pill--running {
+  background: rgba(63,185,80,.10);
+  border-color: rgba(63,185,80,.35);
+  color: var(--mx-status-running);
+}
+.mx-pill--waiting {
+  background: rgba(210,153,34,.10);
+  border-color: rgba(210,153,34,.35);
+  color: var(--mx-status-waiting);
+}
+.mx-pill--idle {
+  color: var(--mx-text-muted);
+  border-color: var(--mx-border-default);
+}
+
+/* ── Avatar (gradient square w/ sparkle) ── */
+.mx-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 5px; flex-shrink: 0;
+  color: white; font-weight: 600;
+}
+
+/* ── Kanban ── */
+.mx-kanban-col {
+  border: 1px solid var(--mx-border-default);
+  background: var(--mx-bg-surface);
+  border-radius: 6px;
+  min-height: 200px;
+}
+.mx-kanban-col__head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; font-size: 11.5px;
+  font-family: var(--mx-font-mono);
+  border-bottom: 1px solid var(--mx-border-subtle);
+}
+.mx-kanban-card {
+  border: 1px solid var(--mx-border-default);
+  background: var(--mx-bg-base);
+  border-radius: 4px; padding: 10px;
+  margin: 8px;
+  font-size: 11.5px;
+}
+.mx-kanban-card__id {
+  font-family: var(--mx-font-mono);
+  color: var(--mx-text-primary);
+  font-size: 13px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mx-kanban-card__tag {
+  display: inline-block;
+  padding: 2px 8px; border-radius: 3px;
+  background: var(--mx-bg-overlay);
+  color: var(--mx-text-secondary);
+  font-family: var(--mx-font-mono);
+  font-size: 10.5px;
+}
+.mx-kanban-card__body {
+  font-family: var(--mx-font-mono);
+  color: var(--mx-text-secondary);
+  font-size: 10.5px;
+  line-height: 1.45;
+  margin-top: 8px;
+}
+.mx-kanban-empty {
+  padding: 14px;
+  font-size: 11.5px;
+  color: var(--mx-text-muted);
+}
+
+/* ── Files tree ── */
+.mx-files {
+  background: var(--mx-bg-base);
+  border-left: 1px solid var(--mx-border-subtle);
+  display: flex; flex-direction: column;
+  min-width: 0;
+}
+.mx-files__body {
+  padding: 6px 8px;
+  flex: 1; overflow: hidden;
+}
+.mx-file-row {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 4px;
+  font-family: var(--mx-font-mono);
+  font-size: 12px;
+  color: var(--mx-text-secondary);
+  min-width: 0;
+  white-space: nowrap;
+}
+.mx-file-row__chev {
+  color: var(--mx-text-muted);
+  display: inline-grid; place-items: center;
+  width: 12px; height: 12px;
+  flex-shrink: 0;
+}
+.mx-file-row__icon {
+  color: var(--mx-text-muted);
+  display: inline-grid; place-items: center;
+  width: 14px; height: 14px;
+  flex-shrink: 0;
+}
+.mx-file-row__name {
+  overflow: hidden; text-overflow: ellipsis;
+}
+.mx-file-row--dir .mx-file-row__name { color: var(--mx-text-secondary); }
+.mx-file-row--file .mx-file-row__name { color: var(--mx-text-secondary); }
+
+/* ── Bottom Terminal status bar ── */
+.mx-statusbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 12px;
+  height: 30px;
+  border-top: 1px solid var(--mx-border-default);
+  background: var(--mx-bg-base);
+  font-family: var(--mx-font-mono);
+  font-size: 11px;
+  color: var(--mx-text-secondary);
+}
+.mx-statusbar__chunk {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--mx-text-secondary);
+}
+
+/* ── HUB ── */
+
+/* Hub section title */
+.mx-hub-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--mx-text-primary);
+  margin-bottom: 2px;
+}
+.mx-hub-section-sub {
+  font-family: var(--mx-font-mono);
+  font-size: 12px;
+  color: var(--mx-text-muted);
+}
+.mx-hub-section-rule {
+  border-top: 1px solid var(--mx-border-subtle);
+  margin: 14px 0 16px;
+}
+
+/* Hub instance card */
+.mx-hub-card {
+  border: 1px solid var(--mx-border-default);
+  background: var(--mx-bg-base);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.mx-hub-card__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--mx-border-subtle);
+}
+.mx-hub-card__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--mx-text-primary);
+}
+.mx-hub-card__meta {
+  display: inline-flex; align-items: center; gap: 14px;
+  font-family: var(--mx-font-mono);
+  font-size: 12px;
+}
+.mx-hub-card__port {
+  color: var(--mx-text-muted);
+}
+.mx-hub-card__state {
+  color: var(--mx-status-running);
+}
+.mx-hub-card__body {
+  padding: 12px 16px;
+}
+.mx-hub-card__cwd {
+  font-family: var(--mx-font-mono);
+  font-size: 12px;
+  color: var(--mx-text-secondary);
+  margin-bottom: 10px;
+}
+.mx-hub-card__pillrow {
+  display: inline-flex; gap: 6px;
+}
+.mx-hub-pid {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--mx-border-default);
+  border-radius: 4px;
+  font-family: var(--mx-font-mono);
+  font-size: 11px;
+  color: var(--mx-text-secondary);
+}
+.mx-hub-pid b {
+  color: var(--mx-text-primary);
+  font-weight: 600;
+}
+.mx-hub-card__actions {
+  display: flex; gap: 8px;
+  padding: 0 16px 14px;
+}
+
+/* Hub action button (Open / Stop / Remove) */
+.mx-hub-action {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--mx-border-default);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mx-text-secondary);
+  font-size: 12px;
+  font-family: var(--mx-font-mono);
+  cursor: pointer;
+}
+.mx-hub-action:hover {
+  border-color: var(--mx-accent);
+  color: var(--mx-accent-text);
+}
+
+/* Hub form (right rail) */
+.mx-form-field {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-bottom: 12px;
+}
+.mx-form-field__label {
+  font-family: var(--mx-font-mono);
+  font-size: 12px;
+  color: var(--mx-text-muted);
+}
+.mx-form-field__input {
+  background: var(--mx-bg-elevated);
+  border: 1px solid var(--mx-border-default);
+  border-radius: 4px;
+  padding: 9px 11px;
+  color: var(--mx-text-primary);
+  font-family: var(--mx-font-mono);
+  font-size: 12.5px;
+  outline: none;
+}
+
+/* Primary accent button (solid green) */
+.mx-btn-accent {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--mx-accent);
+  border: 1px solid var(--mx-accent);
+  border-radius: 5px;
+  color: var(--mx-fg-on-accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mx-btn-accent:hover { background: var(--mx-accent-hover); border-color: var(--mx-accent-hover); }
+
+.mx-hub-help {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--mx-border-default);
+  background: var(--mx-bg-surface);
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--mx-text-secondary);
+}

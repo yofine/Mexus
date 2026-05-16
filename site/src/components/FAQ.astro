@@ -1,0 +1,53 @@
+---
+const items = [
+  {
+    q: 'I already use Claude Code (or Cursor, Codex…). Is Mexus for me?',
+    a: 'Yes. Mexus does not replace your agent — it runs the CLI agents you already use in parallel, gives each one an isolated Git worktree, and provides one unified surface to observe, resume and review them.',
+  },
+  {
+    q: 'Which AI coding agents are supported?',
+    a: 'Out of the box: Claude Code, Codex, OpenCode, Gemini, Kimi Code, Qoder CLI, Aider, Cursor. Any CLI tool that runs in a PTY can be added — Mexus simply spawns it inside a managed pane.',
+  },
+  {
+    q: 'How does the parallel agent system work?',
+    a: 'Each agent runs in its own node-pty session, in its own Git worktree on its own branch. Mexus watches the filesystem and Git index, parses statusline output, and surfaces everything in one console. Agents read .nexus/agents.yaml to see what the others are doing.',
+  },
+  {
+    q: 'Is Mexus free? Does it phone home?',
+    a: 'Mexus is Apache-2.0 licensed, runs entirely on your machine, and has no telemetry. Bring your own agent CLIs and your own API keys — Mexus never touches them.',
+  },
+  {
+    q: 'Can I use my own API keys?',
+    a: 'Mexus does not manage API keys. Each underlying agent (Claude Code, Codex, Gemini, …) uses its own credentials exactly as it would when run standalone in a terminal.',
+  },
+  {
+    q: 'What is Hub mode?',
+    a: 'mexus hub runs a single server that manages multiple project workspaces from one browser tab. Switch projects with a click; each project keeps its own .nexus/ config and panes.',
+  },
+  {
+    q: 'What is the Agent Team plugin?',
+    a: 'A Markdown-native mission workflow: a Squad Lead routes work via a kanban file, builders/reviewers self-organize, and a roundtable file lets agents vote on cross-cutting decisions. All checked in, all reviewable.',
+  },
+];
+---
+
+<section id="faq" class="container-x py-24">
+  <div class="grid md:grid-cols-[1fr_1.6fr] gap-12">
+    <div>
+      <div class="section-eyebrow"><span class="dot">●</span> FAQ</div>
+      <h2 class="heading-section mt-3">Frequently<br/>asked questions</h2>
+      <p class="mt-5 text-secondary text-sm">Something missing? Open a discussion on GitHub.</p>
+    </div>
+    <div class="border-t" style="border-color: var(--border-subtle);">
+      {items.map((it) => (
+        <details class="group py-5 border-b" style="border-color: var(--border-subtle);">
+          <summary class="flex items-center justify-between cursor-pointer list-none">
+            <span class="text-primary font-medium pr-6">{it.q}</span>
+            <span class="text-muted text-2xl leading-none transition-transform group-open:rotate-45">+</span>
+          </summary>
+          <p class="mt-3 text-secondary text-sm leading-relaxed">{it.a}</p>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>

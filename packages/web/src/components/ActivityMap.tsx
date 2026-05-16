@@ -197,11 +197,9 @@ export function ActivityMap() {
         <div
           style={{
             display: 'flex',
-            gap: 1,
-            background: 'var(--bg-primary)',
-            borderRadius: 'var(--radius-md)',
-            padding: 2,
-            border: '1px solid var(--border-subtle)',
+            gap: 14,
+            minHeight: 26,
+            alignItems: 'center',
           }}
         >
           {(Object.keys(VIEW_MODE_META) as ViewMode[]).map((mode) => (
@@ -210,12 +208,11 @@ export function ActivityMap() {
               onClick={() => setViewMode(mode)}
               title={VIEW_MODE_META[mode].desc}
               style={{
-                background: viewMode === mode
-                  ? 'var(--bg-elevated)'
-                  : 'transparent',
+                background: 'transparent',
                 border: 'none',
-                borderRadius: 'var(--radius-sm)',
-                padding: '2px 8px',
+                borderBottom: `1px solid ${viewMode === mode ? 'var(--accent-primary)' : 'transparent'}`,
+                borderRadius: 0,
+                padding: '0 1px 4px',
                 fontSize: 'var(--font-xs)',
                 color: viewMode === mode ? 'var(--text-primary)' : 'var(--text-muted)',
                 fontWeight: viewMode === mode ? 600 : 400,
@@ -223,7 +220,7 @@ export function ActivityMap() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
-                transition: 'all 0.15s',
+                transition: 'color 0.15s, border-color 0.15s',
                 whiteSpace: 'nowrap',
               }}
             >

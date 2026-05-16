@@ -1,0 +1,29 @@
+---
+const features = [
+  { icon: '⌘K',  title: 'Command palette',     body: 'Cmd+K to switch panes, jump to files, change themes, or trigger any action — one keystroke away.' },
+  { icon: 'Hub', title: 'Hub mode',             body: 'Run mexus hub to manage every project workspace from one port — switch with a click.' },
+  { icon: '◐',   title: '7 built-in themes',    body: 'Dark IDE, GitHub Dark, Dracula, Tokyo Night, Catppuccin, Nord, Light IDE — shared accent across all.' },
+  { icon: 'fs',  title: 'Live file tree + diff', body: 'chokidar-watched tree, Shiki syntax highlighting, repo-level Git diff with hunk expansion.' },
+  { icon: 'YML', title: 'YAML configuration',   body: 'Project-level .nexus/config.yaml is committed; runtime .nexus/agents.yaml is generated and gitignored.' },
+  { icon: '↺',   title: 'Resume any session',    body: 'Start a fresh agent or resume any previous Claude / Codex / OpenCode session by ID.' },
+];
+---
+
+<section class="container-x py-20">
+  <div class="text-center mb-10">
+    <div class="section-eyebrow"><span class="dot">●</span> More that comes in the box</div>
+    <h2 class="heading-section mt-3">Built like a serious tool</h2>
+  </div>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-px overflow-hidden rounded-xl" style="background: var(--border-subtle); border: 1px solid var(--border-subtle);">
+    {features.map((f) => (
+      <div class="p-6 transition" style="background: var(--bg-base);">
+        <div class="font-mono text-xs w-10 h-10 grid place-items-center rounded text-secondary"
+             style="background: var(--bg-surface); border: 1px solid var(--border-subtle);">
+          {f.icon}
+        </div>
+        <h3 class="mt-4 text-primary font-medium">{f.title}</h3>
+        <p class="mt-2 text-sm text-secondary leading-relaxed">{f.body}</p>
+      </div>
+    ))}
+  </div>
+</section>

@@ -2,7 +2,13 @@ import { useCallback, useEffect } from 'react'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useConnectionStore } from '@/stores/connectionStore'
-import { writeToTerminal, clearAllHistories } from '@/stores/terminalRegistry'
+import {
+  writeToTerminal,
+  writeReplayToTerminal,
+  finishTerminalReplay,
+  resetTerminalForReplay,
+  clearAllHistories,
+} from '@/stores/terminalRegistry'
 import { Layout } from '@/components/Layout'
 import { debugLog, summarizeShells } from '@/lib/debugLog'
 import type { ConnectionTarget, ServerEvent } from '@/types'
@@ -57,7 +63,6 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
             panes: event.state.panes.length,
             shells: summarizeShells(event.state.panes.filter((pane) => pane.agent === '__shell__')),
           })
-          clearAllHistories()
           setWorkspace(
             event.state.name,
             event.state.description || '',
@@ -79,6 +84,18 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
           if (event.paneId.startsWith('__shell__')) {
             window.dispatchEvent(new CustomEvent('shell-output', { detail: { paneId: event.paneId } }))
           }
+          break
+
+        case 'terminal.replay.start':
+          resetTerminalForReplay(event.paneId)
+          break
+
+        case 'terminal.replay.chunk':
+          writeReplayToTerminal(event.paneId, event.data)
+          break
+
+        case 'terminal.replay.end':
+          finishTerminalReplay(event.paneId)
           break
 
         case 'conversation.event':

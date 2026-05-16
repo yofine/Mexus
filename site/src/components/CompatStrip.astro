@@ -1,0 +1,27 @@
+---
+const agents = ['Claude Code', 'Codex', 'OpenCode', 'Gemini', 'Kimi Code', 'Qoder CLI', 'Aider', 'Cursor', 'Custom CLI'];
+const ides   = ['VS Code', 'Cursor', 'Windsurf', 'JetBrains', 'Zed', 'Neovim', 'Sublime', 'any $EDITOR'];
+---
+
+<section class="border-y" style="border-color: var(--border-subtle); background: var(--bg-surface);">
+  <div class="container-x py-10 grid md:grid-cols-2 gap-10">
+    <div>
+      <div class="section-eyebrow mb-3"><span class="dot">●</span> Universal compatibility</div>
+      <div class="text-secondary text-sm mb-4">Works with every CLI coding agent you already use</div>
+      <div class="relative overflow-hidden">
+        <div class="flex gap-2 marquee whitespace-nowrap w-max">
+          {[...agents, ...agents].map((a) => <span class="chip font-mono">{a}</span>)}
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="section-eyebrow mb-3"><span class="dot">●</span> Open in any IDE</div>
+      <div class="text-secondary text-sm mb-4">Open the worktree exactly where you want to edit</div>
+      <div class="relative overflow-hidden">
+        <div class="flex gap-2 marquee whitespace-nowrap w-max" style="animation-direction: reverse">
+          {[...ides, ...ides].map((a) => <span class="chip font-mono">{a}</span>)}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

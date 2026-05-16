@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState, memo } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, memo } from 'react'
 import {
   Check,
   ChevronDown,
   ChevronRight,
-  ChevronUp,
   Pencil,
   GitMerge,
   RotateCcw,
@@ -15,11 +14,10 @@ import { Terminal } from './Terminal'
 import { AgentIcon, getPaneColor } from './AgentIcon'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import {
-  pauseTerminal,
-  resumeTerminal,
   refitTerminal,
   scrollTerminalToBottom,
   getTerminalDimensions,
+  unpauseTerminal,
 } from '@/stores/terminalRegistry'
 import type { PaneState, ClientEvent } from '@/types'
 import { canResumePane, createRestartPaneEvent, getResumeMode } from '@/stores/paneStoreUtils'
@@ -40,26 +38,23 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
   const conversation = useWorkspaceStore((s) => s.conversationByPane[pane.id] || [])
   const [isEditingName, setIsEditingName] = useState(false)
   const [draftName, setDraftName] = useState(pane.name)
-  const [taskOpen, setTaskOpen] = useState(false)
   const diffCount = paneDiffs?.length ?? 0
   const prevExpandedRef = useRef(isExpanded)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isEditingName) setDraftName(pane.name)
   }, [isEditingName, pane.name])
 
-  useEffect(() => {
-    if (!isExpanded) setTaskOpen(false)
-  }, [isExpanded, pane.id])
-
-  // Handle pause/resume when expand state changes
+  // Keep xterm mounted and live. The dedicated terminal runtime will own hidden
+  // rendering optimization later; for now responsiveness is more important than
+  // pausing hidden output.
   useEffect(() => {
     const wasExpanded = prevExpandedRef.current
     prevExpandedRef.current = isExpanded
+    unpauseTerminal(pane.id)
 
     if (isExpanded && !wasExpanded) {
-      // Expanding: first refit to get correct dimensions, then resume
-      // (resume does reset + replay, which needs correct cols to render properly)
+      // Expanding: refit after layout settles, then notify the PTY.
       // Use double-rAF to ensure the container has laid out with real dimensions
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -69,24 +64,11 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
           if (dims) {
             send({ type: 'terminal.resize', paneId: pane.id, cols: dims.cols, rows: dims.rows })
           }
-          resumeTerminal(pane.id)
           scrollTerminalToBottom(pane.id)
         })
       })
-    } else if (!isExpanded && wasExpanded) {
-      // Collapsing: pause terminal writes to prevent zero-size rendering
-      pauseTerminal(pane.id)
     }
-  }, [isExpanded, pane.id])
-
-  // Initial state: if pane mounts collapsed, pause immediately
-  useEffect(() => {
-    if (!isExpanded) {
-      pauseTerminal(pane.id)
-    }
-    // no cleanup needed — pane removal clears history via clearTerminalHistory
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pane.id])
+  }, [isExpanded, pane.id, send])
 
   const handleTerminalData = useCallback(
     (data: string) => {
@@ -291,32 +273,6 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
           </div>
         </div>
 
-        {isExpanded && pane.task && (
-          <>
-            {taskOpen && (
-              <div className="agent-pane-header__task" onClick={(e) => e.stopPropagation()}>
-                {pane.task}
-              </div>
-            )}
-            <button
-              type="button"
-              className="agent-pane-task-bar"
-              onClick={(e) => {
-                e.stopPropagation()
-                setTaskOpen((open) => !open)
-              }}
-              title={taskOpen ? 'Collapse task' : 'Expand task'}
-              aria-label={taskOpen ? 'Collapse task' : 'Expand task'}
-              aria-expanded={taskOpen}
-            >
-              {taskOpen ? (
-                <ChevronUp className="icon-xs" />
-              ) : (
-                <ChevronDown className="icon-xs" />
-              )}
-            </button>
-          </>
-        )}
       </div>
 
       {/* Merge result banner */}
@@ -340,10 +296,13 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
         overflow: 'hidden',
       } : {
         position: 'absolute',
-        width: 0,
-        height: 0,
+        top: 0,
+        left: -10000,
+        width: '100%',
+        height: 360,
         overflow: 'hidden',
         pointerEvents: 'none',
+        visibility: 'hidden',
       }}>
         <Terminal
           paneId={pane.id}

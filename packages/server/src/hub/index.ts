@@ -402,13 +402,17 @@ export async function startHub(port: number, cliEntry: string) {
   await fastify.listen({ port, host: '0.0.0.0' })
   const hubConsole = startHubConsole({ port, logDir: HUB_LOG_DIR })
 
-  const shutdown = async () => {
+  let shuttingDown = false
+  const shutdown = async (source: string) => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log(`\nMexus Hub shutting down... source=${source}`)
     hubConsole.stop()
     await fastify.close()
     process.exit(0)
   }
-  process.on('SIGINT', shutdown)
-  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', () => shutdown('SIGINT'))
+  process.on('SIGTERM', () => shutdown('SIGTERM'))
 
   return { fastify }
 }

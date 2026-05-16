@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --bg-base:        #0d0d0d;
+    --bg-surface:     #161616;
+    --bg-elevated:    #1e1e1e;
+    --bg-overlay:     #252525;
+    --border-subtle:  #2a2a2a;
+    --border-default: #3a3a3a;
+    --text-primary:   #e8e8e8;
+    --text-secondary: #888888;
+    --text-muted:     #555555;
+    --accent:         #3CCFAB;
+    --accent-soft:    rgba(60, 207, 171, 0.10);
+    --accent-border:  rgba(60, 207, 171, 0.22);
+    --status-running: #3fb950;
+    --status-waiting: #d29922;
+    --status-error:   #f85149;
+  }
+
+  html { background: var(--bg-base); color: var(--text-primary); }
+  html, body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+  body {
+    font-family: 'Geist', 'Inter', system-ui, sans-serif;
+    background: var(--bg-base);
+    min-height: 100vh;
+  }
+
+  ::selection { background: rgba(60, 207, 171, 0.28); color: #fff; }
+}
+
+@layer components {
+  .container-x { @apply max-w-6xl mx-auto px-6; }
+
+  /* Primary = quiet outline, accent only on hover/active text */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+  }
+  .btn-primary:hover {
+    border-color: var(--accent-border);
+    color: var(--accent);
+    background: var(--bg-overlay);
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm transition;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+  }
+  .btn-ghost:hover { color: var(--text-primary); border-color: var(--border-default); }
+
+  .chip {
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+  }
+
+  .section-eyebrow {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    @apply text-[11px] uppercase tracking-[0.18em];
+    color: var(--text-muted);
+  }
+  .section-eyebrow .dot { color: var(--accent); }
+
+  .heading-display {
+    font-family: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+    @apply text-[40px] sm:text-[56px] lg:text-[66px] leading-[1.06] tracking-tight font-medium;
+    color: var(--text-primary);
+  }
+
+  .heading-section {
+    font-family: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+    @apply text-[26px] sm:text-3xl lg:text-4xl leading-tight tracking-tight font-medium;
+    color: var(--text-primary);
+  }
+
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .pane {
+    @apply rounded-lg overflow-hidden;
+    background: #101010;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .blink::after {
+    content: '';
+    display: inline-block;
+    width: 0.5em;
+    height: 1em;
+    margin-left: 0.1em;
+    transform: translateY(0.12em);
+    background: var(--accent);
+    opacity: 0.85;
+    animation: blink 1.2s steps(2, start) infinite;
+  }
+  @keyframes blink { to { visibility: hidden; } }
+
+  .marquee { animation: marquee 32s linear infinite; }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  /* Brand lockup matching the actual app */
+  .brand-mark {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    color: var(--accent);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .brand-sub {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    margin-top: 3px;
+    font-weight: 600;
+  }
+
+  .status-dot { @apply inline-block w-1.5 h-1.5 rounded-full shrink-0; }
+  .status-running { background: var(--status-running); }
+  .status-waiting { background: var(--status-waiting); }
+  .status-idle    { background: var(--text-muted); }
+  .status-error   { background: var(--status-error); }
+
+  /* Subtle window chrome */
+  .chrome-bar {
+    @apply flex items-center justify-between border-b px-3 py-2;
+    background: var(--bg-surface);
+    border-color: var(--border-subtle);
+  }
+  .chrome-dot { @apply w-2.5 h-2.5 rounded-full; }
+}

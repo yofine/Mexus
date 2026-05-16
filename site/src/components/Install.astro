@@ -1,0 +1,53 @@
+---
+const steps = [
+  { cmd: 'npm install -g mexus-cli',   desc: 'Install the CLI globally (Node 22+ required)' },
+  { cmd: 'mexus hub',                  desc: 'Recommended — manage every workspace from one port' },
+  { cmd: 'mexus ~/projects/my-app',    desc: 'Or: launch a single project workspace directly' },
+];
+---
+
+<section id="install" class="container-x py-24">
+  <div class="text-center max-w-2xl mx-auto">
+    <div class="section-eyebrow"><span class="dot">●</span> Three commands</div>
+    <h2 class="heading-section mt-3">Up and running in under a minute</h2>
+    <p class="mt-5 text-secondary">
+      Local-first. No accounts, no telemetry. Your code never leaves your machine — Mexus only orchestrates the CLI agents already installed on it.
+    </p>
+  </div>
+
+  <div class="mt-12 max-w-3xl mx-auto pane">
+    <div class="chrome-bar">
+      <div class="flex items-center gap-1.5">
+        <span class="chrome-dot" style="background:#ff5f57"></span>
+        <span class="chrome-dot" style="background:#febc2e"></span>
+        <span class="chrome-dot" style="background:#28c840"></span>
+      </div>
+      <div class="font-mono text-[11px] text-muted">~/projects</div>
+      <div></div>
+    </div>
+    <div class="p-6 font-mono text-[13px] space-y-4" style="background:#0a0a0a;">
+      {steps.map((s, i) => (
+        <div>
+          <div class="flex items-center gap-3">
+            <span class="text-muted">{String(i + 1).padStart(2, '0')}</span>
+            <span style="color: var(--accent)">$</span>
+            <span class="text-primary">{s.cmd}</span>
+          </div>
+          <div class="ml-12 text-secondary text-xs mt-1"># {s.desc}</div>
+        </div>
+      ))}
+      <div class="pt-2 mt-2 border-t" style="border-color: var(--border-subtle);">
+        <span class="text-muted">→</span>
+        <span class="text-running"> Mexus Hub running on </span>
+        <span class="text-primary">http://localhost:7801</span>
+        <span class="blink"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-6 text-center text-xs text-muted font-mono">
+    mexus init · mexus status · mexus stop &nbsp;<span class="text-muted">·</span>&nbsp;
+    NEXUS_PORT=8080 mexus &nbsp;<span class="text-muted">·</span>&nbsp;
+    NEXUS_HUB_PORT=8081 mexus hub
+  </div>
+</section>

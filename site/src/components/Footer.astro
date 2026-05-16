@@ -1,0 +1,65 @@
+---
+const cols = [
+  {
+    title: 'Product',
+    links: [
+      { label: 'Parallel execution', href: '#parallel' },
+      { label: 'Observability', href: '#observability' },
+      { label: 'Agent Team', href: '#agent-team' },
+      { label: 'Install', href: '#install' },
+    ],
+  },
+  {
+    title: 'Resources',
+    links: [
+      { label: 'GitHub', href: 'https://github.com/yofine/Nexus' },
+      { label: 'npm — mexus-cli', href: 'https://www.npmjs.com/package/mexus-cli' },
+      { label: 'Releases', href: 'https://github.com/yofine/Nexus/releases' },
+      { label: 'Issues', href: 'https://github.com/yofine/Nexus/issues' },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Apache 2.0', href: 'https://github.com/yofine/Nexus/blob/main/LICENSE' },
+      { label: 'Notice', href: 'https://github.com/yofine/Nexus/blob/main/NOTICE' },
+      { label: 'Trademark', href: 'https://github.com/yofine/Nexus/blob/main/NOTICE' },
+    ],
+  },
+];
+---
+
+<footer class="mt-32 border-t" style="border-color: var(--border-subtle);">
+  <div class="container-x py-14">
+    <div class="grid gap-10 md:grid-cols-[1.6fr_repeat(3,1fr)]">
+      <div>
+        <div class="flex items-end gap-2 leading-none">
+          <span class="brand-mark">M.E.X.U.S.</span>
+          <span class="brand-sub">Mexus</span>
+        </div>
+        <p class="mt-5 text-sm text-secondary max-w-xs leading-relaxed">
+          Multi-agent Execution Unified System. The execution layer for multi-agent development — one local console for every CLI AI agent.
+        </p>
+        <div class="mt-5 chip font-mono">Apache-2.0 · Local-first · No telemetry</div>
+      </div>
+
+      {cols.map((c) => (
+        <div>
+          <div class="font-mono text-[11px] uppercase tracking-[0.18em] text-muted mb-3">{c.title}</div>
+          <ul class="space-y-2">
+            {c.links.map((l) => (
+              <li>
+                <a href={l.href} class="text-sm text-secondary hover:text-primary transition">{l.label}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+
+    <div class="mt-12 pt-6 border-t flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-muted font-mono" style="border-color: var(--border-subtle);">
+      <div>© 2026 yofine · Mexus & M.E.X.U.S. are trademarks of yofine</div>
+      <div>Multi-agent · Execution · Unified · System</div>
+    </div>
+  </div>
+</footer>

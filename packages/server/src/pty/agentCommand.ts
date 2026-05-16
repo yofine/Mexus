@@ -38,7 +38,9 @@ export function buildAgentCommand(config: PaneConfig, agentDef: AgentDefinition)
     args.push(agentDef.yolo_flag)
   }
 
-  const initialPrompt = config.restore !== 'manual' ? buildInitialPrompt(config) : null
+  const initialPrompt = (config.restore !== 'manual' && config.restore !== 'resume')
+    ? buildInitialPrompt(config)
+    : null
   if (initialPrompt) {
     args.push(initialPrompt)
   }

@@ -1,0 +1,17 @@
+{
+  "name": "@mexus/plugin",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mexus runtime plugin loaded into agent CLIs (Claude Code first). A single bridge through which Mexus learns agent lifecycle events — session start today, tool use / session end / errors over time — so panes can be auto-resumed, observed, and accounted for across server restarts.",
+  "files": [
+    ".claude-plugin",
+    "hooks",
+    "references",
+    "scripts",
+    "skills",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node tests/team-plugin-smoke.test.mjs"
+  }
+}

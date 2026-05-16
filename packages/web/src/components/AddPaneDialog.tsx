@@ -176,7 +176,7 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
                     title={getAgentDisplayName(a)}
                     className={`apd-agent-card${agent === a ? ' apd-agent-card--active' : ''}`}
                   >
-                    <AgentIcon agent={a} size="22px" className="apd-agent-icon" />
+                    <AgentIcon agent={a} size="24px" className="apd-agent-icon" />
                   </button>
                 )
               })}
@@ -212,7 +212,7 @@ export function AddPaneDialog({ isOpen, onClose, send }: AddPaneDialogProps) {
               value={task}
               onChange={(e) => setTask(e.target.value)}
               placeholder="Describe what this agent should work on..."
-              rows={3}
+              rows={5}
               className="apd-input apd-textarea"
             />
           </div>

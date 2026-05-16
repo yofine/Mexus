@@ -64,6 +64,8 @@ const SHORTCUTS = [
   { keys: '⌘ N', action: 'New Agent Pane', scope: 'Global' },
   { keys: '⌘ W', action: 'Close Active Pane', scope: 'Global' },
   { keys: '⌘ 1-9', action: 'Switch Pane by Index', scope: 'Global' },
+  { keys: '⌘ [', action: 'Previous Pane', scope: 'Global' },
+  { keys: '⌘ ]', action: 'Next Pane', scope: 'Global' },
   { keys: '⌘ G', action: 'Open Git Diff', scope: 'Global' },
   { keys: '⌘ ,', action: 'Open Settings', scope: 'Global' },
   { keys: '⌘ `', action: 'Toggle Bottom Terminal', scope: 'Global' },
@@ -161,6 +163,7 @@ export function SettingsDialog({ isOpen, onClose, scope = 'server' }: SettingsDi
   const applyFontPreview = useCallback((nextFont: string) => {
     document.documentElement.style.setProperty('--font-mono', nextFont)
     localStorage.setItem('nexus-font-mono', nextFont)
+    window.dispatchEvent(new CustomEvent('nexus:terminal-font-changed', { detail: { font: nextFont } }))
     setFontValue(nextFont)
   }, [])
 

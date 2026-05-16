@@ -1,0 +1,5 @@
+{
+  "name": "mexus-plugin",
+  "description": "Mexus runtime bridge. Reports agent session lifecycle to the local Mexus server so panes can be auto-resumed and observed across restarts.",
+  "version": "0.1.0"
+}

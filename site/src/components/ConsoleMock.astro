@@ -1,0 +1,221 @@
+---
+import Icon from './icons.astro';
+import Avatar from './Avatar.astro';
+
+const panes = [
+  { name: 'Agent-Team',     hue: 270, glyph: 'star',     desc: '',                                                          status: 'idle',    files: 0, age: '151h 32m', dur: '30min' },
+  { name: 'Squad Lead',     hue: 320, glyph: 'sparkle',  desc: 'You are Squad Lead for mission `hub-agent-team-mi…',         status: 'running', files: 0, age: '151h 33m', dur: '30min' },
+  { name: 'Bael',           hue: 25,  glyph: 'sparkle',  desc: 'You are working in /root/workspace/Nexus. First read…',     status: 'idle',    files: 0, age: '151h 33m', dur: '30min' },
+  { name: 'Agares',         hue: 45,  glyph: 'sparkle',  desc: 'You are working in /root/workspace/Nexus. First read…',     status: 'idle',    files: 0, age: '151h 33m', dur: '30min' },
+  { name: 'Vassago',        hue: 10,  glyph: 'sparkle',  desc: 'You are working in /root/workspace/Nexus. First read…',     status: 'idle',    files: 0, age: '151h 33m', dur: '30min' },
+  { name: 'Samigina',       hue: 290, glyph: 'sparkle',  desc: 'You are working in /root/workspace/Nexus. First read…',     status: 'idle',    files: 0, age: '151h 33m', dur: '30min' },
+  { name: 'Marbas',         hue: 200, glyph: 'sparkle',  desc: 'You are working in /root/workspace/Nexus. First read…',     status: 'idle',    files: 0, age: '151h 33m', dur: '30min' },
+  { name: 'ReDesign',       hue: 20,  glyph: 'circle',   desc: '',                                                          status: 'idle',    files: 0, age: '101h 54m', dur: '30min' },
+  { name: 'Termial 问题修复', hue: 175, glyph: 'sparkle', desc: '',                                                          status: 'idle',    files: 0, age: '8h 6m',    dur: '30min' },
+  { name: '文件阅读器',       hue: 145, glyph: 'sparkle', desc: '',                                                          status: 'idle',    files: 0, age: '6h 42m',   dur: '30min' },
+];
+
+const files = [
+  { n: '.claude',         folder: true,  depth: 0 },
+  { n: 'agent-team',      folder: true,  depth: 0, open: true },
+  { n: 'missions',        folder: true,  depth: 1, open: true },
+  { n: 'hub-agent-team-mission-m', folder: true, depth: 2 },
+  { n: 'agents.md',       depth: 2 },
+  { n: 'mission-workflow.md', depth: 2 },
+  { n: 'change-logs',     folder: true,  depth: 0, open: true },
+  { n: '2026-04-02-release-split-pl', depth: 1 },
+  { n: 'design',          folder: true,  depth: 0, open: true },
+  { n: 'agent-team',      folder: true,  depth: 1, open: true },
+  { n: 'agent-team-mission-workfl', folder: true, depth: 2 },
+  { n: 'agent-team-mission-workfl', depth: 2 },
+  { n: 'mexus-agent-team-mission', depth: 2 },
+  { n: 'mexus-agent-team-plugin.', depth: 2 },
+  { n: 'acp-web-chat-design.md',  depth: 1 },
+  { n: 'activity-panel-design.md', depth: 1 },
+  { n: 'mexus-hub-remote-connect', depth: 1 },
+  { n: 'review-panel-redesign.md', depth: 1 },
+  { n: 'session-resume-design.md', depth: 1 },
+  { n: 'spec-driven-multi-agent-orc', depth: 1 },
+  { n: 'stability-audit.md',     depth: 1 },
+  { n: 'superset.png',           depth: 1, image: true },
+  { n: 'ui-visual-interaction-optim', depth: 1 },
+  { n: 'worktree-review.md',     depth: 1 },
+  { n: 'doc_site',     folder: true, depth: 0, open: true },
+];
+---
+
+<div class="rounded-xl overflow-hidden shadow-2xl" style="border: 1px solid var(--border-subtle); background: var(--bg-base);">
+
+  <!-- ===== Top app bar ===== -->
+  <div class="flex items-center" style="background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle); height: 44px;">
+    <!-- Brand block -->
+    <div class="flex flex-col justify-center px-4 h-full" style="width: 184px; border-right: 1px solid var(--border-subtle);">
+      <span class="brand-mark">M.E.X.U.S.</span>
+      <span class="brand-sub">Multi-agent execution</span>
+    </div>
+
+    <!-- Hub button -->
+    <div class="flex items-center gap-1.5 px-3 h-full text-secondary font-mono text-[12px]" style="border-right: 1px solid var(--border-subtle);">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Hub</span>
+    </div>
+
+    <!-- Workspace tabs -->
+    <div class="flex items-center h-full">
+      <div class="flex items-center gap-2 px-3 h-full font-mono text-[12px]" style="background: var(--bg-base); border-right: 1px solid var(--border-subtle);">
+        <span class="status-dot status-running"></span>
+        <span class="text-primary">Nexus</span>
+        <span class="text-muted">:7700</span>
+        <span class="text-secondary">workspace/Nexus</span>
+        <span class="text-muted ml-1">×</span>
+      </div>
+      <div class="flex items-center gap-2 px-3 h-full font-mono text-[12px]" style="border-right: 1px solid var(--border-subtle);">
+        <span class="status-dot status-running"></span>
+        <span class="text-secondary">Tyranids</span>
+        <span class="text-muted">:7701</span>
+        <span class="text-muted">workspace/Tyranids</span>
+        <span class="text-muted ml-1">×</span>
+      </div>
+    </div>
+
+    <div class="ml-auto px-3 text-muted"><Icon name="settings" size={15} /></div>
+  </div>
+
+  <!-- ===== Body 3 columns ===== -->
+  <div class="grid grid-cols-[260px_minmax(0,1fr)_240px]" style="min-height: 560px;">
+
+    <!-- ===== Left: Panes ===== -->
+    <aside class="flex flex-col" style="border-right: 1px solid var(--border-subtle); background: var(--bg-base);">
+      <div class="flex items-center justify-between px-3 py-2.5" style="border-bottom: 1px solid var(--border-subtle);">
+        <div class="flex items-center gap-1.5 text-primary text-[13px] font-medium">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          <span>Panes</span>
+        </div>
+        <div class="flex items-center gap-2 text-[11px] text-muted">
+          <span class="flex items-center gap-1 hover:text-primary"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M7 12h10M10 18h4"/></svg>Filter</span>
+          <span class="flex items-center gap-1 px-1.5 py-0.5 rounded border border-subtle hover:text-primary"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add</span>
+        </div>
+      </div>
+      <div class="flex-1 overflow-hidden">
+        {panes.map((p, i) => (
+          <div class="flex items-center gap-2.5 px-3 py-2 text-[12.5px]" style={i === 0 ? "border-bottom: 1px solid var(--border-subtle); background: var(--bg-surface);" : "border-bottom: 1px solid var(--border-subtle);"}>
+            <Icon name="chevron-down" size={11} />
+            <Avatar hue={p.hue} size={26} glyph={p.glyph as any} />
+            <div class="flex-1 min-w-0">
+              <div class="text-primary truncate font-medium">{p.name}</div>
+              {p.desc && <div class="text-muted text-[10.5px] truncate mt-0.5">{p.desc}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </aside>
+
+    <!-- ===== Center ===== -->
+    <section class="flex flex-col" style="background: var(--bg-base);">
+      <!-- top tabs -->
+      <div class="flex items-center gap-1 px-2 pt-2" style="border-bottom: 1px solid var(--border-subtle);">
+        <div class="flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium" style="color: var(--accent); border-bottom: 2px solid var(--accent); margin-bottom: -1px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+          <span>Activity</span>
+        </div>
+        <div class="flex items-center gap-1.5 px-3 py-2 text-[13px] text-secondary hover:text-primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M16 3.1a4 4 0 0 1 0 7.8M21 21v-2a4 4 0 0 0-3-3.9"/></svg>
+          <span>Team</span>
+        </div>
+        <div class="flex items-center gap-1.5 px-3 py-2 text-[13px] text-secondary hover:text-primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+          <span>Review</span>
+        </div>
+        <div class="flex items-center gap-1.5 px-3 py-2 text-[13px] text-secondary hover:text-primary">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4Z"/></svg>
+          <span>Replay</span>
+        </div>
+        <div class="ml-auto px-2 text-muted"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h6v6h-6z"/></svg></div>
+      </div>
+
+      <!-- sub tabs -->
+      <div class="flex items-center gap-4 px-4 py-2 text-[12px] text-muted" style="border-bottom: 1px solid var(--border-subtle);">
+        <span class="text-primary flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>Agent</span>
+        <span class="flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Modules</span>
+        <span>Imports</span>
+        <span>Conflicts</span>
+        <span>Files</span>
+      </div>
+
+      <!-- cards grid -->
+      <div class="grid grid-cols-3 gap-3 p-4 flex-1">
+        {panes.slice(0, 7).map((p, i) => (
+          <div class="rounded-lg p-3" style={i === 1 ? "border:1px solid var(--accent-border); background: var(--bg-surface);" : "border:1px solid var(--border-subtle); background: var(--bg-surface);"}>
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <Avatar hue={p.hue} size={20} glyph={p.glyph as any} />
+                <span class="text-primary font-medium text-[12px] truncate">{p.name}</span>
+              </div>
+              <span class={`text-[10px] px-1.5 py-0.5 rounded font-mono ${p.status === 'running' ? 'text-running' : 'text-muted'}`}
+                    style={p.status === 'running' ? 'background: rgba(63,185,80,0.10); border:1px solid rgba(63,185,80,0.3);' : 'background: var(--bg-elevated); border:1px solid var(--border-subtle);'}>
+                {p.status === 'running' ? 'Running' : 'Idle'}
+              </span>
+            </div>
+            <div class="flex items-center gap-3 text-[10.5px] text-muted font-mono">
+              <span class="flex items-center gap-1"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>{p.files} files</span>
+              <span class="flex items-center gap-1"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{p.age}</span>
+            </div>
+            <div class="text-[10.5px] text-muted mt-2 font-mono">{p.dur}</div>
+          </div>
+        ))}
+      </div>
+
+      <!-- timeline -->
+      <div class="px-4 py-3" style="border-top: 1px solid var(--border-subtle); background: var(--bg-surface);">
+        <div class="text-[10px] uppercase tracking-wider text-muted">Timeline</div>
+        <div class="text-[12px] text-muted mt-1">No activity yet</div>
+      </div>
+    </section>
+
+    <!-- ===== Right: Files ===== -->
+    <aside style="border-left: 1px solid var(--border-subtle); background: var(--bg-base);">
+      <div class="flex items-center justify-between px-3 py-2.5" style="border-bottom: 1px solid var(--border-subtle);">
+        <div class="flex items-center gap-1.5 text-primary text-[13px] font-medium">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span>Files</span>
+        </div>
+        <span class="text-muted"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+      </div>
+      <div class="py-2 font-mono text-[11.5px] overflow-hidden">
+        {files.map((f) => (
+          <div class="flex items-center gap-1.5 py-0.5 px-2 hover:bg-elevated" style={"padding-left:" + (8 + f.depth * 12) + "px"}>
+            {f.folder ? (
+              <>
+                <span class={f.open ? 'text-secondary' : 'text-muted -rotate-90 inline-block'}><Icon name="chevron-down" size={10} /></span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="text-secondary"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                <span class="text-secondary truncate">{f.n}</span>
+              </>
+            ) : (
+              <>
+                <span class="w-2.5"></span>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="text-muted"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                <span class="text-muted truncate">{f.n}</span>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===== Bottom status bar ===== -->
+  <div class="flex items-center gap-4 px-3 py-1.5 text-[11px] font-mono text-muted" style="background: var(--bg-surface); border-top: 1px solid var(--border-subtle);">
+    <span class="flex items-center gap-1.5 text-primary">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8M12 17v3"/></svg>
+      Terminal
+    </span>
+    <span class="flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-6-6M12 19h8"/></svg>Shell <span class="text-secondary">2</span></span>
+    <span>/</span>
+    <span class="flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18v13H3zM3 7l9-4 9 4"/></svg>Nexus</span>
+    <span>/</span>
+    <span class="flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12M18 9a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>main <span class="text-secondary">+1</span></span>
+    <span>/</span>
+    <span class="flex items-center gap-1.5"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>0 changes</span>
+    <span class="ml-auto">3 shells</span>
+  </div>
+</div>

@@ -103,6 +103,9 @@ export type ClientEvent =
 // Server → Client
 export type ServerEvent =
   | { type: 'terminal.output'; paneId: string; data: string }
+  | { type: 'terminal.replay.start'; paneId: string; bytes: number }
+  | { type: 'terminal.replay.chunk'; paneId: string; data: string; seq: number }
+  | { type: 'terminal.replay.end'; paneId: string; chunks: number }
   | { type: 'conversation.event'; paneId: string; event: ConversationEvent }
   | { type: 'pane.status'; paneId: string; status: PaneStatus }
   | { type: 'pane.meta'; paneId: string; meta: PaneMeta }

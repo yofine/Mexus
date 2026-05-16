@@ -1,0 +1,36 @@
+---
+const links = [
+  { href: '#parallel', label: 'Parallel' },
+  { href: '#observability', label: 'Observability' },
+  { href: '#agent-team', label: 'Agent Team' },
+  { href: '#install', label: 'Install' },
+  { href: 'https://github.com/yofine/Nexus', label: 'GitHub', external: true },
+];
+---
+
+<header class="sticky top-0 z-40 backdrop-blur-md border-b" style="background: rgba(13,13,13,0.78); border-color: var(--border-subtle);">
+  <div class="container-x flex h-14 items-center justify-between">
+    <a href="/" class="flex items-end gap-2 leading-none">
+      <span class="brand-mark">M.E.X.U.S.</span>
+      <span class="brand-sub hidden sm:inline">Mexus</span>
+    </a>
+
+    <nav class="hidden md:flex items-center gap-7 text-sm">
+      {links.map((l) => (
+        <a
+          href={l.href}
+          target={l.external ? '_blank' : undefined}
+          rel={l.external ? 'noopener' : undefined}
+          class="text-secondary hover:text-primary transition"
+        >
+          {l.label}
+        </a>
+      ))}
+    </nav>
+
+    <div class="flex items-center gap-2">
+      <span class="hidden sm:inline chip font-mono">npm i -g mexus-cli</span>
+      <a href="#install" class="btn-primary text-xs px-3 py-2">Get Started</a>
+    </div>
+  </div>
+</header>

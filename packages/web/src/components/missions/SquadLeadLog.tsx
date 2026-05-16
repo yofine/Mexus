@@ -54,16 +54,21 @@ export function SquadLeadLog({ log, onOpenSource }: SquadLeadLogProps) {
       <div className="mission-squad-log-list">
         {log.entries.map((entry) => (
           <article className="mission-squad-log-entry" key={entry.id}>
-            <div className="mission-squad-log-date">
-              <span>{entry.date || '-'}</span>
-              <span>{entry.actor || 'Squad Lead'}</span>
+            <div className="mission-squad-log-rail" aria-hidden="true">
+              <span />
             </div>
-            <p>{entry.detail}</p>
-            {onOpenSource && (
-              <button className="mission-squad-log-link" onClick={() => onOpenSource('squad-lead.md', entry.line)}>
-                line {entry.line}
-              </button>
-            )}
+            <div className="mission-squad-log-content">
+              <div className="mission-squad-log-meta">
+                <time>{entry.date || '-'}</time>
+                <span>{entry.actor || 'Squad Lead'}</span>
+                {onOpenSource && (
+                  <button className="mission-squad-log-link" onClick={() => onOpenSource('squad-lead.md', entry.line)}>
+                    line {entry.line}
+                  </button>
+                )}
+              </div>
+              <p>{entry.detail}</p>
+            </div>
           </article>
         ))}
       </div>

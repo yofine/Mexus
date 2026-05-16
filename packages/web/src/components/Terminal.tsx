@@ -12,7 +12,7 @@ interface TerminalProps {
 }
 
 function resolveCssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#000000'
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
 export function Terminal({ paneId, onData, onResize }: TerminalProps) {
@@ -33,7 +33,7 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
     const term = new XTerm({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: "'Geist Mono', 'JetBrains Mono', monospace",
+      fontFamily: resolveCssVar('--font-mono') || "'Geist Mono', 'JetBrains Mono', monospace",
       allowProposedApi: true,
       scrollback: 5000,
       theme: {
@@ -55,7 +55,9 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
     requestAnimationFrame(() => {
       if (containerRef.current && containerRef.current.clientHeight > 0) {
         fitAddon.fit()
+        term.refresh(0, Math.max(0, term.rows - 1))
         onResizeRef.current(term.cols, term.rows)
+        term.focus()
       }
     })
 
@@ -75,6 +77,21 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
     termRef.current = term
     fitRef.current = fitAddon
 
+    const handleTerminalFontChanged = () => {
+      const fontFamily = resolveCssVar('--font-mono')
+      if (!fontFamily) return
+
+      term.options.fontFamily = fontFamily
+      requestAnimationFrame(() => {
+        if (!containerRef.current || containerRef.current.clientHeight <= 0) return
+        fitAddon.fit()
+        term.refresh(0, Math.max(0, term.rows - 1))
+        onResizeRef.current(term.cols, term.rows)
+      })
+    }
+
+    window.addEventListener('nexus:terminal-font-changed', handleTerminalFontChanged)
+
     // Resize observer — debounced to avoid excessive resize events during drag
     const resizeObserver = new ResizeObserver(() => {
       if (resizeTimerRef.current) {
@@ -84,6 +101,7 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
         if (fitRef.current && containerRef.current && containerRef.current.clientHeight > 0) {
           fitRef.current.fit()
           if (termRef.current) {
+            termRef.current.refresh(0, Math.max(0, termRef.current.rows - 1))
             onResizeRef.current(termRef.current.cols, termRef.current.rows)
           }
         }
@@ -93,6 +111,7 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
     resizeObserver.observe(containerRef.current)
 
     return () => {
+      window.removeEventListener('nexus:terminal-font-changed', handleTerminalFontChanged)
       resizeObserver.disconnect()
       if (resizeTimerRef.current) {
         clearTimeout(resizeTimerRef.current)
@@ -107,6 +126,14 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
   return (
     <div
       ref={containerRef}
+      className="terminal-container"
+      tabIndex={-1}
+      onPointerDown={() => {
+        termRef.current?.focus()
+      }}
+      onWheel={(event) => {
+        event.stopPropagation()
+      }}
       style={{
         width: '100%',
         height: '100%',

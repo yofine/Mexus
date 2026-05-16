@@ -129,6 +129,7 @@ export function HubApp() {
   )
 
   useEffect(() => {
+    if (!tabsRestored) return
     debugLog('hub', 'connectedTarget:update', {
       activeTabId,
       connectedTabId,
@@ -137,7 +138,7 @@ export function HubApp() {
       httpBaseUrl: connectedTarget?.httpBaseUrl || null,
     })
     useConnectionStore.getState().setActiveTarget(connectedTarget)
-  }, [activeTabId, connectedTabId, connectedTarget])
+  }, [activeTabId, connectedTabId, connectedTarget, tabsRestored])
 
   useEffect(() => {
     if (!tabsRestored) return
@@ -275,11 +276,13 @@ export function HubApp() {
           <BrandLockup subtitle="Multi-agent execution" />
         </div>
         <div style={tabRailStyle}>
-        <button onClick={() => setActiveTabId(DASHBOARD_TAB)} style={tabStyle(activeTabId === DASHBOARD_TAB)}>
-          <Server size={13} />
-          Hub
-        </button>
-        {tabs.map((tab) => {
+        {tabsRestored && (
+          <button onClick={() => setActiveTabId(DASHBOARD_TAB)} style={tabStyle(activeTabId === DASHBOARD_TAB)}>
+            <Server size={13} />
+            Hub
+          </button>
+        )}
+        {tabsRestored && tabs.map((tab) => {
           const instance = instanceByServerId.get(tab.serverId)
           const status = instance?.status || tab.snapshot.status
           const connected = tab.id === connectedTabId
@@ -308,7 +311,7 @@ export function HubApp() {
               </span>
             </button>
           )
-        })}
+          })}
         </div>
         <div style={headerActionsStyle}>
           <button
@@ -325,12 +328,14 @@ export function HubApp() {
 
       <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <div style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0, position: 'relative' }}>
-          {connectedTarget && (
+          {tabsRestored && connectedTarget && (
             <div style={{ position: 'absolute', inset: 0, display: activeTabId === connectedTabId ? 'block' : 'none' }}>
               <WorkspaceApp key={connectedTarget.serverId} target={connectedTarget} hideHeader hubMode />
             </div>
           )}
-          {activeTabId === DASHBOARD_TAB ? (
+          {!tabsRestored ? (
+            <div className="hub-restore-surface" aria-hidden="true" />
+          ) : activeTabId === DASHBOARD_TAB ? (
             <div className="hub-dashboard">
               <div className="hub-dashboard__main">
                 <SectionHeader

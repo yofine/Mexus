@@ -2,6 +2,7 @@ import type { WebSocket } from '@fastify/websocket'
 import type { ClientEvent, ServerEvent } from '../types.ts'
 import type { WorkspaceManager } from '../workspace/WorkspaceManager.ts'
 import type { GitService } from '../git/GitService.ts'
+import { buildTerminalReplayEvents } from './replay.ts'
 
 export function setupWsHandlers(
   socket: WebSocket,
@@ -21,23 +22,16 @@ export function setupWsHandlers(
     state,
   })
 
-  // Replay terminal scrollback for each pane asynchronously.
-  // Uses setImmediate to yield between panes and between chunks,
-  // preventing event loop starvation with 10+ panes × 512KB scrollback.
-  const SCROLLBACK_CHUNK_SIZE = 512 * 1024 // 512KB per message — matches server-side scrollback limit
+  // Replay terminal scrollback for each pane asynchronously with an explicit
+  // lifecycle so clients can distinguish historical replay from live output.
   const replayScrollback = async () => {
     for (const pane of state.panes) {
       const scrollback = workspaceManager.getScrollback(pane.id)
-      if (!scrollback) continue
-      if (scrollback.length <= SCROLLBACK_CHUNK_SIZE) {
-        send({ type: 'terminal.output', paneId: pane.id, data: scrollback })
-      } else {
-        for (let i = 0; i < scrollback.length; i += SCROLLBACK_CHUNK_SIZE) {
-          if (socket.readyState !== socket.OPEN) return // bail if disconnected
-          send({ type: 'terminal.output', paneId: pane.id, data: scrollback.slice(i, i + SCROLLBACK_CHUNK_SIZE) })
-          // Yield to event loop between chunks
-          await new Promise<void>((resolve) => setImmediate(resolve))
-        }
+      for (const event of buildTerminalReplayEvents(pane.id, scrollback)) {
+        if (socket.readyState !== socket.OPEN) return // bail if disconnected
+        send(event)
+        // Yield to event loop between chunks
+        await new Promise<void>((resolve) => setImmediate(resolve))
       }
     }
   }

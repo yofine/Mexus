@@ -51,7 +51,7 @@ function formatDuration(ms: number): string {
 }
 
 function resolveCssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#000000'
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
 const actionIcons: Record<string, typeof FileText> = {
@@ -356,7 +356,7 @@ function TurnPlayer({ turn }: { turn: ReplayTurn }) {
     const term = new XTerm({
       cursorBlink: false,
       fontSize: 13,
-      fontFamily: "'Geist Mono', 'JetBrains Mono', monospace",
+      fontFamily: resolveCssVar('--font-mono') || "'Geist Mono', 'JetBrains Mono', monospace",
       scrollback: 5000,
       disableStdin: true,
       theme: {

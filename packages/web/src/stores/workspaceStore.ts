@@ -64,6 +64,7 @@ interface WorkspaceStore {
   name: string
   description: string
   projectDir: string
+  workspaceLoaded: boolean
   panes: PaneState[]
   activePaneId: string | null
   connectionStatus: 'connected' | 'disconnected' | 'reconnecting'
@@ -160,6 +161,7 @@ function getInitialWorkspaceState(): Omit<WorkspaceStore,
     name: '',
     description: '',
     projectDir: '',
+    workspaceLoaded: false,
     panes: [],
     activePaneId: null,
     connectionStatus: 'disconnected',
@@ -208,6 +210,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set) => ({
         name,
         description,
         projectDir,
+        workspaceLoaded: true,
         panes: visible,
         shellPanes: shells,
         activeShellPaneId: nextActiveShellPaneId,

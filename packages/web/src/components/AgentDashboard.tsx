@@ -21,7 +21,6 @@ interface AgentStats {
   linesAdded: number
   linesRemoved: number
   conflictFiles: number
-  recentFiles: string[]
   sparkline: number[] // 6 buckets, most recent last
 }
 
@@ -56,16 +55,6 @@ function computeStats(
     }
   }
 
-  const recentFiles: string[] = []
-  const seen = new Set<string>()
-  for (const a of [...paneActivities].sort((x, y) => y.timestamp - x.timestamp)) {
-    if (!seen.has(a.file)) {
-      seen.add(a.file)
-      recentFiles.push(a.file)
-      if (recentFiles.length >= 5) break
-    }
-  }
-
   const now = Date.now()
   const bucketMs = (30 * 60 * 1000) / 6
   const sparkline = [0, 0, 0, 0, 0, 0]
@@ -81,7 +70,6 @@ function computeStats(
     linesAdded,
     linesRemoved,
     conflictFiles: conflictFiles.size,
-    recentFiles,
     sparkline,
   }
 }
@@ -303,26 +291,6 @@ function AgentCard({
           )}
         </div>
 
-        {/* Row 5: Recent files */}
-        {stats.recentFiles.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {stats.recentFiles.map((file) => (
-              <span
-                key={file}
-                style={{
-                  fontSize: 10,
-                  fontFamily: 'var(--font-mono)',
-                  color: 'var(--text-muted)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {file}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   )

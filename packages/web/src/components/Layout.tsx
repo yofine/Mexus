@@ -103,6 +103,7 @@ function PaneFilterMenu({
 
 export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProps) {
   const panes = useWorkspaceStore((s) => s.panes)
+  const workspaceLoaded = useWorkspaceStore((s) => s.workspaceLoaded)
   const activePaneId = useWorkspaceStore((s) => s.activePaneId)
   const setActivePaneId = useWorkspaceStore((s) => s.setActivePaneId)
   const name = useWorkspaceStore((s) => s.name)
@@ -414,7 +415,11 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
               <div
                 className={`pane-stack ${exclusiveExpandedPaneId ? 'pane-stack--exclusive-expanded' : ''}`}
               >
-                {panes.length === 0 && (
+                {!workspaceLoaded && (
+                  <div className="pane-stack-loading" aria-hidden="true" />
+                )}
+
+                {workspaceLoaded && panes.length === 0 && (
                   <div
                     style={{
                       display: 'flex',

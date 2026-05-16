@@ -1,0 +1,223 @@
+---
+import Pillar from './Pillar.astro';
+import Bullet from './Bullet.astro';
+import Avatar from './Avatar.astro';
+import Icon from './icons.astro';
+import { HubMock } from '@mexus/ui';
+---
+
+<!-- ============ Pillar 1: Multi-Agent Parallel ============ -->
+<Pillar
+  anchor="parallel"
+  eyebrow="Multi-Agent execution"
+  title="Run every agent in parallel — without merge collisions"
+  body="Each pane is a managed PTY session running its own CLI agent. Pair it with an isolated Git worktree and your agents work on independent branches at the same time. One operator, one console, an entire fleet."
+>
+  <div slot="bullets">
+    <Bullet label="Resizable four-column layout — Panes / Activity / Team / Files" />
+    <Bullet label="Per-pane Git worktree — branches and changes never collide" />
+    <Bullet label="Floating bottom shell terminal is always one click away" />
+    <Bullet label=".nexus/agents.yaml broadcasts every pane's state — agents see each other" />
+  </div>
+  <div slot="visual">
+    <!-- mini Panes column -->
+    <div class="flex flex-col" style="background: var(--bg-base); min-height: 320px;">
+      <div class="flex items-center justify-between px-3 py-2 text-[12px]" style="border-bottom: 1px solid var(--border-subtle);">
+        <div class="flex items-center gap-1.5 text-primary font-medium">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Panes
+        </div>
+        <div class="text-muted text-[10.5px]">3 running · 1 idle</div>
+      </div>
+      {[
+        { name: 'Squad Lead', hue: 320, status: 'running', desc: 'Routing tasks across the squad' },
+        { name: 'Bael',       hue: 25,  status: 'running', desc: 'Building auth/session rotation' },
+        { name: 'Agares',     hue: 45,  status: 'running', desc: 'Refactoring Panel.tsx' },
+        { name: 'Vassago',    hue: 10,  status: 'waiting', desc: 'Waiting for reviewer' },
+        { name: 'Samigina',   hue: 290, status: 'idle',    desc: '' },
+      ].map((p) => (
+        <div class="flex items-center gap-2.5 px-3 py-2 text-[12px]" style="border-bottom: 1px solid var(--border-subtle);">
+          <Icon name="chevron-down" size={10} />
+          <Avatar hue={p.hue} size={24} />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-primary truncate font-medium">{p.name}</span>
+              <span class={`status-dot status-${p.status}`}></span>
+            </div>
+            {p.desc && <div class="text-muted text-[10.5px] truncate mt-0.5">{p.desc}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</Pillar>
+
+<!-- ============ Pillar 2: Observability & Replay ============ -->
+<Pillar
+  anchor="observability"
+  eyebrow="Observability & Replay"
+  title="See exactly what each agent is doing — and replay it"
+  body="Mexus parses Claude Code's statusline output and surfaces every model, session and cost in real time. Every pane's history is persisted under .nexus/. Open Replay and step through any past session."
+  reverse
+>
+  <div slot="bullets">
+    <Bullet label="Activity tab: live agent cards with status, files, age, duration" />
+    <Bullet label="Live model · context % · cumulative cost · session ID per pane" />
+    <Bullet label="StatuslineParser strips JSON metadata, broadcasts as pane.meta" />
+    <Bullet label="Resume any prior Claude / Codex / OpenCode session by ID" />
+  </div>
+  <div slot="visual">
+    <div style="background: var(--bg-base);">
+      <!-- top tabs -->
+      <div class="flex items-center gap-1 px-2 pt-2" style="border-bottom: 1px solid var(--border-subtle);">
+        <div class="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium" style="color: var(--accent); border-bottom: 2px solid var(--accent); margin-bottom: -1px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+          Activity
+        </div>
+        <div class="px-2.5 py-1.5 text-[12px] text-secondary">Team</div>
+        <div class="px-2.5 py-1.5 text-[12px] text-secondary">Review</div>
+        <div class="px-2.5 py-1.5 text-[12px] text-secondary">Replay</div>
+      </div>
+      <!-- sub tabs -->
+      <div class="flex items-center gap-4 px-3 py-2 text-[11.5px] text-muted" style="border-bottom: 1px solid var(--border-subtle);">
+        <span class="text-primary">Agent</span><span>Modules</span><span>Imports</span><span>Conflicts</span><span>Files</span>
+      </div>
+      <!-- cards -->
+      <div class="grid grid-cols-2 gap-2.5 p-3">
+        {[
+          { name: 'Squad Lead', hue: 320, status: 'Running',  age: '151h 33m' },
+          { name: 'Bael',       hue: 25,  status: 'Running',  age: '151h 33m' },
+          { name: 'Agares',     hue: 45,  status: 'Running',  age: '151h 33m' },
+          { name: 'Vassago',    hue: 10,  status: 'Waiting',  age: '151h 33m' },
+        ].map((c) => (
+          <div class="rounded-lg p-2.5" style={c.status === 'Running' ? 'border:1px solid var(--accent-border); background: var(--bg-surface);' : 'border:1px solid var(--border-subtle); background: var(--bg-surface);'}>
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <Avatar hue={c.hue} size={18} />
+                <span class="text-primary font-medium text-[11.5px] truncate">{c.name}</span>
+              </div>
+              <span class={`text-[9.5px] px-1.5 py-0.5 rounded font-mono ${c.status === 'Running' ? 'text-running' : 'text-waiting'}`}
+                    style={c.status === 'Running' ? 'background: rgba(63,185,80,0.10); border:1px solid rgba(63,185,80,0.3);' : 'background: rgba(210,153,34,0.08); border:1px solid rgba(210,153,34,0.3);'}>
+                {c.status}
+              </span>
+            </div>
+            <div class="flex items-center gap-2 text-[10px] text-muted font-mono">
+              <span>0 files</span>
+              <span>·</span>
+              <span>{c.age}</span>
+            </div>
+            <div class="text-[10px] text-muted mt-1.5 font-mono">30min</div>
+          </div>
+        ))}
+      </div>
+      <!-- timeline -->
+      <div class="px-3 py-2.5" style="border-top: 1px solid var(--border-subtle); background: var(--bg-surface);">
+        <div class="text-[10px] uppercase tracking-wider text-muted mb-1.5">Timeline · auth-rewrite</div>
+        <div class="space-y-1 text-[11px]">
+          <div class="text-secondary"><span style="color: var(--accent)">●</span> 14:02 <span class="text-muted">·</span> session_d4ab1f started <span class="text-muted">· sonnet-4.6</span></div>
+          <div class="text-secondary"><span class="text-muted">○</span> 14:11 <span class="text-muted">·</span> 6 tool calls <span class="text-muted">· ctx 42%</span></div>
+          <div class="text-secondary"><span class="text-muted">○</span> 14:24 <span class="text-muted">·</span> checkpoint <span class="text-muted">(resumable)</span></div>
+          <div class="text-primary"><span style="color: var(--accent)">▶</span> Resume from checkpoint</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Pillar>
+
+<!-- ============ Pillar 3: Agent Team ============ -->
+<Pillar
+  anchor="agent-team"
+  eyebrow="Agent Team plugin"
+  title="A team of agents that coordinates itself"
+  body="Drop in the Agent Team plugin for a Markdown-native mission workflow. A Squad Lead routes work through a kanban file; builders and reviewers self-organize. Everything is checked in and reviewable."
+>
+  <div slot="bullets">
+    <Bullet label="Roles defined in Markdown: Squad Lead · Mission Agents · Reviewer" />
+    <Bullet label="Active mission selector with To Claim / In Progress / Done columns" />
+    <Bullet label="Mission Agents card grid with claim/active/done counters" />
+    <Bullet label="Squad Lead Log captures every routing decision" />
+  </div>
+  <div slot="visual">
+    <div style="background: var(--bg-base);">
+      <!-- top tabs -->
+      <div class="flex items-center gap-1 px-2 pt-2" style="border-bottom: 1px solid var(--border-subtle);">
+        <div class="px-2.5 py-1.5 text-[12px] text-secondary">Activity</div>
+        <div class="flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-medium" style="color: var(--accent); border-bottom: 2px solid var(--accent); margin-bottom: -1px;">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+          Team
+        </div>
+        <div class="px-2.5 py-1.5 text-[12px] text-secondary">Review</div>
+        <div class="px-2.5 py-1.5 text-[12px] text-secondary">Replay</div>
+      </div>
+      <!-- mission selector -->
+      <div class="px-3 py-2.5" style="border-bottom: 1px solid var(--border-subtle);">
+        <div class="flex items-center justify-between rounded px-2.5 py-1.5 text-[11.5px] font-mono" style="border:1px solid var(--border-subtle); background: var(--bg-surface);">
+          <span class="text-primary truncate">hub-agent-team-mission-mvp</span>
+          <span class="flex items-center gap-1.5">
+            <span class="text-[9.5px] px-1.5 py-0.5 rounded text-running font-mono" style="background: rgba(63,185,80,0.10); border:1px solid rgba(63,185,80,0.3);">ACTIVE</span>
+            <Icon name="chevron-down" size={10} />
+          </span>
+        </div>
+        <div class="mt-2 text-[11.5px]">
+          <span class="text-primary font-medium">hub-agent-team-mission-mvp</span>
+          <span class="text-running ml-1 text-[10px]">Active</span>
+        </div>
+        <div class="text-[10.5px] text-muted mt-1">2026-05-06</div>
+      </div>
+      <!-- sub tabs -->
+      <div class="flex items-center gap-4 px-3 py-2 text-[11.5px] text-muted" style="border-bottom: 1px solid var(--border-subtle);">
+        <span class="text-primary border-b-2 pb-1.5 -mb-2" style="border-color: var(--accent)">Kanban</span>
+        <span>Mission Agents</span>
+        <span>Squad Lead Log</span>
+      </div>
+      <!-- kanban -->
+      <div class="p-3">
+        <div class="text-[12px] text-primary mb-2">Kanban <span class="text-muted text-[10.5px]">0 to claim / 0 in progress / 43 done</span></div>
+        <div class="grid grid-cols-3 gap-2">
+          {[
+            { col: 'To Claim',     count: '0/0',  empty: 'No matching tasks.' },
+            { col: 'In Progress',  count: '0/0',  empty: 'No matching tasks.' },
+            { col: 'Done',         count: '43/43' },
+          ].map((c) => (
+            <div class="rounded" style="border:1px solid var(--border-subtle); background: var(--bg-surface);">
+              <div class="flex items-center justify-between px-2 py-1.5 text-[10.5px] font-mono" style="border-bottom: 1px solid var(--border-subtle);">
+                <span class="text-primary">{c.col}</span>
+                <span class="text-muted">{c.count}</span>
+              </div>
+              <div class="p-2 min-h-[64px]">
+                {c.empty ? (
+                  <div class="text-[10.5px] text-muted">{c.empty}</div>
+                ) : (
+                  <div class="rounded p-2 text-[10.5px] font-mono" style="background: var(--bg-elevated); border:1px solid var(--border-subtle);">
+                    <div class="text-primary mb-1">8b3c6e5</div>
+                    <div class="text-[9.5px] px-1 py-0.5 rounded inline-block" style="background: var(--bg-overlay); color: var(--text-secondary);">To Bael / From Squad Lead</div>
+                    <div class="text-muted mt-1 leading-snug">Author the 3 next-tier SKILL.md files…</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</Pillar>
+
+<!-- ============ Pillar 4: Hub (子特性) ============ -->
+<Pillar
+  anchor="hub"
+  eyebrow="Hub mode"
+  title="One Hub. Many projects. One tab away."
+  body="Hub 是 Mexus 的多工作区入口：每个项目跑在自己的 Mexus 服务器里，Hub 把它们集中成可切换的标签页。开新项目零成本，关掉也不影响别的实例。"
+  reverse
+>
+  <div slot="bullets">
+    <Bullet label="集中管理多个 Mexus 服务器 — 每个项目独立端口、独立 panes、独立 worktree" />
+    <Bullet label="一键创建：选目录、选端口，Hub 自动拉起 server 并加为标签" />
+    <Bullet label="Hub 状态持久化，重启浏览器后窗口、活动 tab 全部恢复" />
+    <Bullet label="把 workspace 当成主战场，Hub 帮你在多个战场之间切换" />
+  </div>
+  <div slot="visual">
+    <HubMock client:visible />
+  </div>
+</Pillar>

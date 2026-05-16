@@ -20,6 +20,7 @@ import { MissionService } from './mission/MissionService.ts'
 import { registerMissionRoutes } from './mission/routes.ts'
 import { MissionInboxPipeline } from './mission/MissionInboxPipeline.ts'
 import { registerPaneRoutes } from './pane/routes.ts'
+import { createSessionBindModule, registerSessionBindRoute } from './session-bind/index.ts'
 import type { GlobalConfig, ModelDefinition, ModelProviderConfig } from './types.ts'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -139,7 +140,8 @@ export async function startServer(port: number, projectDir: string) {
 
   // Remote shutdown (used by Mexus Hub)
   fastify.post('/api/shutdown', async () => {
-    setTimeout(() => shutdown(), 50)
+    console.log('[Shutdown] Requested via POST /api/shutdown')
+    setTimeout(() => shutdown('api'), 50)
     return { ok: true }
   })
 
@@ -178,6 +180,14 @@ export async function startServer(port: number, projectDir: string) {
     onMissionChanged: () => missionInboxPipeline.restartForActiveMission(),
   })
   registerPaneRoutes(fastify, workspaceManager, configManager)
+
+  // Sidecar: receive session_id binds from the Mexus plugin (loaded into agent CLIs).
+  // Not yet wired to WorkspaceManager — bindings live in memory until we switch the
+  // statusline-based path over. Dev endpoints (state/_issue-token) enabled via env.
+  const sessionBindModule = createSessionBindModule({
+    devEndpoints: process.env.MEXUS_SESSION_BIND_DEV === '1',
+  })
+  registerSessionBindRoute(fastify, sessionBindModule)
 
   // Session discovery (claude sessions list)
   const sessionDiscovery = new SessionDiscovery(configManager)
@@ -365,8 +375,11 @@ export async function startServer(port: number, projectDir: string) {
   })
 
   // Graceful shutdown
-  const shutdown = async () => {
-    console.log('\nShutting down...')
+  let shuttingDown = false
+  const shutdown = async (source: string) => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log(`\nShutting down... source=${source}`)
     markStoppedByPid(process.pid)
     recorder.flush()
     agentsWriter.flush(workspaceManager.getPanes())
@@ -377,8 +390,8 @@ export async function startServer(port: number, projectDir: string) {
     process.exit(0)
   }
 
-  process.on('SIGINT', shutdown)
-  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', () => shutdown('SIGINT'))
+  process.on('SIGTERM', () => shutdown('SIGTERM'))
 
   try {
     await fastify.listen({ port, host: '0.0.0.0' })

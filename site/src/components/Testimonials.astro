@@ -1,0 +1,25 @@
+---
+const quotes = [
+  { who: 'Backend lead', body: 'Four Claude Code instances on four worktrees, one operator. Mexus is the missing piece between "I have an agent" and "I run an agent fleet."' },
+  { who: 'Indie maker',   body: 'One pane on tests, one on docs, one on the actual feature. They never collide. I review three branches in the time I used to write one.' },
+  { who: 'Platform eng',  body: 'The statusline parsing + replay history is what made it real for me. I can see every tool call after the fact and resume from a checkpoint when an agent veers off.' },
+  { who: 'Tech lead',     body: 'Agent Team plugin turned "three terminals in tmux" into a coordinated squad with an actual mission file. Reviews now have context.' },
+  { who: 'OSS maintainer', body: 'Local-first, Apache-2.0, no telemetry, no account. Just runs the agents I already had — exactly what a power-user tool should be.' },
+  { who: 'Solo founder',  body: 'Shipped my MVP with three agents in parallel worktrees. The bottom shell is always one tap away — feels like a real IDE built for agents.' },
+];
+---
+
+<section class="container-x py-20">
+  <div class="text-center mb-10">
+    <div class="section-eyebrow"><span class="dot">●</span> Operators talking</div>
+    <h2 class="heading-section mt-3">What builders say about Mexus</h2>
+  </div>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    {quotes.map((q) => (
+      <figure class="rounded-lg p-5 transition" style="border: 1px solid var(--border-subtle); background: var(--bg-surface);">
+        <blockquote class="text-[13.5px] text-primary/90 leading-relaxed">“{q.body}”</blockquote>
+        <figcaption class="mt-4 text-xs text-muted font-mono">— {q.who}</figcaption>
+      </figure>
+    ))}
+  </div>
+</section>

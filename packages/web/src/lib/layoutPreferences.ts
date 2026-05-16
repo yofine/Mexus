@@ -43,7 +43,7 @@ function clampWidths(widths: Partial<PanelWidths> | undefined, fallback: PanelWi
 
 function clampTerminalHeight(value: unknown, fallback: number): number {
   const num = typeof value === 'number' ? value : Number(value)
-  return TERMINAL_HEIGHT_STEPS.includes(num) ? num : fallback
+  return Number.isFinite(num) ? Math.max(18, Math.min(78, num)) : fallback
 }
 
 export function loadLayoutPreferences(): LayoutPreferences {

@@ -25,6 +25,16 @@ describe('buildAgentCommand', () => {
       .toBe('claude --resume sess-1')
   })
 
+  it('does not append task/workdir prompt when resuming', () => {
+    expect(buildAgentCommand({
+      ...baseConfig,
+      restore: 'resume',
+      sessionId: 'sess-1',
+      workdir: 'src/auth',
+      task: 'Refactor JWT validation',
+    }, baseAgent)).toBe('claude --resume sess-1')
+  })
+
   it('passes workdir as a modification boundary in the initial agent prompt', () => {
     expect(buildAgentCommand({
       ...baseConfig,

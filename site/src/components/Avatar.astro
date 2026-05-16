@@ -1,0 +1,28 @@
+---
+interface Props {
+  hue?: number;   // 0-360
+  letter?: string;
+  size?: number;
+  glyph?: 'star' | 'sparkle' | 'circle';
+}
+const { hue = 200, letter, size = 28, glyph = 'sparkle' } = Astro.props;
+const g1 = `hsl(${hue}, 70%, 62%)`;
+const g2 = `hsl(${(hue + 30) % 360}, 65%, 42%)`;
+const style = `width:${size}px;height:${size}px;background:linear-gradient(135deg, ${g1}, ${g2});`;
+---
+<span class="inline-flex items-center justify-center rounded-md shrink-0" style={style} aria-hidden="true">
+  {letter ? (
+    <span class="text-white font-semibold" style={"font-size:" + Math.round(size * 0.45) + "px"}>{letter}</span>
+  ) : glyph === 'star' ? (
+    <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="white">
+      <path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z"/>
+    </svg>
+  ) : glyph === 'sparkle' ? (
+    <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+      <circle cx="12" cy="12" r="2.5" fill="white" stroke="none"/>
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M6 18l2-2M16 8l2-2" stroke-linecap="round"/>
+    </svg>
+  ) : (
+    <span class="inline-block rounded-full bg-white/85" style={"width:" + (size * 0.35) + "px;height:" + (size * 0.35) + "px"}></span>
+  )}
+</span>

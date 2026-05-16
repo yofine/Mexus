@@ -1,16 +1,13 @@
-import { useState, useCallback, useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
-import { Terminal as TerminalIcon, ChevronDown, ChevronUp, Maximize2, Minimize2, RotateCcw, RefreshCw, Square, Eraser, Plus, X, GitBranch, GitCompare, Folder, Pencil } from 'lucide-react'
+import { useState, useCallback, useEffect, useLayoutEffect, useRef, type MouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { Terminal as TerminalIcon, ChevronDown, ChevronUp, Maximize2, Minimize2, Square, Eraser, Plus, X, GitBranch, GitCompare, Folder, Pencil } from 'lucide-react'
 import { Terminal } from './Terminal'
 import type { ClientEvent, PaneState } from '@/types'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
-import { clearTerminalHistory, resumeTerminal, refitTerminal } from '@/stores/terminalRegistry'
+import { clearTerminalHistory, refitTerminal, unpauseTerminal } from '@/stores/terminalRegistry'
 import { api } from '@/lib/apiBase'
 import { debugLog, summarizeShells } from '@/lib/debugLog'
 import {
-  DEFAULT_TERMINAL_HEIGHTS,
   LAYOUT_EVENT,
-  TERMINAL_HEIGHT_STEPS,
-  cycleStep,
   loadLayoutPreferences,
   saveModeTerminalHeight,
   type LayoutMode,
@@ -71,12 +68,12 @@ function AirSegment({
 
 export function BottomTerminal({ send }: BottomTerminalProps) {
   const initialPrefs = loadLayoutPreferences()
+  const panelRef = useRef<HTMLDivElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(initialPrefs.mode)
   const [heightPct, setHeightPct] = useState(initialPrefs.terminalHeightByMode[initialPrefs.mode])
   const [isMaximized, setIsMaximized] = useState(false)
   const [projectCommands, setProjectCommands] = useState<string[]>([])
-  const [lastCommand, setLastCommand] = useState<string | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
   const [renamingPaneId, setRenamingPaneId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
@@ -96,7 +93,7 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
   const connectionStatus = useWorkspaceStore((s) => s.connectionStatus)
 
   // Mark restored shells as ready (they've already been outputting).
-  useEffect(() => {
+  useLayoutEffect(() => {
     debugLog('bottom-terminal', 'shellPanes:changed', {
       activeShellPaneId,
       connectionStatus,
@@ -107,18 +104,20 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
     }
   }, [activeShellPaneId, connectionStatus, shellPanes])
 
-  // Keep inactive shell output buffered instead of pausing the PTY view.
-  // Creating a new shell should not make the previous command look interrupted.
+  // Keep shell terminals live. Hidden rendering optimization belongs in the
+  // dedicated terminal runtime; this compatibility layer prioritizes input.
   const prevActiveRef = useRef<string | null>(null)
   useEffect(() => {
     const prev = prevActiveRef.current
+    for (const pane of shellPanes) {
+      unpauseTerminal(pane.id)
+    }
     if (activeShellPaneId && activeShellPaneId !== prev) {
-      resumeTerminal(activeShellPaneId)
       // Refit after a tick to ensure dimensions are correct
       requestAnimationFrame(() => refitTerminal(activeShellPaneId))
     }
     prevActiveRef.current = activeShellPaneId
-  }, [activeShellPaneId])
+  }, [activeShellPaneId, shellPanes])
 
   // Sync layout preferences
   useEffect(() => {
@@ -239,12 +238,10 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
   const runCommand = useCallback((command: string) => {
     if (!activeShellPaneId || shellPanes.length === 0) {
       createShellPane(command)
-      setLastCommand(command)
       return
     }
     setIsOpen(true)
     send({ type: 'terminal.input', paneId: activeShellPaneId, data: `${command}\r` })
-    setLastCommand(command)
   }, [send, activeShellPaneId, shellPanes.length, createShellPane])
 
   const handleOpen = useCallback(() => {
@@ -291,47 +288,60 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
     saveModeTerminalHeight(layoutMode, next)
   }, [layoutMode])
 
-  const handleCycleHeight = useCallback(() => {
-    if (isMaximized) {
-      setIsMaximized(false)
-    }
-    setAndPersistHeight(cycleStep(TERMINAL_HEIGHT_STEPS, heightPct))
-  }, [heightPct, isMaximized, setAndPersistHeight])
-
-  const handleResetHeight = useCallback(() => {
-    setIsMaximized(false)
-    setAndPersistHeight(DEFAULT_TERMINAL_HEIGHTS[layoutMode])
-  }, [layoutMode, setAndPersistHeight])
-
   const handleToggleMaximize = useCallback(() => {
     setIsMaximized((value) => !value)
   }, [])
 
+  const handleResizePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (isMaximized) {
+      setIsMaximized(false)
+    }
+    event.preventDefault()
+    const parentHeight = panelRef.current?.parentElement?.clientHeight || window.innerHeight
+    const startY = event.clientY
+    const startPct = heightPct
+    document.body.style.cursor = 'row-resize'
+    document.body.style.userSelect = 'none'
+
+    const handlePointerMove = (ev: PointerEvent) => {
+      const deltaPct = ((startY - ev.clientY) / Math.max(parentHeight, 1)) * 100
+      const next = Math.max(18, Math.min(78, startPct + deltaPct))
+      setHeightPct(next)
+    }
+
+    const handlePointerUp = (ev: PointerEvent) => {
+      const deltaPct = ((startY - ev.clientY) / Math.max(parentHeight, 1)) * 100
+      const next = Math.max(18, Math.min(78, startPct + deltaPct))
+      setAndPersistHeight(next)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('pointermove', handlePointerMove)
+      document.removeEventListener('pointerup', handlePointerUp)
+    }
+
+    document.addEventListener('pointermove', handlePointerMove)
+    document.addEventListener('pointerup', handlePointerUp)
+  }, [heightPct, isMaximized, setAndPersistHeight])
+
   const commandButtons = [...STATIC_COMMANDS, ...projectCommands]
   const terminalHeight = isMaximized ? 'calc(100% - var(--header-height))' : `${heightPct}%`
-  const activeShell = shellPanes.find((pane) => pane.id === activeShellPaneId)
   const changeCount = gitDiffs.length + gitStagedDiffs.length
   const separator = <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>/</span>
   const renderAirline = () => (
     <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, overflow: 'hidden', gap: 8 }}>
-      <AirSegment color="var(--accent-primary)" title="Active terminal">
-        <TerminalIcon style={{ width: 12, height: 12 }} />
-        {activeShell?.name || 'Shell'}
-      </AirSegment>
-      {separator}
-      <AirSegment color="var(--text-secondary)" title={projectDir || 'Workspace'}>
+      <AirSegment color="var(--text-muted)" title={projectDir || 'Workspace'}>
         <Folder style={{ width: 12, height: 12 }} />
         {basename(projectDir)}
       </AirSegment>
       {separator}
-      <AirSegment color="var(--status-running)" title={gitBranchInfo?.remote ? `${gitBranchInfo.branch} -> ${gitBranchInfo.remote}` : gitBranchInfo?.branch || 'No git branch'}>
+      <AirSegment color="var(--text-muted)" title={gitBranchInfo?.remote ? `${gitBranchInfo.branch} -> ${gitBranchInfo.remote}` : gitBranchInfo?.branch || 'No git branch'}>
         <GitBranch style={{ width: 12, height: 12 }} />
         {gitBranchInfo?.branch || 'no-git'}
         {gitBranchInfo && gitBranchInfo.ahead > 0 && <span>+{gitBranchInfo.ahead}</span>}
         {gitBranchInfo && gitBranchInfo.behind > 0 && <span>-{gitBranchInfo.behind}</span>}
       </AirSegment>
       {separator}
-      <AirSegment color={changeCount > 0 ? 'var(--status-waiting)' : 'var(--text-muted)'} title={`${gitStagedDiffs.length} staged, ${gitDiffs.length} unstaged`}>
+      <AirSegment color="var(--text-muted)" title={`${gitStagedDiffs.length} staged, ${gitDiffs.length} unstaged`}>
         <GitCompare style={{ width: 12, height: 12 }} />
         {changeCount} changes
       </AirSegment>
@@ -340,7 +350,7 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
   const renderShellList = () => (
     <div
       style={{
-        width: 220,
+        width: 176,
         flexShrink: 0,
         borderRight: '1px solid var(--border-subtle)',
         background: 'var(--bg-surface)',
@@ -353,7 +363,7 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
         style={{
           height: TERMINAL_COMMAND_BAR_HEIGHT,
           minHeight: TERMINAL_COMMAND_BAR_HEIGHT,
-          padding: '0 12px',
+          padding: '0 8px',
           fontSize: 'var(--font-xs)',
           color: 'var(--text-muted)',
           borderBottom: '1px solid var(--border-subtle)',
@@ -361,32 +371,40 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
           fontWeight: 500,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-start',
         }}
       >
-        <span>Instances</span>
-        <button
-          type="button"
-          title="New terminal"
-          onMouseDown={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-          }}
-          onClick={handleCreateShellClick}
-          disabled={connectionStatus !== 'connected'}
-          style={{
-            border: 'none',
-            background: 'transparent',
-            padding: 2,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: connectionStatus === 'connected' ? 'pointer' : 'not-allowed',
-            opacity: connectionStatus === 'connected' ? 1 : 0.45,
-          }}
-        >
-          <Plus style={{ width: 14, height: 14, color: 'var(--text-muted)' }} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <button
+            type="button"
+            className="pane-action-btn bottom-terminal-instance-action"
+            title="New terminal"
+            aria-label="New terminal"
+            data-label="New shell"
+            onMouseDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            onClick={handleCreateShellClick}
+            disabled={connectionStatus !== 'connected'}
+            style={{
+              cursor: connectionStatus === 'connected' ? 'pointer' : 'not-allowed',
+              opacity: connectionStatus === 'connected' ? 1 : 0.45,
+            }}
+          >
+            <Plus className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
+          </button>
+          {activeShellPaneId && (
+            <>
+              <button type="button" className="pane-action-btn bottom-terminal-instance-action" title="Interrupt current command" aria-label="Interrupt current command" data-label="Interrupt" onClick={() => send({ type: 'terminal.input', paneId: activeShellPaneId, data: '\u0003' })}>
+                <Square className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
+              </button>
+              <button type="button" className="pane-action-btn bottom-terminal-instance-action" title="Clear terminal" aria-label="Clear terminal" data-label="Clear" onClick={() => send({ type: 'terminal.input', paneId: activeShellPaneId, data: 'clear\r' })}>
+                <Eraser className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
+              </button>
+            </>
+          )}
+        </div>
       </div>
       {shellPanes.length === 0 ? (
         <div
@@ -405,6 +423,7 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
           return (
             <div
               key={pane.id}
+              className="shell-instance-row"
               onClick={() => !isRenaming && setActiveShellPaneId(pane.id)}
               title={isRenaming ? undefined : pane.name}
               style={{
@@ -514,13 +533,11 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
         }}
         onClick={handleOpen}
       >
-        <TerminalIcon className="icon-sm" style={{ color: 'var(--text-secondary)' }} />
-        <span style={{ fontSize: 'var(--font-sm)', color: 'var(--text-secondary)' }}>Terminal</span>
+        <TerminalIcon className="icon-sm" style={{ color: 'var(--text-primary)' }} />
+        <span style={{ fontSize: 'var(--font-sm)', color: 'var(--text-primary)', fontWeight: 600 }}>Terminal</span>
         <div style={{ marginLeft: 'var(--space-lg)', minWidth: 0 }}>
           {renderAirline()}
         </div>
-        <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-muted)' }}>{shellPanes.length} shell{shellPanes.length === 1 ? '' : 's'}</span>
-        <ChevronUp className="icon-sm" style={{ color: 'var(--text-muted)', marginLeft: 'auto' }} />
       </div>
     )
   }
@@ -528,6 +545,7 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
   // Expanded terminal panel
   return (
     <div
+      ref={panelRef}
       style={{
         flexShrink: 0,
         width: '100%',
@@ -537,8 +555,14 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
         borderTop: '1px solid var(--border-subtle)',
         display: 'flex',
         flexDirection: 'column',
+        position: 'relative',
       }}
     >
+      <div
+        className="bottom-terminal-resize-hitbox"
+        onPointerDown={handleResizePointerDown}
+        title="Drag to resize terminal"
+      />
       {/* Header bar */}
       <div
         style={{
@@ -551,39 +575,21 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
           flexShrink: 0,
         }}
       >
-        <TerminalIcon className="icon-sm" style={{ color: 'var(--text-secondary)' }} />
-        <span style={{ fontSize: 'var(--font-sm)', color: 'var(--text-secondary)', fontWeight: 500 }}>Terminal</span>
-        <button type="button" className="pane-action-btn" title="Cycle terminal height" onClick={handleCycleHeight}>
-          <ChevronUp className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
+        <TerminalIcon className="icon-sm" style={{ color: 'var(--text-primary)' }} />
+        <span style={{ fontSize: 'var(--font-sm)', color: 'var(--text-primary)', fontWeight: 600 }}>Terminal</span>
+        <button type="button" className="pane-action-btn bottom-terminal-instance-action" title="Minimize terminal" aria-label="Minimize terminal" data-label="Minimize" onClick={handleClose}>
+          <ChevronDown className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
         </button>
-        <button type="button" className="pane-action-btn" title="Reset height" onClick={handleResetHeight}>
-          <RotateCcw className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
-        </button>
-        {activeShellPaneId && (
-          <>
-            <button type="button" className="pane-action-btn" title="Interrupt current command" onClick={() => send({ type: 'terminal.input', paneId: activeShellPaneId, data: '\u0003' })}>
-              <Square className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
-            </button>
-            <button type="button" className="pane-action-btn" title="Clear terminal" onClick={() => send({ type: 'terminal.input', paneId: activeShellPaneId, data: 'clear\r' })}>
-              <Eraser className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
-            </button>
-          </>
-        )}
-        <button type="button" className="pane-action-btn" title="Retry last command" onClick={() => lastCommand && runCommand(lastCommand)} disabled={!lastCommand}>
-          <RefreshCw className="icon-xs" style={{ color: lastCommand ? 'var(--text-secondary)' : 'var(--text-muted)' }} />
-        </button>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-xs)' }}>
-          <button type="button" className="pane-action-btn" title={isMaximized ? 'Restore terminal' : 'Maximize terminal'} onClick={handleToggleMaximize}>
-            {isMaximized ? (
-              <Minimize2 className="icon-xs" style={{ color: 'var(--accent-primary)' }} />
-            ) : (
-              <Maximize2 className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
-            )}
-          </button>
-          <button type="button" className="pane-action-btn" title="Minimize terminal" onClick={handleClose}>
-            <ChevronDown className="icon-sm" style={{ color: 'var(--text-muted)' }} />
-          </button>
+        <div style={{ marginLeft: 'var(--space-lg)', minWidth: 0 }}>
+          {renderAirline()}
         </div>
+        <button type="button" className="pane-action-btn bottom-terminal-instance-action" title={isMaximized ? 'Restore terminal' : 'Maximize terminal'} aria-label={isMaximized ? 'Restore terminal' : 'Maximize terminal'} data-label={isMaximized ? 'Restore' : 'Maximize'} onClick={handleToggleMaximize} style={{ marginLeft: 'auto' }}>
+          {isMaximized ? (
+            <Minimize2 className="icon-xs" style={{ color: 'var(--accent-primary)' }} />
+          ) : (
+            <Maximize2 className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
+          )}
+        </button>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
