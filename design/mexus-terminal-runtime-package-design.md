@@ -241,6 +241,22 @@ interface ReplayTaskHandle {
 
 The scheduler controls replay and snapshot writes. Live output does not wait behind replay.
 
+### 7.0 Upstream Transport Backpressure
+
+The runtime must distinguish between local xterm scheduling and upstream transport scheduling.
+
+The core runtime can guarantee that local replay, snapshot restore, and hidden-terminal buffering do not block live writes once data has reached the browser. It cannot guarantee responsiveness if a shared upstream channel is saturated by non-terminal payloads before terminal events arrive.
+
+Rules:
+
+- Core APIs treat `writeLive()` as the highest-priority local path.
+- The core does not own WebSocket, HTTP, or backend queueing.
+- Adapters must not assume that "input is broken" only because TUI echo is delayed; the input may have reached the backend while live output is queued behind other traffic.
+- Mexus integration must keep terminal live traffic ahead of replay, snapshots, file metadata, review data, activity feeds, and other low-priority or large payloads.
+- Large non-terminal payloads should be bounded, summarized, split, delayed, or moved to request/response APIs by the adapter or application layer.
+
+This is a package design constraint, not a Git or diff feature requirement. The terminal package should expose enough priority hooks for consumers to protect TUI interactivity, but domain-specific payload shaping belongs outside the core runtime.
+
 ### 7.1 Replay Priorities
 
 The scheduler orders replay work by priority:
@@ -280,6 +296,9 @@ When live output arrives for a terminal with active replay:
 - `critical` head replay may be paused or cancelled depending on policy.
 - `tail`, `history`, and `background` replay should be cancelled or demoted.
 - Pending replay chunks must not pollute the live xterm state.
+- Replay cancellation must fully clear scheduled write state. A stale "scheduled" flag without queued work can prevent later live output from being flushed.
+- Replay reset must not leave the terminal in a hidden/paused state unless the current visibility policy explicitly says so.
+- Replay start should only reset xterm when the adapter has confirmed this is a restore/replay lifecycle event, not normal live output.
 
 Default policy:
 
@@ -409,6 +428,8 @@ It maps Mexus concepts to core concepts.
 - Decide replay priorities from Mexus UI state.
 - Clear terminal state on pane close or workspace switch.
 - Keep Mexus UI components thin.
+- Protect terminal live traffic from lower-priority Mexus events on shared transports.
+- Provide diagnostics that can distinguish input delivery failure from output/rendering backpressure.
 
 ### 10.2 Adapter API
 
@@ -525,6 +546,10 @@ Cover:
 - Inactive pane maps to normal/background replay.
 - Pane close disposes terminal.
 - Workspace reset clears adapter state.
+- Live output during replay cancels or demotes replay without leaving stale scheduled writes.
+- Replay reset clears paused/backlog state unless the terminal is still intentionally hidden.
+- Simulated low-priority large events do not execute before terminal live events in the adapter queue.
+- Diagnostics identify whether a test input reached the adapter, reached the backend, and produced live output.
 
 ### 12.3 Browser Verification
 
@@ -545,6 +570,8 @@ Manual scenarios:
 - Replay source fails: mark replay task failed and keep live output path working.
 - xterm disposed during task: cancel task.
 - Queue overload: drop lower-priority background replay first.
+- Upstream transport is congested: keep local terminal queues healthy, surface diagnostics to the adapter, and avoid starting additional background replay.
+- Shared channel receives large non-terminal payloads: adapter should defer or drop low-priority work before it can delay terminal live traffic.
 
 ## 14. Performance Defaults
 
