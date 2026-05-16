@@ -1,0 +1,368 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Heading from '../components/gallery/Heading.astro';
+import SubBlock from '../components/gallery/SubBlock.astro';
+import {
+  InteractiveMexus,
+  WorkspaceMock,
+  HubMock,
+  TeamMock,
+  AppTopBar,
+  PanesColumn,
+  ActivityPanel,
+  TeamPanel,
+  FilesPanel,
+  StatusBar,
+  GhostButton,
+  AccentButton,
+  StatusPill,
+  Tab,
+  SubtabPill,
+  PaneRow,
+  ActivityCard,
+  KanbanCard,
+  KanbanColumn,
+  MissionSelector,
+  MissionHeader,
+  FileRow,
+  HubInstanceCard,
+  HubCreateForm,
+  FormField,
+  PaneAvatar,
+  StatusDot,
+  Icon,
+  defaultPanes,
+  defaultActivityCards,
+  defaultKanban,
+  defaultFiles,
+  defaultHubInstances,
+} from '@mexus/ui';
+
+const groups = [
+  { id: 'G0',  title: 'Full interactive Mexus' },
+  { id: 'G1',  title: 'Composed views' },
+  { id: 'G2',  title: 'Top-level regions' },
+  { id: 'G3',  title: 'Panes column atoms' },
+  { id: 'G4',  title: 'Activity panel atoms' },
+  { id: 'G5',  title: 'Team panel atoms' },
+  { id: 'G6',  title: 'Files panel atoms' },
+  { id: 'G7',  title: 'Hub atoms' },
+  { id: 'G8',  title: 'Status bar atoms' },
+  { id: 'G9',  title: 'Form atoms' },
+  { id: 'G10', title: 'Button atoms' },
+  { id: 'G11', title: 'Tab / Pill atoms' },
+  { id: 'G12', title: 'Visual primitives' },
+];
+
+const oneCard  = defaultActivityCards[0];
+const onePane  = defaultPanes[0];
+const oneKCard = defaultKanban[2].cards[0];
+
+const paneRunning = { ...onePane, status: 'running' as const, name: 'Orion (running)' };
+const paneWaiting = { ...onePane, status: 'waiting' as const, name: 'Zephyr (waiting)', hue: 45 };
+const paneIdle    = { ...onePane, status: 'idle'    as const, name: 'Halcyon (idle)',  hue: 5  };
+
+const cardRunning = { ...oneCard, status: 'Running' as const, name: 'Squad Lead (running)' };
+const cardWaiting = { ...oneCard, status: 'Waiting' as const, name: 'Zephyr (waiting)', hue: 45 };
+const cardIdle    = { ...oneCard, status: 'Idle'    as const, name: 'Halcyon (idle)',  hue: 5  };
+
+const oneInstance = defaultHubInstances[0];
+---
+
+<Layout title="Mexus — Component Gallery">
+  <section class="container-x pt-20 pb-10">
+    <div class="section-eyebrow"><span class="dot">●</span> Component gallery</div>
+    <h1 class="heading-display mt-3">Mexus UI — interactive</h1>
+    <p class="mt-5 max-w-2xl text-secondary leading-relaxed">
+      Top is one fully-interactive Mexus. Below, every internal piece is split into a labeled atom for fidelity review.
+      Data is fabricated; behavior is real.
+    </p>
+    <nav class="mt-8 flex flex-wrap gap-2 text-xs font-mono">
+      {groups.map((g) => (
+        <a href={`#${g.id}`} class="chip hover:text-primary">{g.id} · {g.title}</a>
+      ))}
+    </nav>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G0 ── */}
+  <section id="G0" class="container-x py-12 scroll-mt-20">
+    <Heading id="G0" title="Full interactive Mexus" note="Click Hub / a tab / × / a pane / a card / a subtab / a file dir / Hub Create-server — everything works." />
+    <div class="pane">
+      <InteractiveMexus client:only="react" assetsBase="/assets" />
+    </div>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G1 ── */}
+  <section id="G1" class="container-x py-12 scroll-mt-20">
+    <Heading id="G1" title="Composed views" />
+    <SubBlock id="G1.1" name="WorkspaceMock — Activity center">
+      <div class="pane"><WorkspaceMock client:only="react" assetsBase="/assets" center="activity" /></div>
+    </SubBlock>
+    <SubBlock id="G1.2" name="WorkspaceMock — Team center">
+      <div class="pane"><WorkspaceMock client:only="react" assetsBase="/assets" center="team" /></div>
+    </SubBlock>
+    <SubBlock id="G1.3" name="HubMock (static snapshot)">
+      <div class="pane"><HubMock client:only="react" /></div>
+    </SubBlock>
+    <SubBlock id="G1.4" name="TeamMock">
+      <div class="pane"><TeamMock client:only="react" assetsBase="/assets" /></div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G2 ── */}
+  <section id="G2" class="container-x py-12 scroll-mt-20">
+    <Heading id="G2" title="Top-level regions" />
+    <SubBlock id="G2.1" name="AppTopBar — workspace mode">
+      <div class="pane">
+        <AppTopBar
+          client:only="react"
+          tabs={[
+            { id: 't1', name: 'shop',       port: 7700, path: 'workspace/shop',       status: 'running', active: true },
+            { id: 't2', name: 'astro-blog', port: 7702, path: 'workspace/astro-blog', status: 'running' },
+          ]}
+        />
+      </div>
+    </SubBlock>
+    <SubBlock id="G2.2" name="AppTopBar — hub mode">
+      <div class="pane">
+        <AppTopBar client:only="react" hubActive tabs={[{ id: 't1', name: 'shop', port: 7700, path: 'workspace/shop', status: 'running', active: true }]} />
+      </div>
+    </SubBlock>
+    <SubBlock id="G2.3" name="PanesColumn">
+      <div class="pane" style="max-width: 380px;">
+        <PanesColumn client:only="react" panes={defaultPanes} assetsBase="/assets" />
+      </div>
+    </SubBlock>
+    <SubBlock id="G2.4" name="ActivityPanel">
+      <div class="pane">
+        <ActivityPanel client:only="react" cards={defaultActivityCards} panes={defaultPanes} assetsBase="/assets" />
+      </div>
+    </SubBlock>
+    <SubBlock id="G2.5" name="TeamPanel">
+      <div class="pane">
+        <TeamPanel client:only="react" kanban={defaultKanban} />
+      </div>
+    </SubBlock>
+    <SubBlock id="G2.6" name="FilesPanel (click dirs to toggle)">
+      <div class="pane" style="max-width: 360px;">
+        <FilesPanel client:only="react" files={defaultFiles} />
+      </div>
+    </SubBlock>
+    <SubBlock id="G2.7" name="StatusBar">
+      <div class="pane"><StatusBar client:only="react" shellLabel="shell 2" projectLabel="shop" branch="main" changes={0} shells={3} /></div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G3 ── */}
+  <section id="G3" class="container-x py-12 scroll-mt-20">
+    <Heading id="G3" title="Panes column atoms" />
+    <SubBlock id="G3.1" name="PaneRow — running">
+      <div class="pane" style="max-width: 380px;"><PaneRow client:only="react" pane={paneRunning} assetsBase="/assets" /></div>
+    </SubBlock>
+    <SubBlock id="G3.2" name="PaneRow — waiting">
+      <div class="pane" style="max-width: 380px;"><PaneRow client:only="react" pane={paneWaiting} assetsBase="/assets" /></div>
+    </SubBlock>
+    <SubBlock id="G3.3" name="PaneRow — idle">
+      <div class="pane" style="max-width: 380px;"><PaneRow client:only="react" pane={paneIdle} assetsBase="/assets" /></div>
+    </SubBlock>
+    <SubBlock id="G3.4" name="PaneRow — selected">
+      <div class="pane" style="max-width: 380px;"><PaneRow client:only="react" pane={paneRunning} selected assetsBase="/assets" /></div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G4 ── */}
+  <section id="G4" class="container-x py-12 scroll-mt-20">
+    <Heading id="G4" title="Activity panel atoms" />
+    <SubBlock id="G4.1" name="ActivityCard — running (accent border)">
+      <div class="pane" style="max-width: 320px; padding: 14px;"><ActivityCard client:only="react" card={cardRunning} agent="claude" assetsBase="/assets" /></div>
+    </SubBlock>
+    <SubBlock id="G4.2" name="ActivityCard — waiting">
+      <div class="pane" style="max-width: 320px; padding: 14px;"><ActivityCard client:only="react" card={cardWaiting} agent="codex" assetsBase="/assets" /></div>
+    </SubBlock>
+    <SubBlock id="G4.3" name="ActivityCard — idle">
+      <div class="pane" style="max-width: 320px; padding: 14px;"><ActivityCard client:only="react" card={cardIdle} agent="opencode" assetsBase="/assets" /></div>
+    </SubBlock>
+    <SubBlock id="G4.4" name="StatusPill — Running / Waiting / Idle">
+      <div class="pane" style="padding: 18px; display: flex; gap: 14px;">
+        <StatusPill client:only="react" status="Running" />
+        <StatusPill client:only="react" status="Waiting" />
+        <StatusPill client:only="react" status="Idle" />
+      </div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G5 ── */}
+  <section id="G5" class="container-x py-12 scroll-mt-20">
+    <Heading id="G5" title="Team panel atoms" />
+    <SubBlock id="G5.1" name="MissionSelector">
+      <div class="pane" style="padding: 14px; max-width: 520px;">
+        <MissionSelector client:only="react" name="checkout-revamp-v2" state="ACTIVE" />
+      </div>
+    </SubBlock>
+    <SubBlock id="G5.2" name="MissionHeader">
+      <div class="pane" style="padding: 14px; max-width: 640px;">
+        <MissionHeader
+          client:only="react"
+          name="checkout-revamp-v2"
+          date="2026-05-12"
+          description="Reskin the storefront checkout, swap address validation, and add the new mailer queue."
+        />
+      </div>
+    </SubBlock>
+    <SubBlock id="G5.3" name="KanbanCard">
+      <div class="pane" style="padding: 14px; max-width: 320px;"><KanbanCard client:only="react" card={oneKCard} /></div>
+    </SubBlock>
+    <SubBlock id="G5.4" name="KanbanColumn — Done">
+      <div class="pane" style="padding: 14px; max-width: 320px;"><KanbanColumn client:only="react" column={defaultKanban[2]} /></div>
+    </SubBlock>
+    <SubBlock id="G5.5" name="KanbanColumn — empty (To Claim)">
+      <div class="pane" style="padding: 14px; max-width: 320px;"><KanbanColumn client:only="react" column={defaultKanban[0]} /></div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G6 ── */}
+  <section id="G6" class="container-x py-12 scroll-mt-20">
+    <Heading id="G6" title="Files panel atoms" />
+    <SubBlock id="G6.1" name="FileRow — directory (collapsed)">
+      <div class="pane" style="padding: 8px; max-width: 320px;"><FileRow client:only="react" file={{ name: 'agent-team', isDir: true, depth: 0 }} expanded={false} /></div>
+    </SubBlock>
+    <SubBlock id="G6.2" name="FileRow — directory (expanded)">
+      <div class="pane" style="padding: 8px; max-width: 320px;"><FileRow client:only="react" file={{ name: 'agent-team', isDir: true, depth: 0 }} expanded /></div>
+    </SubBlock>
+    <SubBlock id="G6.3" name="FileRow — plain file">
+      <div class="pane" style="padding: 8px; max-width: 320px;"><FileRow client:only="react" file={{ name: 'agents.md', depth: 2 }} /></div>
+    </SubBlock>
+    <SubBlock id="G6.4" name="FileRow — modified (M)">
+      <div class="pane" style="padding: 8px; max-width: 320px;"><FileRow client:only="react" file={{ name: 'src/routes/checkout.tsx', depth: 2, mark: 'M' }} /></div>
+    </SubBlock>
+    <SubBlock id="G6.5" name="FileRow — added (A)">
+      <div class="pane" style="padding: 8px; max-width: 320px;"><FileRow client:only="react" file={{ name: 'src/queue.ts', depth: 2, mark: 'A' }} /></div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G7 ── */}
+  <section id="G7" class="container-x py-12 scroll-mt-20">
+    <Heading id="G7" title="Hub atoms" />
+    <SubBlock id="G7.1" name="HubInstanceCard (running)">
+      <div class="pane" style="padding: 18px; max-width: 540px;">
+        <HubInstanceCard client:only="react" instance={oneInstance} />
+      </div>
+    </SubBlock>
+    <SubBlock id="G7.2" name="HubInstanceCard (idle)">
+      <div class="pane" style="padding: 18px; max-width: 540px;">
+        <HubInstanceCard client:only="react" instance={{ ...oneInstance, status: 'idle', uptime: '23h ago' }} />
+      </div>
+    </SubBlock>
+    <SubBlock id="G7.3" name="HubCreateForm">
+      <div class="pane" style="padding: 18px; max-width: 360px;">
+        <HubCreateForm client:only="react" />
+      </div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G8 ── */}
+  <section id="G8" class="container-x py-12 scroll-mt-20">
+    <Heading id="G8" title="Status bar atoms" />
+    <SubBlock id="G8.1" name="StatusBar (default)">
+      <div class="pane"><StatusBar client:only="react" shellLabel="shell 2" projectLabel="shop" branch="main" changes={0} shells={3} /></div>
+    </SubBlock>
+    <SubBlock id="G8.2" name="StatusBar (with changes)">
+      <div class="pane"><StatusBar client:only="react" shellLabel="shell 1" projectLabel="astro-blog" branch="feat/checkout" changes={4} shells={2} /></div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G9 ── */}
+  <section id="G9" class="container-x py-12 scroll-mt-20">
+    <Heading id="G9" title="Form atoms" />
+    <SubBlock id="G9.1" name="FormField">
+      <div class="pane" style="padding: 18px; max-width: 360px;">
+        <FormField client:only="react" label="Project path" defaultValue="~/projects/my-app" />
+      </div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G10 ── */}
+  <section id="G10" class="container-x py-12 scroll-mt-20">
+    <Heading id="G10" title="Button atoms" />
+    <SubBlock id="G10.1" name="GhostButton">
+      <div class="pane" style="padding: 18px; display: flex; gap: 10px;">
+        <GhostButton client:only="react" icon="sliders">Filter</GhostButton>
+        <GhostButton client:only="react" icon="plus">Add</GhostButton>
+      </div>
+    </SubBlock>
+    <SubBlock id="G10.2" name="AccentButton (full width)">
+      <div class="pane" style="padding: 18px; max-width: 320px;">
+        <AccentButton client:only="react" icon="file-plus">Create server</AccentButton>
+      </div>
+    </SubBlock>
+    <SubBlock id="G10.3" name="AccentButton (inline)">
+      <div class="pane" style="padding: 18px; display: inline-flex;">
+        <AccentButton client:only="react" icon="play" full={false}>Start</AccentButton>
+      </div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G11 ── */}
+  <section id="G11" class="container-x py-12 scroll-mt-20">
+    <Heading id="G11" title="Tab & Subtab atoms" />
+    <SubBlock id="G11.1" name="Tab — active vs inactive">
+      <div class="pane mx-tabs" style="height: 36px;">
+        <Tab client:only="react" icon="activity" label="Activity" active />
+        <Tab client:only="react" icon="team" label="Team" />
+        <Tab client:only="react" icon="review" label="Review" />
+        <Tab client:only="react" icon="replay" label="Replay" />
+      </div>
+    </SubBlock>
+    <SubBlock id="G11.2" name="SubtabPill — active vs inactive">
+      <div class="pane mx-subtabs">
+        <SubtabPill client:only="react" icon="team" label="Agent" active />
+        <SubtabPill client:only="react" label="Modules" />
+        <SubtabPill client:only="react" label="Imports" />
+        <SubtabPill client:only="react" label="Conflicts" />
+        <SubtabPill client:only="react" icon="file" label="Files" />
+      </div>
+    </SubBlock>
+  </section>
+
+  {/* ─────────────────────────────────────────────────── G12 ── */}
+  <section id="G12" class="container-x py-12 pb-24 scroll-mt-20">
+    <Heading id="G12" title="Visual primitives" />
+    <SubBlock id="G12.1" name="PaneAvatar — 4 agent brands">
+      <div class="pane" style="padding: 24px; display: flex; gap: 28px;">
+        {[
+          { agent: 'claude',   hue: 270, label: 'claude' },
+          { agent: 'codex',    hue: 20,  label: 'codex' },
+          { agent: 'gemini',   hue: 200, label: 'gemini' },
+          { agent: 'opencode', hue: 320, label: 'opencode' },
+        ].map((a) => (
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+            <PaneAvatar client:only="react" agent={a.agent} hue={a.hue} size={48} assetsBase="/assets" />
+            <span class="font-mono text-xs text-muted">{a.label}</span>
+          </div>
+        ))}
+      </div>
+    </SubBlock>
+    <SubBlock id="G12.2" name="StatusDot — 4 states">
+      <div class="pane" style="padding: 24px; display: flex; gap: 28px;">
+        {(['running','waiting','idle','error'] as const).map((s) => (
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <StatusDot client:only="react" status={s} />
+            <span class="font-mono text-xs text-secondary">{s}</span>
+          </div>
+        ))}
+      </div>
+    </SubBlock>
+    <SubBlock id="G12.3" name="Icon — full set">
+      <div class="pane" style="padding: 24px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 18px;">
+          {(['panels','activity','team','review','replay','folder','folder-plus','server','hub','plus','play','stop','power','trash','open','x','settings','sliders','maximize','terminal','branch','changes','shell','file','file-plus'] as const).map((n) => (
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--text-secondary);">
+              <Icon client:only="react" name={n} size={20} strokeWidth={1.8} />
+              <span class="font-mono text-[11px] text-muted">{n}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </SubBlock>
+  </section>
+</Layout>

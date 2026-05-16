@@ -2,16 +2,17 @@
 
 ## 1. Positioning
 
-`mexus-terminal` is a standalone Web terminal runtime for rendering CLI and TUI programs in browser applications.
+`mexus-terminal` is a Mexus-oriented terminal runtime package for rendering CLI and TUI programs in the Mexus web console.
 
-It is not a Mexus business module. The package should be usable by any web app that needs to render a long-running CLI process through xterm.js, especially AI Agent CLIs that use TUI-style screen updates, cursor movement, partial redraws, and high-frequency output.
+The package may contain Mexus business integration. The important boundary is that the `core` layer stays architecture-pure and can later be extracted into its own repository. The React and adapter layers can be built specifically for Mexus usage rather than pretending to be generic UI primitives.
 
-The package has two layers:
+The package has three layers:
 
-- **Core runtime**: generic Web TUI terminal runtime with no Mexus concepts.
-- **Mexus adapter**: optional adapter that maps Mexus pane, workspace, WebSocket, and replay events to the generic runtime API.
+- **Core runtime**: generic Web TUI terminal runtime with no Mexus concepts and no React dependency.
+- **Mexus adapter**: Mexus business integration that maps pane, workspace, WebSocket, replay, launch, readiness, and cache concepts to the core runtime API.
+- **Mexus React integration**: Mexus-specific terminal components/hooks built for the current product, owned by the adapter layer rather than by core.
 
-This structure keeps the core package independently reusable while keeping Mexus integration thin and low-risk.
+This structure lets the core incubate inside the Mexus package without being polluted by product concepts. If the core is later split into a standalone repository, it can get a separate React layer designed for that audience.
 
 ## 2. Goals
 
@@ -20,14 +21,15 @@ This structure keeps the core package independently reusable while keeping Mexus
 - Prevent hidden or inactive terminals from consuming unnecessary rendering work.
 - Support first-screen restore through IndexedDB snapshots.
 - Support prioritized replay scheduling without flooding the main thread.
-- Provide a clean React integration layer.
+- Provide a Mexus-specific React integration layer for current product needs.
 - Keep Mexus business concepts out of the core runtime.
-- Allow future standalone publication as a reusable npm package.
+- Keep core protocols and primitives clean enough for future extraction.
 
 ## 3. Non-Goals
 
 - The core runtime does not manage processes, PTYs, WebSockets, or server connections.
 - The core runtime does not know about panes, agents, workspaces, missions, hubs, or servers.
+- The core runtime does not depend on React or define a generic React component API.
 - The core runtime does not require a specific backend protocol.
 - The first version does not implement full persistent terminal history.
 - The first version does not implement server-driven terminal resize/repaint.
@@ -50,14 +52,12 @@ packages/mexus-terminal/
 │   │   ├── snapshot-policy.ts
 │   │   ├── write-buffer.ts
 │   │   └── types.ts
-│   ├── react/
-│   │   ├── TuiTerminal.tsx
-│   │   ├── useTuiTerminal.ts
-│   │   └── types.ts
 │   ├── adapters/
 │   │   └── mexus/
 │   │       ├── adapter.ts
 │   │       ├── MexusPaneTerminal.tsx
+│   │       ├── useMexusTerminal.ts
+│   │       ├── launch-adapter.ts
 │   │       ├── event-mapper.ts
 │   │       ├── cache-key.ts
 │   │       └── types.ts
@@ -386,31 +386,29 @@ create/attach terminal
 
 No UI stale label is shown by the package.
 
-## 9. Core React Layer
+## 9. Mexus React Layer
 
-The React layer should be optional and generic.
+The React layer is not part of core. It is a Mexus-specific integration layer built around current product requirements.
 
 ```tsx
-interface TuiTerminalProps {
-  terminalId: string
-  runtime: TuiTerminalRuntime
+interface MexusPaneTerminalProps {
+  paneId: string
   visible: boolean
-  cacheKey?: string
-  onInput?: (data: string) => void
-  onResize?: (viewport: TerminalViewport) => void
   className?: string
-  style?: React.CSSProperties
 }
 ```
 
 The component:
 
 - Creates xterm and fit addon.
-- Attaches them to the runtime session.
-- Forwards input.
-- Emits resize events.
-- Sets runtime visibility from `visible`.
-- Does not know about Mexus panes or agents.
+- Attaches them to the core runtime session through the Mexus adapter.
+- Forwards xterm input through Mexus WebSocket/event handlers.
+- Emits resize through Mexus terminal resize events.
+- Sets runtime visibility from Mexus pane state.
+- Handles focus, parking/remount, and current Mexus styling requirements.
+- Can use Mexus concepts such as `paneId`, workspace cache keys, and adapter diagnostics.
+
+The core layer should expose enough protocol and lifecycle primitives for this component, but should not import React. A future standalone core repository can define its own React package if external users need one.
 
 ## 10. Mexus Adapter Layer
 
@@ -430,6 +428,8 @@ It maps Mexus concepts to core concepts.
 - Keep Mexus UI components thin.
 - Protect terminal live traffic from lower-priority Mexus events on shared transports.
 - Provide diagnostics that can distinguish input delivery failure from output/rendering backpressure.
+- Execute Mexus terminal-launch requests after application/server code has resolved the final command.
+- Support terminal launch readiness, command writing, and `autoExecute` behavior without leaking those concerns into core.
 
 ### 10.2 Adapter API
 
@@ -486,6 +486,86 @@ mexus:v1:{workspaceKey}:{paneId}:{sessionKey}:{cols}
 
 `cols` should be included because TUI layout is width-sensitive. `rows` can be stored in the record and used for validation, but width is the stronger cache boundary.
 
+### 10.5 Superset Terminal Lessons Applied
+
+The Superset terminal/CLI analysis provides useful constraints, but only a subset belongs in this browser runtime package.
+
+Adopt in this package:
+
+- **Runtime and transport separation**: xterm lifecycle, replay scheduling, snapshot restore, and visibility buffering stay in `@mexus/terminal`; WebSocket shape and server queues stay outside core.
+- **Parking-friendly lifecycle**: React unmount should not force terminal session disposal. The runtime should support `detach()` and later `attach()` so Mexus can park or remount xterm instances without replaying unnecessarily.
+- **Live output priority**: replay, snapshot restore, hidden-terminal backlog, and background refresh must never outrank live terminal writes after data reaches the browser.
+- **Replay/live distinction**: replay tasks are explicit and interruptible. Live output must be able to cancel or demote replay for the same terminal.
+- **Adapter-owned priority mapping**: active pane, expanded pane, and UI focus are Mexus concepts and must remain in the Mexus adapter, not core.
+
+Keep outside this package core:
+
+- Server-side WebSocket send queues and slow-client disconnection policy.
+- PTY input write queue for large paste or broadcast.
+- Pane spawn concurrency limiter.
+- PTY daemon, Unix socket protocol, server restart reattach, and daemon lifecycle.
+- Pane preset resolution.
+- Agent CLI command construction for Claude Code, Codex, OpenCode, or other tools.
+
+Those items are valuable Mexus platform work. The reusable core must not own them. The Mexus adapter may own the terminal-side part of a resolved launch, but not the agent-specific command-building rules.
+
+### 10.6 Agent CLI Launch Boundary
+
+Superset's source separates terminal rendering from terminal-agent startup:
+
+- Built-in terminal agents are declarative definitions: `command`, optional `promptCommand`, optional `promptCommandSuffix`, and `promptTransport`.
+- Launch requests are canonical data objects rather than ad hoc UI command strings.
+- Prompt delivery is explicit:
+  - `argv`: pass prompt as an argument, often via `$(cat file)` or heredoc.
+  - `stdin`: feed prompt through stdin or file redirection.
+- Terminal launch flow is create/attach first, then write the command into the terminal once the session is ready.
+- `autoExecute=false` writes the command without a trailing newline so the user can inspect before running.
+- Large prompt/task content can be written to a workspace file and passed to the agent command, avoiding huge inline shell strings.
+
+For Mexus:
+
+- `@mexus/terminal` must not know how to start Claude Code, Codex, or any specific agent CLI.
+- The core layer only exposes input/output/rendering primitives. Mexus React integration should consume those primitives through the Mexus adapter.
+- The Mexus adapter may observe terminal events, replay, visibility, and terminal-side launch lifecycle.
+- Agent command construction should stay in the Mexus server/application launch layer, likely near existing `agentCommand.ts` / pane creation code or a future `launch` module.
+- The adapter can accept an already-resolved terminal launch request and perform terminal-side execution:
+  - ensure/create/attach terminal session
+  - wait until the session is ready
+  - write command into the terminal
+  - append newline only when `autoExecute !== false`
+  - surface launch diagnostics without writing them into terminal scrollback
+
+Future Mexus launch work can borrow these concepts through the Mexus adapter without changing core APIs:
+
+```ts
+interface TerminalAgentDefinition {
+  id: string
+  label: string
+  command: string
+  promptCommand?: string
+  promptCommandSuffix?: string
+  promptTransport?: 'argv' | 'stdin'
+}
+
+interface TerminalAgentLaunchRequest {
+  paneId?: string
+  agent: string
+  command: string
+  name?: string
+  taskPromptContent?: string
+  taskPromptFileName?: string
+  autoExecute?: boolean
+}
+
+interface MexusTerminalLaunchAdapter {
+  launchResolvedTerminalAgent(request: TerminalAgentLaunchRequest): Promise<void>
+  markTerminalReady(paneId: string): void
+  rejectTerminalReady(paneId: string, error: Error): void
+}
+```
+
+The command-resolution half belongs to Mexus launch orchestration. The create/attach/readiness/write half can live in the Mexus adapter because it is terminal integration logic rather than agent-specific logic.
+
 ## 11. Integration Plan for Mexus
 
 ### Stage 1: Create Package
@@ -504,7 +584,8 @@ mexus:v1:{workspaceKey}:{paneId}:{sessionKey}:{cols}
 
 - Replace `packages/web/src/stores/terminalRegistry.ts` with adapter calls.
 - Keep the old file as a thin compatibility wrapper during migration.
-- Replace `Terminal.tsx` internals with generic `TuiTerminal` or `MexusPaneTerminal`.
+- Replace `Terminal.tsx` internals with `MexusPaneTerminal` or another adapter-owned Mexus terminal component.
+- Preserve `detach()` without disposal so future terminal parking can be introduced without changing core APIs.
 
 ### Stage 4: Adjust Replay Protocol Usage
 

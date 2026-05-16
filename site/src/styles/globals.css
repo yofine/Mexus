@@ -91,7 +91,7 @@
   }
 
   .pane {
-    @apply rounded-lg overflow-hidden;
+    @apply rounded overflow-hidden;
     background: #101010;
     border: 1px solid var(--border-subtle);
   }

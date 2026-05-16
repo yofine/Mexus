@@ -1,0 +1,13 @@
+---
+interface Props {
+  id: string;
+  title: string;
+  note?: string;
+}
+const { id, title, note } = Astro.props;
+---
+<header class="mb-5">
+  <div class="font-mono text-xs text-muted">{id}</div>
+  <h2 class="heading-section mt-1">{title}</h2>
+  {note && <p class="text-secondary text-sm mt-2 max-w-2xl">{note}</p>}
+</header>

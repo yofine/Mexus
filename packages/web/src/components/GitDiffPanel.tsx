@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import {
   RefreshCw,
   ChevronDown,
@@ -617,6 +617,16 @@ export function GitDiffPanel({ send, paneId }: GitDiffPanelProps) {
   const [unstagedCollapsed, setUnstagedCollapsed] = useState(false)
 
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+
+  // Subscribe to global git diff pushes only while this panel is mounted.
+  // Server skips git.diff work entirely when no client is subscribed, so the
+  // terminal WS channel stays clean in repos with many unstaged files.
+  useEffect(() => {
+    send({ type: 'git.subscribe' })
+    return () => {
+      send({ type: 'git.unsubscribe' })
+    }
+  }, [send])
 
   const isWorktree = !!paneId
   const pane = isWorktree ? panes.find((p) => p.id === paneId) : undefined

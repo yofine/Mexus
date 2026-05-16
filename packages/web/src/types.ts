@@ -86,6 +86,8 @@ export type ClientEvent =
   | { type: 'task.dispatch'; tasks: TaskItem[] }
   | { type: 'review.comment'; paneId: string; comment: ReviewComment }
   | { type: 'git.refresh' }
+  | { type: 'git.subscribe' }
+  | { type: 'git.unsubscribe' }
   | { type: 'git.accept'; file: string }
   | { type: 'git.accept.all' }
   | { type: 'git.discard'; file: string }

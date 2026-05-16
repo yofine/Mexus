@@ -1,31 +1,53 @@
 import type { MockActivityCard } from '../mocks/types';
-import { Icon, PaneAvatar } from './primitives';
+import { Icon } from './primitives';
+import { ActivityCard, SubtabPill, Tab } from './atoms';
+import type { IconName } from './primitives';
 
 const TABS = ['Activity', 'Team', 'Review', 'Replay'] as const;
 const SUBTABS = ['Agent', 'Modules', 'Imports', 'Conflicts', 'Files'] as const;
 
-const TAB_ICONS: Record<typeof TABS[number], 'activity' | 'team' | 'review' | 'replay'> = {
+const TAB_ICONS: Record<typeof TABS[number], IconName> = {
   Activity: 'activity', Team: 'team', Review: 'review', Replay: 'replay',
+};
+
+const SUBTAB_ICONS: Record<typeof SUBTABS[number], IconName | undefined> = {
+  Agent: 'team', Modules: undefined, Imports: undefined, Conflicts: undefined, Files: 'file',
 };
 
 interface Props {
   cards: MockActivityCard[];
-  /** Find the agent for an activity card by matching id against a pane list. */
   panes?: { id: string; agent: string }[];
   assetsBase?: string;
+  activeTab?: typeof TABS[number];
+  activeSubtab?: typeof SUBTABS[number];
+  onTabChange?: (tab: typeof TABS[number]) => void;
+  onSubtabChange?: (sub: typeof SUBTABS[number]) => void;
+  onCardClick?: (id: string) => void;
 }
 
-export function ActivityPanel({ cards, panes = [], assetsBase }: Props) {
+export function ActivityPanel({
+  cards,
+  panes = [],
+  assetsBase,
+  activeTab = 'Activity',
+  activeSubtab = 'Agent',
+  onTabChange,
+  onSubtabChange,
+  onCardClick,
+}: Props) {
   const agentFor = (id: string) => panes.find((p) => p.id === id)?.agent ?? 'claude';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--mx-bg-base)' }}>
       <div className="mx-tabs">
         {TABS.map((tab) => (
-          <span key={tab} className={`mx-tab ${tab === 'Activity' ? 'mx-tab--active' : ''}`}>
-            <Icon name={TAB_ICONS[tab]} size={12} />
-            {tab}
-          </span>
+          <Tab
+            key={tab}
+            icon={TAB_ICONS[tab]}
+            label={tab}
+            active={tab === activeTab}
+            onClick={() => onTabChange?.(tab)}
+          />
         ))}
         <span style={{ flex: 1 }} />
         <span style={{ display: 'inline-grid', placeItems: 'center', padding: '0 12px', color: 'var(--mx-text-muted)' }}>
@@ -34,11 +56,14 @@ export function ActivityPanel({ cards, panes = [], assetsBase }: Props) {
       </div>
 
       <div className="mx-subtabs">
-        {SUBTABS.map((s, i) => (
-          <span key={s} className={`mx-subtab ${i === 0 ? 'mx-subtab--active' : ''}`}>
-            {i === 0 && <Icon name="team" size={10} strokeWidth={2} />}
-            {s}
-          </span>
+        {SUBTABS.map((s) => (
+          <SubtabPill
+            key={s}
+            icon={SUBTAB_ICONS[s]}
+            label={s}
+            active={s === activeSubtab}
+            onClick={() => onSubtabChange?.(s)}
+          />
         ))}
       </div>
 
@@ -50,29 +75,13 @@ export function ActivityPanel({ cards, panes = [], assetsBase }: Props) {
         overflow: 'auto',
       }}>
         {cards.map((c) => (
-          <div key={c.id} className={`mx-card ${c.status === 'Running' ? 'mx-card--running' : ''}`}>
-            <div className="mx-card__head">
-              <div className="mx-card__title">
-                <PaneAvatar hue={c.hue} agent={agentFor(c.id)} size={22} assetsBase={assetsBase} />
-                <span style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{c.name}</span>
-              </div>
-              <span className={`mx-pill ${c.status === 'Running' ? 'mx-pill--running' : c.status === 'Waiting' ? 'mx-pill--waiting' : 'mx-pill--idle'}`}>
-                {c.status}
-              </span>
-            </div>
-            <div className="mx-card__meta">
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <Icon name="file" size={11} strokeWidth={1.6} />
-                {c.files} files
-              </span>
-              <span>·</span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <Icon name="replay" size={11} strokeWidth={1.6} />
-                {c.age}
-              </span>
-            </div>
-            <div className="mx-card__duration">{c.duration}</div>
-          </div>
+          <ActivityCard
+            key={c.id}
+            card={c}
+            agent={agentFor(c.id)}
+            assetsBase={assetsBase}
+            onClick={onCardClick ? () => onCardClick(c.id) : undefined}
+          />
         ))}
       </div>
 

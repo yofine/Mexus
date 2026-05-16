@@ -1,12 +1,17 @@
 import type { MockPane } from '../mocks/types';
-import { ChevronRight, Icon, PaneAvatar } from './primitives';
+import { Icon } from './primitives';
+import { GhostButton, PaneRow } from './atoms';
 
 interface Props {
   panes: MockPane[];
+  selectedId?: string;
   assetsBase?: string;
+  onSelect?: (id: string) => void;
+  onAdd?: () => void;
+  onFilter?: () => void;
 }
 
-export function PanesColumn({ panes, assetsBase }: Props) {
+export function PanesColumn({ panes, selectedId, assetsBase, onSelect, onAdd, onFilter }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--mx-bg-base)' }}>
       <div className="mx-panel-header">
@@ -15,34 +20,20 @@ export function PanesColumn({ panes, assetsBase }: Props) {
           <span>Panes</span>
         </div>
         <div className="mx-panel-header__actions">
-          <button type="button" className="mx-ghost-btn">
-            <Icon name="sliders" size={11} />
-            Filter
-          </button>
-          <button type="button" className="mx-ghost-btn">
-            <Icon name="plus" size={12} />
-            Add
-          </button>
+          <GhostButton icon="sliders" onClick={onFilter}>Filter</GhostButton>
+          <GhostButton icon="plus" onClick={onAdd}>Add</GhostButton>
         </div>
       </div>
-
       <div style={{ flex: 1, overflow: 'hidden' }}>
         {panes.map((pane) => (
-          <PaneRow key={pane.id} pane={pane} assetsBase={assetsBase} />
+          <PaneRow
+            key={pane.id}
+            pane={pane}
+            selected={selectedId === pane.id}
+            assetsBase={assetsBase}
+            onClick={() => onSelect?.(pane.id)}
+          />
         ))}
-      </div>
-    </div>
-  );
-}
-
-function PaneRow({ pane, assetsBase }: { pane: MockPane; assetsBase?: string }) {
-  return (
-    <div className="mx-pane-row">
-      <span className="mx-pane-row__chev"><ChevronRight size={11} /></span>
-      <PaneAvatar hue={pane.hue} agent={pane.agent} size={32} assetsBase={assetsBase} />
-      <div className="mx-pane-row__main">
-        <div className="mx-pane-row__name">{pane.name}</div>
-        {pane.desc && <div className="mx-pane-row__desc">{pane.desc}</div>}
       </div>
     </div>
   );

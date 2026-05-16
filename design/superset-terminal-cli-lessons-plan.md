@@ -570,6 +570,50 @@ packages/server/src/launch/agentLaunch.ts
 - Mission Planner 可以一次生成多个 launch request。
 - CLI 和 UI 共用同一语义。
 
+### 5.1.1 Terminal Agent 启动命令模型
+
+Superset 源码里没有把 Claude / Codex 的启动逻辑写进 terminal renderer，而是拆成几层：
+
+| 层 | 作用 |
+|---|---|
+| agent definition | 声明 agent 的 `command`、`promptCommand`、`promptCommandSuffix`、`promptTransport` |
+| launch request | 表达一次启动意图：workspace、pane、command、name、task prompt、attachments、autoExecute |
+| terminal adapter | 先 create/attach terminal，再把 command 写入 terminal |
+| terminal runtime | 只负责输入输出和渲染，不理解 Claude/Codex |
+
+Superset 内置 terminal agent 示例：
+
+```ts
+claude:
+  command: "claude --permission-mode acceptEdits"
+
+codex:
+  command: "codex --dangerously-bypass-approvals-and-sandbox"
+  promptCommand: "codex --dangerously-bypass-approvals-and-sandbox --"
+```
+
+其中 `command` 用于无 prompt 的普通启动，`promptCommand` 用于带 prompt/task 的启动。
+
+Prompt 传递方式被抽象成小枚举：
+
+```ts
+type PromptTransport = 'argv' | 'stdin'
+```
+
+- `argv`：把 prompt 作为命令参数传入，例如 `codex -- "$(cat '.superset/task.md')"`。
+- `stdin`：把 prompt 通过 stdin 或文件重定向传入，例如 `amp < '.superset/task.md'`。
+
+这比给每个 agent 写任意 shell template 更可控，也更容易测试。
+
+对 Mexus 的启发：
+
+1. Agent 启动命令构造应属于 server/application launch 层，不应进入浏览器 terminal runtime 包。
+2. 现有 `agentCommand.ts` 可以逐步演进为更明确的 `TerminalAgentDefinition + TerminalAgentLaunchRequest`。
+3. Claude Code / Codex 的差异不要散落在 UI 组件里，应集中在 agent definition。
+4. 大 task prompt 优先写入 `.mexus/` 或 `.nexus/` 下的临时 prompt 文件，再由 agent command 读取，减少超长 shell 命令。
+5. `autoExecute=false` 可以作为未来能力：只把命令写入 terminal，不发送换行，允许用户手动确认后运行。
+6. create/attach terminal 和 write command 应分成两个步骤，并支持等待 terminal session ready，避免命令写入早于终端可用。
+
 ### 5.2 Terminal runtime parking
 
 #### 当前问题
@@ -824,3 +868,194 @@ Mexus 应该借鉴 Superset 的稳定性策略，而不是立即复制 Superset 
 - agent launch 请求结构化。
 
 其中 “server 重启不丢 terminal session” 应进入一期目标，但一期 daemon 应保持最小边界：只做 PTY session 保活、reattach、输入输出转发和清理，不做 fd handoff、raw browser binary WS、headless snapshot 等高复杂度能力。
+
+## 12. 已沉淀到 `@mexus/terminal` 新包的经验
+
+当前 `@mexus/terminal` 新包已经参考并吸收了以下 Superset 经验：
+
+### 12.1 Core 层已参考
+
+- **runtime 与 transport 分离**
+  - Core 只处理 terminal session、write buffer、replay scheduler、snapshot policy/store。
+  - WebSocket、PTY、agent command、pane 业务状态都不进入 core。
+
+- **live output 优先**
+  - live output 是最高优先级路径。
+  - replay 任务可被 live output 中断。
+  - hidden backlog 和 replay 都不能阻塞 live write。
+
+- **显式 replay 语义**
+  - replay 被建模为 task，而不是混在普通 terminal output 里。
+  - replay 有 priority、kind、interruptible、resetBeforeWrite 等属性。
+
+- **detach/attach 生命周期**
+  - session 可以 `detach()` 后保留状态，之后再 `attach()`。
+  - 这是未来 terminal parking/remount 的基础。
+
+- **snapshot 只作为加速层**
+  - IndexedDB snapshot 不是 source of truth。
+  - viewport 兼容性以 `cols` 为主，避免 TUI 宽度变化导致错误 restore。
+
+### 12.2 Mexus adapter 层已参考
+
+- **pane/session/cache 映射**
+  - `paneId` 映射为 core `terminalId`。
+  - cache key 包含 workspace、pane/session、cols。
+
+- **Mexus replay priority mapping**
+  - active pane head replay 映射为高优先级。
+  - inactive replay 降级为 background/normal。
+
+- **Mexus 专用 React 层**
+  - React 组件不放入 core。
+  - React 层按 Mexus 的 pane/adapter 使用方式构建，不追求通用 UI API。
+
+- **terminal-side launch lifecycle**
+  - 新包计划把已解析 command 的 terminal-side 执行放到 Mexus adapter：
+    - 等待 terminal ready
+    - 写入 command
+    - 支持 `autoExecute=false`
+    - 不把诊断信息写进 terminal scrollback
+  - Claude/Codex 等 agent-specific command 构造仍留在 Mexus launch/server 层。
+
+## 13. 暂不适合放入新包，但建议 Mexus 其它模块参考的能力
+
+这些能力很有价值，但不应进入 `@mexus/terminal` core；部分也不应进入新包 adapter，而应由 Mexus server / workspace / launch 层承担。
+
+### 13.1 WebSocket send queue / 慢客户端背压
+
+建议落点：
+
+```text
+packages/server/src/ws/sendQueue.ts
+```
+
+价值：
+
+- 避免慢浏览器 tab 或大 payload 阻塞 terminal 实时交互。
+- terminal output 可合并，低优先级事件可延迟或丢弃。
+- 队列超限时只断开当前 client，不影响 PTY 和其他客户端。
+
+不放进新包的原因：
+
+- 这是 server transport 策略，不是 browser runtime 能解决的问题。
+
+### 13.2 PTY input write queue
+
+建议落点：
+
+```text
+packages/server/src/pty/PtyWriteQueue.ts
+```
+
+价值：
+
+- 大 paste、大 prompt、批量广播时分 chunk 写入 PTY。
+- 避免单 tick 写入过大数据影响 server event loop。
+
+不放进新包的原因：
+
+- 它控制 node-pty 写入节奏，属于 server PTY runtime。
+
+### 13.3 Pane spawn 并发限流
+
+建议落点：
+
+```text
+packages/server/src/workspace/SpawnLimiter.ts
+```
+
+价值：
+
+- 批量创建 Agent pane 时避免 shell rc、Agent CLI 初始化、鉴权检查同时打满 CPU/IO。
+- 后续可以给用户主动创建或当前激活 pane 更高优先级。
+
+不放进新包的原因：
+
+- 它是 workspace / process lifecycle 策略，不是 terminal renderer 策略。
+
+### 13.4 PTY daemon / server 重启 reattach
+
+建议落点：
+
+```text
+packages/server/src/runtime/TerminalRuntime.ts
+packages/server/src/runtime/DaemonTerminalRuntime.ts
+packages/server/src/pty-daemon/
+```
+
+价值：
+
+- Mexus server 重启不杀正在运行的 Agent CLI。
+- 重新启动 server 后可 attach 到原 PTY session。
+- 为长期运行 Agent 控制台提供更强稳定性。
+
+不放进新包的原因：
+
+- 这是服务端进程模型，不属于浏览器 terminal package。
+- 第一期 daemon 应保持最小边界，不做 fd handoff / raw browser binary WS。
+
+### 13.5 AgentLaunchRequest / agent definition / prompt transport
+
+建议落点：
+
+```text
+packages/server/src/launch/
+packages/server/src/pty/agentCommand.ts
+packages/web/src/stores 或未来 shared launch module
+```
+
+价值：
+
+- Claude Code、Codex、OpenCode 等 agent 的启动差异集中配置。
+- 支持 `command`、`promptCommand`、`promptCommandSuffix`、`promptTransport`。
+- 支持 task prompt 写文件后由 agent command 读取，避免超长 shell command。
+- 支持 `autoExecute=false`，写入命令但不立即运行。
+
+和新包的关系：
+
+- agent-specific command construction 不进入 `@mexus/terminal` core。
+- Mexus adapter 可以负责“已解析 command 如何写进 terminal”。
+- 具体 Claude/Codex flags、preset、prompt template 应由 Mexus launch 层负责。
+
+### 13.6 Binary terminal payload / byte fidelity
+
+建议落点：
+
+```text
+daemon -> server protocol
+server -> browser terminal transport
+```
+
+价值：
+
+- 减少 UTF-8 边界和 JSON string 编码问题。
+- 对复杂 TUI、图片协议、二进制输出更稳。
+
+暂不建议第一阶段做的原因：
+
+- Mexus 当前还依赖 server 层 StatuslineParser 提取 Agent meta。
+- raw bytes 与 statusline 剥离存在语义冲突。
+- 应先完成 replay/live 分离和背压，再评估 binary WS。
+
+## 14. 推荐后续分工
+
+- `@mexus/terminal` 新包继续负责：
+  - core terminal runtime
+  - Mexus adapter
+  - Mexus React terminal integration
+  - terminal-side launch execution
+  - replay/snapshot/visibility/parking
+
+- Mexus server 负责：
+  - PTY write queue
+  - WS send queue
+  - spawn limiter
+  - daemon runtime
+  - agent command construction
+
+- Mexus web/app launch 层负责：
+  - preset selection
+  - AgentLaunchRequest assembly
+  - task prompt / attachment UX
+  - user-facing launch diagnostics

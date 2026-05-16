@@ -1,10 +1,10 @@
 import type { CSSProperties } from 'react'
 import type { ITerminalOptions } from '@xterm/xterm'
 
-import type { TerminalId, TerminalViewport, TuiTerminalRuntime } from '../core/types'
+import type { TerminalId, TerminalViewport, TuiTerminalRuntime } from '../../core/types'
 
-export interface TuiTerminalProps {
-  terminalId: TerminalId
+export interface MexusPaneTerminalProps {
+  paneId: TerminalId
   runtime: TuiTerminalRuntime
   visible?: boolean
   options?: ITerminalOptions

@@ -1,15 +1,24 @@
-import type { MockKanbanCol } from '../mocks/types';
-import { ChevronDown, Icon } from './primitives';
+import type { MockKanbanCard, MockKanbanCol } from '../mocks/types';
+import type { IconName } from './primitives';
+import { KanbanColumn, MissionHeader, MissionSelector, SubtabPill, Tab } from './atoms';
 
 const TABS = ['Activity', 'Team', 'Review', 'Replay'] as const;
 const SUBTABS = ['Kanban', 'Mission Agents', 'Squad Lead Log'] as const;
-const TAB_ICONS = { Activity: 'activity', Team: 'team', Review: 'review', Replay: 'replay' } as const;
+const TAB_ICONS: Record<typeof TABS[number], IconName> = {
+  Activity: 'activity', Team: 'team', Review: 'review', Replay: 'replay',
+};
 
 interface Props {
   kanban: MockKanbanCol[];
   missionName?: string;
   missionDate?: string;
   missionDescription?: string;
+  activeTab?: typeof TABS[number];
+  activeSubtab?: typeof SUBTABS[number];
+  onTabChange?: (tab: typeof TABS[number]) => void;
+  onSubtabChange?: (sub: typeof SUBTABS[number]) => void;
+  onCardClick?: (card: MockKanbanCard) => void;
+  onMissionSelectorClick?: () => void;
 }
 
 export function TeamPanel({
@@ -17,65 +26,39 @@ export function TeamPanel({
   missionName = 'checkout-revamp-v2',
   missionDate = '2026-05-12',
   missionDescription = 'Reskin the storefront checkout, swap address validation, and add the new mailer queue.',
+  activeTab = 'Team',
+  activeSubtab = 'Kanban',
+  onTabChange,
+  onSubtabChange,
+  onCardClick,
+  onMissionSelectorClick,
 }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--mx-bg-base)' }}>
       <div className="mx-tabs">
         {TABS.map((tab) => (
-          <span key={tab} className={`mx-tab ${tab === 'Team' ? 'mx-tab--active' : ''}`}>
-            <Icon name={TAB_ICONS[tab]} size={12} />
-            {tab}
-          </span>
+          <Tab
+            key={tab}
+            icon={TAB_ICONS[tab]}
+            label={tab}
+            active={tab === activeTab}
+            onClick={() => onTabChange?.(tab)}
+          />
         ))}
         <span style={{ flex: 1 }} />
       </div>
 
-      {/* mission selector */}
       <div style={{ padding: '12px 14px' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 12px', borderRadius: 4,
-          border: '1px solid var(--mx-border-default)',
-          background: 'var(--mx-bg-elevated)',
-          fontFamily: 'var(--mx-font-mono)', fontSize: 12,
-        }}>
-          <span className="mx-text-primary" style={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-            {missionName}
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: 'var(--mx-text-muted)' }}>
-            <span style={{
-              fontFamily: 'var(--mx-font-mono)', fontSize: 10, fontWeight: 700,
-              letterSpacing: '.08em', color: 'var(--mx-status-running)',
-            }}>ACTIVE</span>
-            <ChevronDown size={11} />
-          </span>
-        </div>
+        <MissionSelector name={missionName} onClick={onMissionSelectorClick} />
       </div>
 
       <div style={{ padding: '0 14px 12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--mx-text-primary)' }}>{missionName}</span>
-          <span className="mx-pill mx-pill--running">Active</span>
-        </div>
-        <div style={{
-          fontFamily: 'var(--mx-font-mono)', fontSize: 11.5,
-          color: 'var(--mx-text-muted)', marginTop: 3,
-        }}>
-          {missionDate}
-        </div>
-        <p style={{
-          marginTop: 8,
-          fontSize: 12.5,
-          color: 'var(--mx-text-secondary)',
-          lineHeight: 1.55,
-        }}>
-          {missionDescription}
-        </p>
+        <MissionHeader name={missionName} date={missionDate} description={missionDescription} />
       </div>
 
       <div className="mx-subtabs" style={{ padding: '6px 14px' }}>
-        {SUBTABS.map((s, i) => (
-          <span key={s} className={`mx-subtab ${i === 0 ? 'mx-subtab--active' : ''}`}>{s}</span>
+        {SUBTABS.map((s) => (
+          <SubtabPill key={s} label={s} active={s === activeSubtab} onClick={() => onSubtabChange?.(s)} />
         ))}
       </div>
 
@@ -92,30 +75,7 @@ export function TeamPanel({
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
           {kanban.map((col) => (
-            <div key={col.name} className="mx-kanban-col">
-              <div className="mx-kanban-col__head">
-                <span className="mx-text-primary">{col.name}</span>
-                <span className="mx-text-muted">{col.count}</span>
-              </div>
-              {col.cards.length === 0 ? (
-                <div className="mx-kanban-empty">No matching tasks.</div>
-              ) : (
-                col.cards.map((c) => (
-                  <div key={c.id} className="mx-kanban-card">
-                    <div className="mx-kanban-card__id">
-                      <span>{c.id}</span>
-                      <Icon name="open" size={11} strokeWidth={1.6} />
-                    </div>
-                    {c.assignTo && (
-                      <span className="mx-kanban-card__tag">
-                        To {c.assignTo} / From {c.assignFrom}
-                      </span>
-                    )}
-                    <div className="mx-kanban-card__body">{c.title}</div>
-                  </div>
-                ))
-              )}
-            </div>
+            <KanbanColumn key={col.name} column={col} onCardClick={onCardClick} />
           ))}
         </div>
       </div>

@@ -61,7 +61,9 @@ export class TuiTerminalSession implements TuiTerminalSessionContract {
     this.fitAddon = fitAddon ?? null
     this.visibility = 'visible'
     this.writeBuffer.setWriter((data) => {
-      this.xterm?.write(data)
+      this.xterm?.write(data, () => {
+        this.xterm?.scrollToBottom()
+      })
     })
     this.writeBuffer.setVisible(true)
   }

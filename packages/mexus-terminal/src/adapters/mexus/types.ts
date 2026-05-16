@@ -40,3 +40,9 @@ export interface MexusTerminalIdentity {
   sessionKey?: string | null
   cols: number
 }
+
+export interface MexusResolvedTerminalLaunchRequest {
+  paneId: string
+  command: string
+  autoExecute?: boolean
+}

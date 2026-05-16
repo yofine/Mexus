@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build an independent `@mexus/terminal` package for browser TUI terminal rendering, then integrate it into Mexus without changing product behavior.
+**Goal:** Build a Mexus-oriented `@mexus/terminal` package with a pure core runtime and Mexus-specific adapter/React integration, then integrate it without changing product behavior.
 
-**Architecture:** Create a reusable core runtime with no Mexus concepts, an optional React layer, and a Mexus adapter that maps pane/WebSocket/replay events into generic terminal operations. The existing `packages/web/src/stores/terminalRegistry.ts` remains as a compatibility wrapper until the adapter is verified.
+**Architecture:** Keep `src/core` React-free and free of Mexus concepts. Put Mexus pane/WebSocket/replay/launch/readiness/cache integration under `src/adapters/mexus`, including the React component used by Mexus. The existing `packages/web/src/stores/terminalRegistry.ts` remains as a compatibility wrapper until the adapter is verified.
 
 **Tech Stack:** TypeScript, React 18, xterm.js, `@xterm/addon-fit`, `@xterm/addon-serialize`, Vitest, pnpm workspace.
 
@@ -20,13 +20,14 @@
 - Create `packages/mexus-terminal/src/core/terminal-session.ts`: per-terminal runtime state.
 - Create `packages/mexus-terminal/src/core/runtime.ts`: runtime factory and session registry.
 - Create `packages/mexus-terminal/src/core/snapshot-store.ts`: IndexedDB snapshot storage.
-- Create `packages/mexus-terminal/src/react/TuiTerminal.tsx`: generic React xterm component.
+- Create `packages/mexus-terminal/src/adapters/mexus/MexusPaneTerminal.tsx`: Mexus-specific React xterm component.
 - Create `packages/mexus-terminal/src/adapters/mexus/adapter.ts`: Mexus event adapter.
+- Later create `packages/mexus-terminal/src/adapters/mexus/launch-adapter.ts`: terminal-side execution of already-resolved Mexus launch requests.
 - Create `packages/mexus-terminal/src/index.ts`: package exports.
 - Create tests under `packages/mexus-terminal/src/**/*.test.ts`.
 - Later modify `packages/web/package.json`: depend on `@mexus/terminal`.
 - Later modify `packages/web/src/stores/terminalRegistry.ts`: compatibility wrapper over Mexus adapter.
-- Later modify `packages/web/src/components/Terminal.tsx`: use generic React terminal component.
+- Later modify `packages/web/src/components/Terminal.tsx`: use `MexusPaneTerminal` or collapse into the adapter-owned component.
 
 ## Stage 1: Package Scaffold
 
@@ -443,23 +444,22 @@ Rules:
 
 Use `@xterm/addon-serialize` only inside session snapshot code. Snapshot writes are best-effort and must not block live writes.
 
-## Stage 4: React Layer
+## Stage 4: Mexus React Layer
 
-### Task 6: Add generic `TuiTerminal` React component
+### Task 6: Add Mexus-specific `MexusPaneTerminal` React component
 
 **Files:**
-- Create: `packages/mexus-terminal/src/react/TuiTerminal.tsx`
-- Create: `packages/mexus-terminal/src/react/types.ts`
+- Create: `packages/mexus-terminal/src/adapters/mexus/MexusPaneTerminal.tsx`
+- Create: `packages/mexus-terminal/src/adapters/mexus/react-types.ts`
 - Modify: `packages/mexus-terminal/src/index.ts`
 
 - [ ] **Step 1: Implement props**
 
 ```ts
-export interface TuiTerminalProps {
-  terminalId: string
-  runtime: TuiTerminalRuntime
+export interface MexusPaneTerminalProps {
+  paneId: string
+  adapter: MexusTerminalAdapter
   visible: boolean
-  cacheKey?: string
   onInput?: (data: string) => void
   onResize?: (viewport: TerminalViewport) => void
   className?: string
@@ -472,20 +472,21 @@ export interface TuiTerminalProps {
 Rules:
 
 - create xterm and fit addon on mount.
-- attach to runtime session.
+- attach to core runtime session through the Mexus adapter.
 - forward `term.onData` to `onInput`.
 - fit only when container has non-zero size.
-- call `session.setVisibility()` when `visible` changes.
+- call adapter visibility/session APIs when `visible` changes.
 - focus xterm on pointer down.
 - dispose xterm and detach session on unmount.
+- use Mexus naming and behavior; this is not a generic React API for external users.
 
 - [ ] **Step 3: Export React API**
 
 Update `packages/mexus-terminal/src/index.ts`:
 
 ```ts
-export { TuiTerminal } from './react/TuiTerminal'
-export type { TuiTerminalProps } from './react/types'
+export { MexusPaneTerminal } from './adapters/mexus/MexusPaneTerminal'
+export type { MexusPaneTerminalProps } from './adapters/mexus/react-types'
 ```
 
 - [ ] **Step 4: Typecheck**
@@ -558,6 +559,74 @@ Tests must cover:
 - workspace reset clears adapter state.
 - cache key includes cols.
 
+### Task 7B: Add terminal-side launch adapter
+
+**Files:**
+- Create: `packages/mexus-terminal/src/adapters/mexus/launch-adapter.ts`
+- Create: `packages/mexus-terminal/src/adapters/mexus/launch-adapter.test.ts`
+- Modify: `packages/mexus-terminal/src/adapters/mexus/types.ts`
+- Modify: `packages/mexus-terminal/src/index.ts`
+
+- [ ] **Step 1: Define resolved launch types**
+
+The adapter must not build Claude/Codex/OpenCode command strings. It only accepts a resolved command.
+
+```ts
+export interface MexusResolvedTerminalLaunchRequest {
+  paneId: string
+  command: string
+  autoExecute?: boolean
+}
+```
+
+- [ ] **Step 2: Implement terminal readiness helper**
+
+Implement a small readiness registry:
+
+```ts
+export class MexusTerminalLaunchAdapter {
+  markTerminalReady(paneId: string): void
+  rejectTerminalReady(paneId: string, error: Error): void
+  waitForTerminalReady(paneId: string): Promise<void>
+  launchResolvedTerminalAgent(request: MexusResolvedTerminalLaunchRequest): Promise<void>
+}
+```
+
+Constructor dependencies:
+
+```ts
+{
+  writeInput: (paneId: string, data: string) => void | Promise<void>
+}
+```
+
+- [ ] **Step 3: Implement command write behavior**
+
+Rules:
+
+- `launchResolvedTerminalAgent()` waits for terminal readiness before writing.
+- If `autoExecute === false`, write `command` exactly as provided.
+- Otherwise, write `command` with one trailing `\r`.
+- Do not write diagnostics into terminal scrollback.
+- Do not create agent-specific command strings.
+
+- [ ] **Step 4: Write tests**
+
+Tests must cover:
+
+- waits until `markTerminalReady()` before writing.
+- `autoExecute=false` does not append newline.
+- default launch appends carriage return.
+- `rejectTerminalReady()` rejects pending launch.
+
+Run:
+
+```bash
+pnpm --filter @mexus/terminal test src/adapters/mexus/launch-adapter.test.ts
+```
+
+Expected: pass.
+
 ## Stage 6: Mexus Web Integration
 
 ### Task 8: Add dependency and compatibility wrapper
@@ -625,9 +694,9 @@ interface TerminalProps {
 
 - [ ] **Step 2: Use package React component internally**
 
-Render `TuiTerminal` and map:
+Render `MexusPaneTerminal` and map:
 
-- `terminalId = paneId`
+- `paneId = paneId`
 - `onInput = onData`
 - `onResize = ({ cols, rows }) => onResize(cols, rows)`
 - `visible = true`
@@ -690,7 +759,6 @@ Start Mexus and verify:
 - Do not modify Git diff transport in this plan.
 - Do not change Agent startup or restore semantics in this plan.
 - Do not change Pane UI layout in this plan.
-- Keep Mexus concepts out of `src/core` and `src/react`.
-- Mexus-specific names are allowed only under `src/adapters/mexus`.
+- Keep Mexus concepts out of `src/core`.
+- Mexus-specific names and React integration are allowed only under `src/adapters/mexus`.
 - If a task needs broader architecture changes, stop and report before editing unrelated files.
-

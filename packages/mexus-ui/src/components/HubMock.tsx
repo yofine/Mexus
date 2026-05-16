@@ -25,13 +25,16 @@ export function HubMock({ instances = defaultHubInstances, tabs, className }: Hu
       <AppTopBar hubActive tabs={computedTabs} />
 
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: 24,
+        padding: '20px 24px',
         minHeight: 480,
         borderBottom: '1px solid var(--mx-border-default)',
       }}>
-        {/* Left: instances */}
-        <section style={{ padding: '20px 24px', borderRight: '1px solid var(--mx-border-subtle)' }}>
+        {/* Left: instances — narrow column */}
+        <section style={{ width: 520, maxWidth: '40%', flexShrink: 0 }}>
           <div className="mx-hub-section-title">{instances.length} tracked instance{instances.length === 1 ? '' : 's'}</div>
           <div className="mx-hub-section-sub">Local execution servers</div>
           <div className="mx-hub-section-rule" />
@@ -43,14 +46,14 @@ export function HubMock({ instances = defaultHubInstances, tabs, className }: Hu
           </div>
         </section>
 
-        {/* Right: form */}
-        <section style={{ padding: '20px 24px', background: 'var(--mx-bg-base)' }}>
+        {/* Right: form — narrow column, right-aligned with whitespace between */}
+        <section style={{ width: 340, maxWidth: '28%', flexShrink: 0 }}>
           <div className="mx-hub-section-title">Start execution server</div>
           <div className="mx-hub-section-sub">New execution server</div>
           <div style={{ marginTop: 18 }}>
             <div className="mx-form-field">
               <label className="mx-form-field__label">Project path</label>
-              <input className="mx-form-field__input" defaultValue="~/code/my-app" readOnly />
+              <input className="mx-form-field__input" defaultValue="~/projects/my-app" readOnly />
             </div>
             <div className="mx-form-field">
               <label className="mx-form-field__label">Port</label>

@@ -2,15 +2,15 @@ import { useEffect, useRef } from 'react'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal as XTerm } from '@xterm/xterm'
 
-import type { TuiTerminalSession } from '../core/types'
-import type { TuiTerminalProps } from './types'
+import type { TuiTerminalSession } from '../../core/types'
+import type { MexusPaneTerminalProps } from './react-types'
 
 function hasSize(element: HTMLElement): boolean {
   return element.clientWidth > 0 && element.clientHeight > 0
 }
 
-export function TuiTerminal({
-  terminalId,
+export function MexusPaneTerminal({
+  paneId,
   runtime,
   visible = true,
   options,
@@ -18,7 +18,7 @@ export function TuiTerminal({
   style,
   onInput,
   onResize,
-}: TuiTerminalProps) {
+}: MexusPaneTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<XTerm | null>(null)
   const sessionRef = useRef<TuiTerminalSession | null>(null)
@@ -43,7 +43,7 @@ export function TuiTerminal({
 
     const term = new XTerm(options)
     const fitAddon = new FitAddon()
-    const session = runtime.getTerminal(terminalId) ?? runtime.createTerminal({ id: terminalId })
+    const session = runtime.getTerminal(paneId) ?? runtime.createTerminal({ id: paneId })
 
     term.loadAddon(fitAddon)
     term.open(container)
@@ -84,7 +84,7 @@ export function TuiTerminal({
       termRef.current = null
       sessionRef.current = null
     }
-  }, [terminalId, runtime, options])
+  }, [paneId, runtime, options])
 
   return (
     <div
@@ -93,6 +93,9 @@ export function TuiTerminal({
       style={style}
       onPointerDown={() => {
         termRef.current?.focus()
+      }}
+      onWheel={(event) => {
+        event.stopPropagation()
       }}
     />
   )

@@ -33,6 +33,12 @@
   --mx-status-waiting: #d29922;
   --mx-status-idle: #6e7681;
   --mx-status-error: #f85149;
+
+  /* Radius — mirrors the real Mexus tokens (--radius-sm/md/lg = 2/3/4 px).
+     Mexus is near-square by design; nothing here should round more than 4px. */
+  --mx-radius-sm: 2px;
+  --mx-radius-md: 3px;
+  --mx-radius-lg: 4px;
 }
 
 .mx-root {
@@ -56,7 +62,7 @@
 /* ── Outer frame ── */
 .mx-frame {
   border: 1px solid var(--mx-border-default);
-  border-radius: 10px;
+  border-radius: var(--mx-radius-lg);
   overflow: hidden;
   background: var(--mx-bg-base);
   box-shadow: 0 30px 60px -30px rgba(0, 0, 0, 0.6);
@@ -202,7 +208,7 @@
   color: var(--mx-text-secondary);
   background: transparent;
   border: 1px solid var(--mx-border-default);
-  border-radius: 4px;
+  border-radius: var(--mx-radius-md);
   font-family: var(--mx-font-mono);
 }
 .mx-ghost-btn:hover {
@@ -244,7 +250,7 @@
 .mx-subtab {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: var(--mx-radius-md);
   color: var(--mx-text-muted);
 }
 .mx-subtab--active {
@@ -280,7 +286,7 @@
 .mx-card {
   border: 1px solid var(--mx-border-default);
   background: var(--mx-bg-surface);
-  border-radius: 8px;
+  border-radius: var(--mx-radius-lg);
   padding: 12px;
 }
 .mx-card--running { border-color: rgba(63,185,80,.45); }
@@ -315,7 +321,7 @@
   font-family: var(--mx-font-mono);
   font-size: 10px;
   padding: 2px 8px;
-  border-radius: 3px;
+  border-radius: var(--mx-radius-sm);
   border: 1px solid var(--mx-border-default);
   color: var(--mx-text-secondary);
   background: transparent;
@@ -338,7 +344,7 @@
 /* ── Avatar (gradient square w/ sparkle) ── */
 .mx-avatar {
   display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 5px; flex-shrink: 0;
+  border-radius: var(--mx-radius-md); flex-shrink: 0;
   color: white; font-weight: 600;
 }
 
@@ -346,7 +352,7 @@
 .mx-kanban-col {
   border: 1px solid var(--mx-border-default);
   background: var(--mx-bg-surface);
-  border-radius: 6px;
+  border-radius: var(--mx-radius-lg);
   min-height: 200px;
 }
 .mx-kanban-col__head {
@@ -358,7 +364,7 @@
 .mx-kanban-card {
   border: 1px solid var(--mx-border-default);
   background: var(--mx-bg-base);
-  border-radius: 4px; padding: 10px;
+  border-radius: var(--mx-radius-md); padding: 10px;
   margin: 8px;
   font-size: 11.5px;
 }
@@ -373,7 +379,7 @@
 }
 .mx-kanban-card__tag {
   display: inline-block;
-  padding: 2px 8px; border-radius: 3px;
+  padding: 2px 8px; border-radius: var(--mx-radius-sm);
   background: var(--mx-bg-overlay);
   color: var(--mx-text-secondary);
   font-family: var(--mx-font-mono);
@@ -469,7 +475,7 @@
 .mx-hub-card {
   border: 1px solid var(--mx-border-default);
   background: var(--mx-bg-base);
-  border-radius: 6px;
+  border-radius: var(--mx-radius-lg);
   overflow: hidden;
 }
 .mx-hub-card__header {
@@ -509,7 +515,7 @@
   display: inline-flex; align-items: center; gap: 4px;
   padding: 3px 8px;
   border: 1px solid var(--mx-border-default);
-  border-radius: 4px;
+  border-radius: var(--mx-radius-md);
   font-family: var(--mx-font-mono);
   font-size: 11px;
   color: var(--mx-text-secondary);
@@ -528,7 +534,7 @@
   display: inline-flex; align-items: center; gap: 6px;
   padding: 6px 12px;
   border: 1px solid var(--mx-border-default);
-  border-radius: 4px;
+  border-radius: var(--mx-radius-md);
   background: transparent;
   color: var(--mx-text-secondary);
   font-size: 12px;
@@ -553,7 +559,7 @@
 .mx-form-field__input {
   background: var(--mx-bg-elevated);
   border: 1px solid var(--mx-border-default);
-  border-radius: 4px;
+  border-radius: var(--mx-radius-md);
   padding: 9px 11px;
   color: var(--mx-text-primary);
   font-family: var(--mx-font-mono);
@@ -569,7 +575,7 @@
   padding: 11px 14px;
   background: var(--mx-accent);
   border: 1px solid var(--mx-accent);
-  border-radius: 5px;
+  border-radius: var(--mx-radius-md);
   color: var(--mx-fg-on-accent);
   font-size: 13px;
   font-weight: 600;
@@ -582,7 +588,7 @@
   padding: 12px 14px;
   border: 1px solid var(--mx-border-default);
   background: var(--mx-bg-surface);
-  border-radius: 5px;
+  border-radius: var(--mx-radius-md);
   font-size: 12px;
   line-height: 1.55;
   color: var(--mx-text-secondary);

@@ -60,32 +60,20 @@ export const defaultTimeline: MockTimelineEntry[] = [];
 export const defaultKanban: MockKanbanCol[] = [
   {
     name: 'To Claim',
-    count: '2/2',
-    cards: [
-      { id: 'a1f0c2', title: 'Wire Stripe receipt email into the mailer queue',
-        assignTo: 'unassigned', assignFrom: 'Squad Lead' },
-      { id: 'b3a701', title: 'Playwright smoke test for the new checkout flow',
-        assignTo: 'unassigned', assignFrom: 'Squad Lead' },
-    ],
+    count: '0/0',
+    cards: [],
   },
   {
     name: 'In Progress',
-    count: '3/3',
-    cards: [
-      { id: 'c8d442', title: 'Refactor cart store into typed reducer + selectors',
-        assignTo: 'Orion',    assignFrom: 'Squad Lead' },
-      { id: 'd2e9b0', title: 'Stripe webhook handler with idempotency keys',
-        assignTo: 'Meridian', assignFrom: 'Squad Lead' },
-      { id: 'e5f08c', title: 'Rebuild storybook on the new design-token pipeline',
-        assignTo: 'Tessera',  assignFrom: 'Squad Lead' },
-    ],
+    count: '0/0',
+    cards: [],
   },
   {
     name: 'Done',
-    count: '12/12',
+    count: '43/43',
     cards: [
-      { id: 'f7a930', title: 'Drop legacy address validator; switch to libpostal',
-        assignTo: 'Orion',    assignFrom: 'Squad Lead' },
+      { id: '8b3c6e5', title: 'Wire Stripe receipt email into the mailer queue. Reviewer signed off on the final diff.',
+        assignTo: 'Orion', assignFrom: 'Squad Lead' },
     ],
   },
 ];

@@ -113,13 +113,11 @@ export async function startServer(port: number, projectDir: string) {
     try {
       setupWsHandlers(socket, workspaceManager, gitService)
 
-      // Send initial file tree and git diffs to new client
+      // Send initial file tree to the new client. The initial git.diff push
+      // is deferred until the client sends git.subscribe (i.e. opens the diff
+      // panel) so closed-panel sessions don't get hit with a large payload.
       const tree = fsWatcher.getTree()
       socket.send(JSON.stringify({ type: 'fs.tree', tree }))
-      const { unstaged, staged } = gitService.getCurrentDiffs()
-      if (unstaged.length > 0 || staged.length > 0) {
-        socket.send(JSON.stringify({ type: 'git.diff', unstaged, staged }))
-      }
       console.log('[WS] Client connected')
 
       socket.on('close', (code: number, reason: Buffer) => {

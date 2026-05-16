@@ -13,9 +13,10 @@ export type {
   TuiTerminalRuntime,
   TuiTerminalSession,
 } from './core/types'
-export type { TuiTerminalProps } from './react/types'
 export { createTuiTerminalRuntime } from './core/runtime'
 export { TuiTerminalSession as TuiTerminalSessionImpl } from './core/terminal-session'
+export { MexusPaneTerminal } from './adapters/mexus/MexusPaneTerminal'
+export type { MexusPaneTerminalProps } from './adapters/mexus/react-types'
 export type {
   MexusTerminalEventBase,
   MexusTerminalIdentity,
@@ -24,6 +25,7 @@ export type {
   MexusTerminalReplayEndEvent,
   MexusTerminalReplayStartEvent,
   MexusTerminalServerEvent,
+  MexusResolvedTerminalLaunchRequest,
 } from './adapters/mexus/types'
 export { buildMexusTerminalCacheKey } from './adapters/mexus/cache-key'
 export { mapMexusReplayPriority } from './adapters/mexus/event-mapper'
@@ -32,4 +34,7 @@ export {
   MexusTerminalAdapter,
   type CreateMexusTerminalAdapterOptions,
 } from './adapters/mexus/adapter'
-export { TuiTerminal } from './react/TuiTerminal'
+export {
+  MexusTerminalLaunchAdapter,
+  type CreateMexusTerminalLaunchAdapterOptions,
+} from './adapters/mexus/launch-adapter'

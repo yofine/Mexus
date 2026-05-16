@@ -1,7 +1,41 @@
+import { useState } from 'react';
 import type { MockFile } from '../mocks/types';
-import { ChevronDown, ChevronRight, Icon } from './primitives';
+import { Icon } from './primitives';
+import { FileRow } from './atoms';
 
-export function FilesPanel({ files }: { files: MockFile[] }) {
+interface Props {
+  files: MockFile[];
+  /** Set of file names that start expanded. Defaults to all dirs expanded. */
+  initialExpanded?: string[];
+}
+
+export function FilesPanel({ files, initialExpanded }: Props) {
+  // Each directory tracks its own expanded state. Default to "all open" so the
+  // tree mirrors the screenshot.
+  const initialSet = new Set<string>(
+    initialExpanded ?? files.filter((f) => f.isDir).map((f) => f.name)
+  );
+  const [expanded, setExpanded] = useState<Set<string>>(initialSet);
+
+  const toggle = (name: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  // Filter rows whose ancestor dir is collapsed. Track collapsed-depths.
+  const visible: MockFile[] = [];
+  let hideBelow = Infinity;
+  for (const f of files) {
+    if (f.depth > hideBelow) continue;
+    hideBelow = Infinity;
+    visible.push(f);
+    if (f.isDir && !expanded.has(f.name)) hideBelow = f.depth;
+  }
+
   return (
     <aside className="mx-files">
       <div className="mx-panel-header">
@@ -17,36 +51,15 @@ export function FilesPanel({ files }: { files: MockFile[] }) {
       </div>
 
       <div className="mx-files__body">
-        {files.map((f, i) => (
-          <div
-            key={i}
-            className={`mx-file-row ${f.isDir ? 'mx-file-row--dir' : 'mx-file-row--file'}`}
-            style={{ paddingLeft: f.depth * 12 + 2 }}
-          >
-            <span className="mx-file-row__chev">
-              {f.isDir ? <ChevronRight size={10} /> : null}
-            </span>
-            <span className="mx-file-row__icon" style={{ color: f.isDir ? 'var(--mx-text-secondary)' : 'var(--mx-text-muted)' }}>
-              <Icon name={f.isDir ? 'folder' : 'file'} size={12} strokeWidth={1.6} />
-            </span>
-            {f.mark && (
-              <span style={{
-                width: 12, textAlign: 'center',
-                color: f.mark === 'A' ? 'var(--mx-status-running)'
-                  : f.mark === 'M' ? 'var(--mx-status-waiting)'
-                  : 'var(--mx-status-error)',
-                fontFamily: 'var(--mx-font-mono)', fontSize: 10, fontWeight: 700,
-              }}>
-                {f.mark}
-              </span>
-            )}
-            <span className="mx-file-row__name">{f.name}</span>
-          </div>
+        {visible.map((f, i) => (
+          <FileRow
+            key={`${f.name}-${i}`}
+            file={f}
+            expanded={expanded.has(f.name)}
+            onToggle={() => toggle(f.name)}
+          />
         ))}
       </div>
     </aside>
   );
 }
-
-// Sole export of ChevronDown so callers keep a stable import surface.
-export { ChevronDown };

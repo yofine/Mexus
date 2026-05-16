@@ -15,6 +15,11 @@ export function setupWsHandlers(
     }
   }
 
+  // Per-connection git diff subscription state. Defaults to false so a
+  // connection with the diff panel closed never receives git.diff pushes —
+  // those payloads can stall the same WS that carries terminal traffic.
+  let gitSubscribed = false
+
   // Send initial workspace state
   const state = workspaceManager.getState()
   send({
@@ -86,6 +91,7 @@ export function setupWsHandlers(
       send({ type: 'fs.tree', tree })
     },
     onGitDiff: (result) => {
+      if (!gitSubscribed) return
       send({ type: 'git.diff', unstaged: result.unstaged, staged: result.staged })
     },
   })
@@ -152,7 +158,28 @@ export function setupWsHandlers(
         break
 
       case 'git.refresh':
-        gitService?.refresh()
+        gitService?.refresh({ force: true })
+        break
+
+      case 'git.subscribe':
+        if (!gitSubscribed) {
+          gitSubscribed = true
+          gitService?.addSubscriber()
+          // Backfill the freshly-subscribed client with whatever diff state
+          // the server already has, so the panel renders immediately rather
+          // than waiting for the next FsWatcher tick.
+          const current = gitService?.getCurrentDiffs()
+          if (current && (current.unstaged.length > 0 || current.staged.length > 0)) {
+            send({ type: 'git.diff', unstaged: current.unstaged, staged: current.staged })
+          }
+        }
+        break
+
+      case 'git.unsubscribe':
+        if (gitSubscribed) {
+          gitSubscribed = false
+          gitService?.removeSubscriber()
+        }
         break
 
       case 'git.accept':
@@ -278,6 +305,10 @@ export function setupWsHandlers(
   })
 
   socket.on('close', () => {
+    if (gitSubscribed) {
+      gitSubscribed = false
+      gitService?.removeSubscriber()
+    }
     cleanup()
   })
 }

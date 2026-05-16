@@ -16,6 +16,11 @@ export class GitService {
   private workDebounceTimer: ReturnType<typeof setTimeout> | null = null
   private listeners = new Set<(result: GitDiffResult) => void>()
   private currentResult: GitDiffResult = { unstaged: [], staged: [] }
+  // Number of WS clients with the diff panel open. When 0, scheduled refreshes
+  // are skipped to keep the terminal channel clean. Forced calls (write ops,
+  // explicit git.refresh) bypass this gate.
+  private subscriberCount = 0
+  private alwaysOn = process.env.NEXUS_GIT_DIFF_ALWAYS_ON === '1'
 
   constructor(projectDir: string) {
     this.projectDir = projectDir
@@ -26,7 +31,9 @@ export class GitService {
     const isRepo = await this.git.checkIsRepo()
     if (!isRepo) return
 
-    await this.refresh()
+    // Defer the initial refresh until a client actually subscribes. The
+    // alwaysOn escape hatch preserves the old behavior for rollback.
+    if (this.alwaysOn) await this.refresh({ force: true })
 
     const scheduleRefresh = () => {
       if (this.debounceTimer) clearTimeout(this.debounceTimer)
@@ -59,7 +66,10 @@ export class GitService {
     }, 1000)
   }
 
-  async refresh(): Promise<void> {
+  async refresh(opts: { force?: boolean } = {}): Promise<void> {
+    // Skip background refreshes when nobody is watching. Forced calls (write
+    // ops, explicit git.refresh) always run so callers can rely on fresh state.
+    if (!opts.force && !this.alwaysOn && this.subscriberCount === 0) return
     try {
       const result = await Promise.race([
         this.getDiffs(),
@@ -77,6 +87,26 @@ export class GitService {
     }
   }
 
+  // ─── Subscription gating ─────────────────────────────────
+  // The WS layer calls these as panels mount/unmount. When the count is
+  // non-zero, FsWatcher / .git watcher triggers run refresh() normally.
+
+  addSubscriber(): void {
+    this.subscriberCount++
+    // First subscriber: kick off a refresh so they see current state quickly.
+    if (this.subscriberCount === 1) {
+      this.refresh({ force: true }).catch(() => {})
+    }
+  }
+
+  removeSubscriber(): void {
+    if (this.subscriberCount > 0) this.subscriberCount--
+  }
+
+  hasSubscribers(): boolean {
+    return this.alwaysOn || this.subscriberCount > 0
+  }
+
   getCurrentDiffs(): GitDiffResult {
     return this.currentResult
   }
@@ -90,22 +120,22 @@ export class GitService {
 
   async acceptFile(file: string): Promise<void> {
     await this.git.add(file)
-    await this.refresh()
+    await this.refresh({ force: true })
   }
 
   async acceptAll(): Promise<void> {
     await this.git.add('-A')
-    await this.refresh()
+    await this.refresh({ force: true })
   }
 
   async unstageFile(file: string): Promise<void> {
     await this.git.reset(['HEAD', '--', file])
-    await this.refresh()
+    await this.refresh({ force: true })
   }
 
   async unstageAll(): Promise<void> {
     await this.git.reset(['HEAD'])
-    await this.refresh()
+    await this.refresh({ force: true })
   }
 
   // ─── Discard ──────────────────────────────────────────────
@@ -128,27 +158,27 @@ export class GitService {
         // May not be staged, ignore
       }
     }
-    await this.refresh()
+    await this.refresh({ force: true })
   }
 
   async discardAll(): Promise<void> {
     await this.git.checkout(['--', '.'])
     await this.git.clean('f', ['-d'])
-    await this.refresh()
+    await this.refresh({ force: true })
   }
 
   // ─── Commit / Push ────────────────────────────────────────
 
   async commit(message: string): Promise<string> {
     const result = await this.git.commit(message)
-    await this.refresh()
+    await this.refresh({ force: true })
     const summary = result.summary
     return `${summary.changes} file${summary.changes !== 1 ? 's' : ''}, +${summary.insertions} -${summary.deletions}`
   }
 
   async push(): Promise<string> {
     await this.git.push()
-    await this.refresh()
+    await this.refresh({ force: true })
     return 'Pushed successfully'
   }
 
