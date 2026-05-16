@@ -5,6 +5,7 @@ import type {
   TuiTerminalSession as TuiTerminalSessionContract,
 } from './types'
 import { TuiTerminalSession } from './terminal-session'
+import { TerminalReplayScheduler } from './scheduler'
 
 export function createTuiTerminalRuntime(): TuiTerminalRuntime {
   return new TuiTerminalRuntimeImpl()
@@ -12,11 +13,15 @@ export function createTuiTerminalRuntime(): TuiTerminalRuntime {
 
 class TuiTerminalRuntimeImpl implements TuiTerminalRuntime {
   private readonly sessions = new Map<TerminalId, TuiTerminalSessionContract>()
+  private readonly replayScheduler = new TerminalReplayScheduler()
 
   createTerminal(options: CreateTerminalOptions): TuiTerminalSessionContract {
     this.disposeTerminal(options.id)
 
-    const session = new TuiTerminalSession(options.id)
+    const session = new TuiTerminalSession(options.id, {
+      replayScheduler: this.replayScheduler,
+      ownsReplayScheduler: false,
+    })
     this.sessions.set(options.id, session)
 
     if (options.xterm) {
@@ -44,5 +49,6 @@ class TuiTerminalRuntimeImpl implements TuiTerminalRuntime {
     for (const id of [...this.sessions.keys()]) {
       this.disposeTerminal(id)
     }
+    this.replayScheduler.dispose()
   }
 }

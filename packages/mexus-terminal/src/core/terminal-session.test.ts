@@ -135,6 +135,7 @@ describe('TuiTerminalSession', () => {
     }
     const session = new TuiTerminalSession('terminal-a', {
       replayScheduler: scheduler,
+      ownsReplayScheduler: true,
       writeBufferOptions: { scheduleFrame: frames.scheduleFrame },
     })
     const { terminal, writes } = createTerminal()
@@ -147,6 +148,25 @@ describe('TuiTerminalSession', () => {
     expect(writes).toEqual([])
     expect(scheduler.cancelAll).toHaveBeenCalledTimes(1)
     expect(scheduler.dispose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not dispose injected replay scheduler unless it owns it', () => {
+    const scheduler = {
+      enqueue: vi.fn(),
+      cancel: vi.fn(),
+      cancelAll: vi.fn(),
+      dispose: vi.fn(),
+      interruptForLiveOutput: vi.fn(),
+    }
+    const session = new TuiTerminalSession('terminal-a', {
+      replayScheduler: scheduler,
+      ownsReplayScheduler: false,
+    })
+
+    session.dispose()
+
+    expect(scheduler.cancelAll).toHaveBeenCalledTimes(1)
+    expect(scheduler.dispose).not.toHaveBeenCalled()
   })
 
   it('fit catches errors', () => {
@@ -185,7 +205,6 @@ describe('TuiTerminalSession', () => {
           bytes: 8,
           schemaVersion: 1 as const,
         })),
-        write: vi.fn(),
       },
       writeBufferOptions: { scheduleFrame: frames.scheduleFrame },
     })

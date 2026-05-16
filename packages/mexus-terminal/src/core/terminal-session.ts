@@ -25,10 +25,11 @@ type ReplayScheduler = Pick<
   'enqueue' | 'cancel' | 'cancelAll' | 'dispose' | 'interruptForLiveOutput'
 >
 
-type SnapshotStore = Pick<TerminalSnapshotStore, 'read' | 'write'>
+type SnapshotStore = Pick<TerminalSnapshotStore, 'read'>
 
 export interface TuiTerminalSessionOptions {
   replayScheduler?: ReplayScheduler
+  ownsReplayScheduler?: boolean
   snapshotStore?: SnapshotStore | null
   writeBufferOptions?: TerminalWriteBufferOptions
 }
@@ -41,6 +42,7 @@ export class TuiTerminalSession implements TuiTerminalSessionContract {
   private visibility: TerminalVisibility = 'detached'
   private readonly writeBuffer: TerminalWriteBuffer
   private readonly replayScheduler: ReplayScheduler
+  private readonly ownsReplayScheduler: boolean
   private readonly snapshotStore: SnapshotStore | null
   private disposed = false
 
@@ -48,6 +50,7 @@ export class TuiTerminalSession implements TuiTerminalSessionContract {
     this.id = id
     this.writeBuffer = new TerminalWriteBuffer(options.writeBufferOptions)
     this.replayScheduler = options.replayScheduler ?? new TerminalReplayScheduler()
+    this.ownsReplayScheduler = options.ownsReplayScheduler ?? !options.replayScheduler
     this.snapshotStore = options.snapshotStore === undefined ? new TerminalSnapshotStore() : options.snapshotStore
   }
 
@@ -76,7 +79,9 @@ export class TuiTerminalSession implements TuiTerminalSessionContract {
     if (this.disposed) return
 
     this.replayScheduler.cancelAll()
-    this.replayScheduler.dispose()
+    if (this.ownsReplayScheduler) {
+      this.replayScheduler.dispose()
+    }
     this.writeBuffer.dispose()
     this.xterm = null
     this.fitAddon = null
@@ -150,32 +155,8 @@ export class TuiTerminalSession implements TuiTerminalSessionContract {
     }
   }
 
-  scheduleSnapshotWrite(options: ScheduleSnapshotOptions = {}): void {
-    if (this.disposed || !this.snapshotStore || !options.cacheKey) {
-      return
-    }
-
-    const viewport = this.getViewport()
-    if (!viewport) {
-      return
-    }
-
-    const now = Date.now()
-    const record: TerminalSnapshotRecord = {
-      cacheKey: options.cacheKey,
-      terminalId: this.id,
-      cols: viewport.cols,
-      rows: viewport.rows,
-      data: '',
-      createdAt: now,
-      updatedAt: now,
-      bytes: 0,
-      schemaVersion: 1,
-    }
-
-    queueMicrotask(() => {
-      void this.snapshotStore?.write(record)
-    })
+  scheduleSnapshotWrite(_options: ScheduleSnapshotOptions = {}): void {
+    // Snapshot capture depends on serialization wiring that is not part of this runtime slice yet.
   }
 
   fit(): void {

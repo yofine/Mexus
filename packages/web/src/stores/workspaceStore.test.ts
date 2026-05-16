@@ -17,13 +17,14 @@ function pane(id: string, overrides: Partial<PaneState> = {}): PaneState {
 }
 
 describe('workspaceStore editor tabs', () => {
-  it('starts with a pinned Team tab between Activity and Review', () => {
+  it('starts with pinned observer tabs including Replay after Review', () => {
     useWorkspaceStore.getState().resetWorkspace()
 
     expect(useWorkspaceStore.getState().tabs.map((tab) => [tab.id, tab.type, tab.label, tab.pinned])).toEqual([
       ['tab:activity', 'activity', 'Activity', true],
       ['tab:team', 'team', 'Team', true],
       ['review:workspace', 'review', 'Review', true],
+      ['tab:replay', 'replay', 'Replay', true],
     ])
   })
 
@@ -33,6 +34,20 @@ describe('workspaceStore editor tabs', () => {
     useWorkspaceStore.getState().closeTab('tab:team')
 
     expect(useWorkspaceStore.getState().tabs.some((tab) => tab.id === 'tab:team')).toBe(true)
+  })
+
+  it('keeps the pinned Replay tab as the workspace-level replay action target', () => {
+    useWorkspaceStore.getState().resetWorkspace()
+
+    useWorkspaceStore.getState().openReplayTab()
+
+    const state = useWorkspaceStore.getState()
+    expect(state.activeTabId).toBe('tab:replay')
+    expect(state.tabs.find((tab) => tab.id === 'tab:replay')).toMatchObject({
+      type: 'replay',
+      label: 'Replay',
+      pinned: true,
+    })
   })
 })
 

@@ -29,7 +29,7 @@ const { eyebrow, title, body, reverse = false, anchor, layout = 'side' } = Astro
 ) : (
   <section id={anchor} class="container-x py-20 sm:py-24 scroll-mt-20">
     <div class={`grid md:grid-cols-5 gap-10 lg:gap-14 items-center ${reverse ? 'md:[&>*:first-child]:order-2' : ''}`}>
-      <div class="md:col-span-1">
+      <div class="md:col-span-2">
         <div class="section-eyebrow"><span class="dot">●</span> {eyebrow}</div>
         <h2 class="heading-section mt-3">{title}</h2>
         <p class="mt-5 text-secondary leading-relaxed">{body}</p>
@@ -37,7 +37,7 @@ const { eyebrow, title, body, reverse = false, anchor, layout = 'side' } = Astro
           <slot name="bullets" />
         </div>
       </div>
-      <div class="relative md:col-span-4">
+      <div class="relative md:col-span-3">
         <div class="pane">
           <slot name="visual" />
         </div>

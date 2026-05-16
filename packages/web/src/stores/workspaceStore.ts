@@ -145,6 +145,7 @@ function getInitialTabs(): EditorTab[] {
     { id: 'tab:activity', type: 'activity', label: 'Activity', pinned: true },
     { id: 'tab:team', type: 'team', label: 'Team', pinned: true },
     { id: 'review:workspace', type: 'review', label: 'Review', pinned: true },
+    { id: 'tab:replay', type: 'replay', label: 'Replay', pinned: true },
   ]
 }
 
