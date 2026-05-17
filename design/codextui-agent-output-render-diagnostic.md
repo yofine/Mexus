@@ -103,9 +103,53 @@ codextui 连最简单的纯 ASCII 连续行都无法完整保留。问题已经�
 
 ## 当前判断
 
-根据测试结果，当前最可能的根因排序如下：
+### 最终根因
 
-1. codextui 将 Agent 输出流当成当前帧状态渲染，而不是 append-only transcript，导致中间内容被覆盖或未进入历史缓冲。
+本轮修复后，`T001-T040` 连续行 case 已在真实 Codex pane 中恢复完整显示。最终确认的主因不是 xterm.js 本身，也不是 Codex 未输出，而是 Mexus server 侧输出清洗链路错误：
+
+- `PtyManager` 对所有 Agent 都运行 Claude 专用 `StatuslineParser`。
+- `StatuslineParser` 旧逻辑会对无换行 chunk “先原样放行，同时写入内部 buffer”。
+- 下一次遇到带换行 chunk 时，parser 会把上一次已经放行过的 chunk 从 buffer 中拼回并再次放行。
+- 对普通文本，这表现为重复内容；对 Codex TUI，这会让 cursor move、scroll region、erase line、prompt repaint 等 ANSI 控制序列被重复执行，从而破坏屏幕状态，表现为缺行、内容被覆盖、历史不可滚。
+
+修复原则：
+
+- 只有声明 `statusline: true` 的 Claude Code pane 才进入 `StatuslineParser`。
+- 不声明 statusline 的 Codex / OpenCode / Shell 等 pane 直接透传 PTY 输出。
+- `StatuslineParser` 不再缓存任何 partial chunk。没有换行的输出一律立即透传。
+- Claude statusline 只在完整换行行里识别和剥离。split statusline 可能漏掉一次 meta，但不能以吞掉 TUI 输出为代价。
+- 带换行 chunk 末尾的 trailing 内容也必须立即透传。否则 Claude Code 启动或退出 TUI 后重新输入 `claude` 时，prompt/status 输出可能被缓存，后续无换行输出会持续被吞掉，表现为 Pane 没反应。
+- Replay/历史需要单独记录用户输入。PTY output 并不保证包含用户输入回显，尤其是 Agent TUI/raw mode 场景；因此 `terminal.input` 现在作为 replay input event 进入 `SessionRecorder`，按 Enter 聚合为一条用户输入记录。它只用于历史展示，不回灌 live terminal，避免双重显示。
+
+这个结论比 “xterm scrollback 不完整” 更靠前：xterm 的滚动行为仍然受 TUI scroll region 影响，但本次连续行缺失的直接触发点是 server 侧重复执行了 TUI 控制序列。
+
+### Raw PTY capture 结论
+
+已通过 Mexus 服务端 raw PTY capture 检查 `T001-T040` 连续行 case。原始日志中 `T001 END` 到 `T040 END` 均存在，说明 Agent 输出已经完整进入 node-pty 和 Mexus server 边界。
+
+因此当前缺行不是 Agent 未输出、PTY 未收到或 WebSocket 之前的数据丢失。问题集中在终端屏幕语义和展示层：Codex TUI 会大量使用 scroll region、erase line、cursor move、同步输出和 prompt/status repaint，最终可见屏幕并不等同于完整 append-only transcript。
+
+低风险验证动作：
+
+- Codex 默认启动参数增加 `--no-alt-screen`。
+- `@mexus/terminal` demo 的 Codex preset 同步增加 `--no-alt-screen`。
+- 现有 Pane 的 live 输出不再经过 `terminalRegistry` 的二次 RAF 合并，改为直接交给 `@mexus/terminal` runtime 队列。
+- `terminalRegistry` 不再在 writer 重新注册时重放前端本地 history，避免 TUI 控制序列在 React remount / StrictMode 下被二次灌入。
+- runtime 的 follow-output 策略改为仅当用户本来位于底部时才自动 `scrollToBottom()`；用户向上滚屏后，Agent 的 spinner/status repaint 不应把 viewport 拉回底部。
+- Codex / OpenCode / Shell 等不声明 `statusline` 的 Agent 绕过 Claude `StatuslineParser`。此前 parser 会对无换行 chunk “先放行、再缓存”，下一次遇到换行时重复放行前一段控制序列；对 Codex 这类大量 cursor / scroll-region repaint 的 TUI 会导致屏幕状态被二次执行。
+- Claude `StatuslineParser` 仅缓存疑似 statusline JSON 的 partial chunk，普通 partial output 不再缓存后重复输出。
+
+预期：
+
+- Codex 进入 inline 模式后，不再依赖 alternate screen 当前帧渲染。
+- 浏览器 xterm scrollback 更接近真实 transcript。
+- `T001-T040` 这类连续纯文本 case 应完整显示。
+- 如果 `--no-alt-screen` 后仍缺行，重点继续看 Pane 集成层的重放、resize、隐藏挂载和 scroll-follow 行为，而不是 PTY / WebSocket 数据完整性。
+- 如果修复 parser 后仍缺行，下一步再评估 binary PTY frame / headless xterm mirror；在此之前不应继续调整视觉层或简单节流。
+
+根据测试结果，历史根因候选排序如下。当前已确认第 1 点是主因，后续几项作为长期架构风险保留：
+
+1. server 侧 statusline parser 重复放行 partial TUI 控制序列，导致 Codex 屏幕状态被二次执行。
 2. TUI repaint/viewport 计算错误，清屏、擦除、光标移动或局部重绘覆盖了已输出内容。
 3. 输出区和输入提示区的布局边界错位，导致输出内容被绘制到 prompt 区域，或 prompt repaint 覆盖输出行。
 4. scrollback/history 只保存了当前可见窗口，而不是完整输出 transcript。
@@ -123,16 +167,37 @@ codextui 连最简单的纯 ASCII 连续行都无法完整保留。问题已经�
 
 ### 1. 先确认原始 Agent stream 是否完整
 
-在 codextui 接收 Agent 输出的最底层边界添加临时日志，将每个 chunk 原样写入文件。例如：
+Mexus 现在提供了一个默认关闭的 raw PTY capture 开关，可以在服务端 node-pty 输出进入任何 parser / replay / 前端渲染前写入原始日志。
 
-```ts
-fs.appendFileSync(
-  "/tmp/codextui-agent-stream.log",
-  chunk.replace(/\n/g, "\\n") + "\n---CHUNK---\n",
-);
+启动方式：
+
+```bash
+MEXUS_TERMINAL_CAPTURE=1 npm run dev
 ```
 
-然后重新运行 `S001-S020` 或 `T001-T040` 测试。
+默认日志目录：
+
+```text
+/tmp/mexus-terminal-capture/{paneId}.ansi.log
+```
+
+只捕获单个 pane：
+
+```bash
+MEXUS_TERMINAL_CAPTURE=1 \
+MEXUS_TERMINAL_CAPTURE_PANE=<pane-id> \
+npm run dev
+```
+
+自定义日志目录：
+
+```bash
+MEXUS_TERMINAL_CAPTURE=1 \
+MEXUS_TERMINAL_CAPTURE_DIR=/tmp/mexus-codex-raw \
+npm run dev
+```
+
+然后重新运行 `S001-S020` 或 `T001-T040` 测试，并用 `rg "S00|T00" /tmp/mexus-terminal-capture/*.ansi.log` 检查原始 PTY 输出。
 
 判断：
 

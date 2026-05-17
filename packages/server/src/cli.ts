@@ -192,21 +192,6 @@ export async function runCli(options: RunCliOptions): Promise<void> {
     case 'start': {
       const port = parseInt(env.NEXUS_PORT || String(DEFAULT_PORT), 10)
       await startServer(port, projectDir)
-
-      // Check agent availability after server is up (non-blocking)
-      const { ConfigManager: CM } = await import('./workspace/ConfigManager.ts')
-      const cm = new CM(projectDir)
-      cm.loadGlobalConfig()
-      cm.checkAgentAvailability().then((availability) => {
-        const missing = Object.entries(availability).filter(([, a]) => !a.installed)
-        if (missing.length > 0) {
-          console.log('\n  Optional agents not found:')
-          for (const [key, info] of missing) {
-            console.log(`    \u26A0 ${key} (${info.bin}) — install: ${info.installHint}`)
-          }
-          console.log()
-        }
-      }).catch(() => {})
       break
     }
 

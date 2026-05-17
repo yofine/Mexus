@@ -27,10 +27,11 @@ function createFrameScheduler() {
   return { flushFrame, scheduleFrame }
 }
 
-function createTerminal(options: Partial<Pick<Terminal, 'cols' | 'rows'>> = {}) {
+function createTerminal(options: Partial<Pick<Terminal, 'cols' | 'rows'>> & { baseY?: number; viewportY?: number } = {}) {
   const writes: string[] = []
-  const writeMock = vi.fn((data: string) => {
+  const writeMock = vi.fn((data: string, callback?: () => void) => {
     writes.push(data)
+    callback?.()
   })
   const terminal = {
     cols: options.cols ?? 80,
@@ -38,6 +39,13 @@ function createTerminal(options: Partial<Pick<Terminal, 'cols' | 'rows'>> = {}) 
     write: writeMock,
     clear: vi.fn(),
     refresh: vi.fn(),
+    scrollToBottom: vi.fn(),
+    buffer: {
+      active: {
+        baseY: options.baseY ?? 0,
+        viewportY: options.viewportY ?? options.baseY ?? 0,
+      },
+    },
   } as unknown as Terminal
 
   return { terminal, writeMock, writes }
@@ -188,6 +196,34 @@ describe('TuiTerminalSession', () => {
     session.attach(terminal)
 
     expect(session.getViewport()).toEqual({ cols: 120, rows: 32 })
+  })
+
+  it('follows live output when the user is already at the bottom', () => {
+    const frames = createFrameScheduler()
+    const session = new TuiTerminalSession('terminal-a', {
+      writeBufferOptions: { scheduleFrame: frames.scheduleFrame },
+    })
+    const { terminal } = createTerminal({ baseY: 20, viewportY: 20 })
+    session.attach(terminal)
+
+    session.writeLive('live')
+    frames.flushFrame()
+
+    expect(terminal.scrollToBottom).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not pull the viewport back when the user has scrolled up', () => {
+    const frames = createFrameScheduler()
+    const session = new TuiTerminalSession('terminal-a', {
+      writeBufferOptions: { scheduleFrame: frames.scheduleFrame },
+    })
+    const { terminal } = createTerminal({ baseY: 20, viewportY: 12 })
+    session.attach(terminal)
+
+    session.writeLive('status repaint')
+    frames.flushFrame()
+
+    expect(terminal.scrollToBottom).not.toHaveBeenCalled()
   })
 
   it('writes compatible snapshots to the attached terminal', async () => {

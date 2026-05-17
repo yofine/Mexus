@@ -10,6 +10,7 @@ import { ActivityParser } from './ActivityParser.ts'
 import type { ConfigManager } from '../workspace/ConfigManager.ts'
 import { buildAgentCommand } from './agentCommand.ts'
 import { resolvePaneCwd } from '../workspace/panePaths.ts'
+import { createRawPtyCaptureFromEnv, type RawPtyCapture } from './RawPtyCapture.ts'
 
 const MAX_SCROLLBACK_BYTES = 512 * 1024 // 512KB per pane
 
@@ -18,7 +19,7 @@ interface PtyEntry {
   config: PaneConfig
   status: PaneStatus
   meta: PaneMeta
-  parser: StatuslineParser
+  parser: StatuslineParser | null
   activityParser: ActivityParser
   stateAnalyzer: OutputStateAnalyzer
   shellDetector: ShellReadyDetector | null
@@ -34,9 +35,11 @@ interface PtyEntry {
 export class PtyManager {
   private entries = new Map<string, PtyEntry>()
   private configManager: ConfigManager
+  private rawCapture: RawPtyCapture
 
   constructor(configManager: ConfigManager) {
     this.configManager = configManager
+    this.rawCapture = createRawPtyCaptureFromEnv()
   }
 
   spawn(paneId: string, config: PaneConfig, cols = 80, rows = 24): number {
@@ -45,7 +48,6 @@ export class PtyManager {
     }
 
     const shell = this.configManager.getShell()
-    console.log(`[PTY] Using shell: ${shell} for pane ${paneId}`)
     const projectDir = this.configManager.getProjectDir()
     let cwd = resolvePaneCwd(projectDir, config)
 
@@ -94,7 +96,7 @@ export class PtyManager {
         if (resolved) env[key] = resolved
       }
     }
-    if (agentDef?.bin === 'claude' && !env.CLAUDE_CODE_NO_FLICKER) {
+    if (!env.CLAUDE_CODE_NO_FLICKER) {
       env.CLAUDE_CODE_NO_FLICKER = '1'
     }
 
@@ -105,8 +107,6 @@ export class PtyManager {
         env.PATH = '/opt/homebrew/bin:/opt/homebrew/sbin:' + env.PATH
       }
     }
-
-    console.log(`[PTY] Spawning pane ${paneId}: shell=${resolvedShell}, cwd=${cwd}`)
 
     const term = pty.spawn(resolvedShell, [], {
       name: 'xterm-256color',
@@ -139,7 +139,7 @@ export class PtyManager {
       config,
       status: 'running',
       meta: {},
-      parser: new StatuslineParser(),
+      parser: agentDef?.statusline ? new StatuslineParser() : null,
       activityParser: new ActivityParser(),
       stateAnalyzer,
       shellDetector,
@@ -156,6 +156,8 @@ export class PtyManager {
 
     // Handle PTY output
     term.onData((data: string) => {
+      this.rawCapture.write(paneId, data)
+
       // Feed shell ready detector (strips sentinel from output)
       let processedData = data
       if (entry.shellDetector && !entry.shellDetector.isDone) {
@@ -167,7 +169,9 @@ export class PtyManager {
         entry.agentDetector.feed(processedData)
       }
 
-      const { cleanData, meta } = entry.parser.parse(processedData)
+      const { cleanData, meta } = entry.parser
+        ? entry.parser.parse(processedData)
+        : { cleanData: processedData, meta: null }
 
       if (cleanData) {
         // Feed state analyzer (hot path — just timestamp + timer reset)
@@ -253,10 +257,8 @@ export class PtyManager {
     if (!entry) return
 
     // Step 1: Wait for shell to be ready
-    const shellResult = await shellDetector.start(entry.pty)
+    await shellDetector.start(entry.pty)
     if (!this.entries.has(paneId)) return // pane was killed while waiting
-
-    console.log(`[PTY] Shell ready for ${paneId}: detected=${shellResult.detected} (${shellResult.elapsedMs}ms)`)
 
     // Step 2: Send agent command
     this.sendAgentCommand(paneId, agentCommand)
@@ -297,7 +299,7 @@ export class PtyManager {
       entry.stateAnalyzer.dispose()
       entry.shellDetector?.dispose()
       entry.agentDetector?.dispose()
-      entry.parser.reset()
+      entry.parser?.reset()
 
       // Clear callback arrays to break closure references and prevent leaks
       entry.onDataCallbacks.length = 0

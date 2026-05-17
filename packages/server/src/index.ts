@@ -25,6 +25,10 @@ import type { GlobalConfig, ModelDefinition, ModelProviderConfig } from './types
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+export function formatStartupMessage(port: number): string {
+  return `Mexus running on http://localhost:${port}`
+}
+
 export async function startServer(port: number, projectDir: string) {
   const fastify = Fastify({ logger: false })
 
@@ -71,6 +75,7 @@ export async function startServer(port: number, projectDir: string) {
       recorder.onPaneStatus(paneId, status, pane)
     },
     onPaneMeta: (paneId, meta) => recorder.onPaneMeta(paneId, meta),
+    onTerminalInput: (paneId, data) => recorder.onTerminalInput(paneId, data),
     onTerminalData: (paneId, data) => recorder.onTerminalData(paneId, data),
     onPaneActivity: (paneId, activity) => recorder.onPaneActivity(paneId, activity),
   })
@@ -410,11 +415,7 @@ export async function startServer(port: number, projectDir: string) {
     startedAt: Date.now(),
   })
 
-  console.log(`Mexus server running at http://localhost:${port}`)
-  console.log(`  Project dir: ${projectDir}`)
-  console.log(`  File tree: ${fsWatcher.getTree().length} top-level entries`)
-  const { unstaged: u, staged: s } = gitService.getCurrentDiffs()
-  console.log(`  Git diffs: ${u.length} unstaged, ${s.length} staged`)
+  console.log(formatStartupMessage(port))
 
   return { fastify, workspaceManager, configManager }
 }

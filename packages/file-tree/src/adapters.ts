@@ -5,7 +5,21 @@ export function flattenFileNodes(nodes: FileNode[]): string[] {
 
   function visit(items: FileNode[]) {
     for (const item of items) {
-      if (item.path) paths.push(item.path)
+      if (item.path && item.type === 'file') paths.push(item.path)
+      if (item.children?.length) visit(item.children)
+    }
+  }
+
+  visit(nodes)
+  return paths
+}
+
+export function collectDirectoryPaths(nodes: FileNode[]): string[] {
+  const paths: string[] = []
+
+  function visit(items: FileNode[]) {
+    for (const item of items) {
+      if (item.path && item.type === 'directory') paths.push(item.path)
       if (item.children?.length) visit(item.children)
     }
   }

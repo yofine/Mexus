@@ -29,7 +29,7 @@ const presets = [
   {
     id: 'codex',
     label: 'Codex',
-    command: 'codex --dangerously-bypass-approvals-and-sandbox',
+    command: 'codex --no-alt-screen --dangerously-bypass-approvals-and-sandbox',
   },
   {
     id: 'shell',

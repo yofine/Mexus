@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PaneState } from '@/types'
-import { filterHubPanes, getExclusiveExpandedPaneId, getHubPaneFilterOptions } from './hubPaneFilters'
+import { filterHubPanes, getExclusiveExpandedPaneId, getHubPaneFilterOptions, orderPinnedPaneFirst } from './hubPaneFilters'
 
 function pane(id: string, agent: PaneState['agent'], missionName?: string): PaneState {
   return {
@@ -41,5 +41,13 @@ describe('Hub pane filters', () => {
     expect(getExclusiveExpandedPaneId(panes, 'bael')).toBe('bael')
     expect(getExclusiveExpandedPaneId(filterHubPanes(panes, 'mission-a', 'all'), 'bael')).toBeNull()
     expect(getExclusiveExpandedPaneId(panes, null)).toBeNull()
+  })
+
+  it('moves the single pinned pane to the top without mutating the source order', () => {
+    const ordered = orderPinnedPaneFirst(panes, 'scratch')
+
+    expect(ordered.map((item) => item.id)).toEqual(['scratch', 'marbas', 'bael', '__shell__-1'])
+    expect(panes.map((item) => item.id)).toEqual(['marbas', 'bael', 'scratch', '__shell__-1'])
+    expect(orderPinnedPaneFirst(panes, 'missing')).toEqual(panes)
   })
 })

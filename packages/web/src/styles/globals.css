@@ -1956,6 +1956,11 @@ body {
   color: var(--text-primary);
 }
 
+.pane-action-btn--active {
+  background: var(--accent-muted);
+  color: var(--accent-text);
+}
+
 .shell-instance-row .shell-row-action {
   opacity: 0;
   pointer-events: none;
@@ -2267,7 +2272,7 @@ body {
   position: relative;
   min-width: 0;
   background: var(--bg-base);
-  overflow: hidden;
+  overflow: visible;
   transition: width 0.2s ease, background 0.18s ease, border-color 0.18s ease;
 }
 
@@ -2285,12 +2290,12 @@ body {
   width: 12px;
   height: 58px;
   border: 1px solid var(--border-subtle);
-  border-left: 0;
-  border-radius: 0 2px 2px 0;
+  border-right: 0;
+  border-radius: 2px 0 0 2px;
   background: var(--bg-header);
   color: var(--text-muted);
   cursor: pointer;
-  transform: translateY(-50%);
+  transform: translate(-100%, -50%);
   transition: width 0.18s ease, height 0.18s ease, background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 
@@ -2936,8 +2941,6 @@ body {
   border: 0;
   opacity: 0;
   pointer-events: none;
-  transform: translateY(-2px);
-  visibility: hidden;
 }
 
 .agent-pane--collapsed:hover {
@@ -3066,33 +3069,6 @@ body {
   transition: opacity 0.12s ease;
 }
 
-.agent-pane-header__meta {
-  display: flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: var(--space-xs);
-  overflow: hidden;
-  min-width: max-content;
-  padding-top: 1px;
-  justify-content: flex-end;
-}
-
-.agent-pane-meta-chip {
-  overflow: hidden;
-  max-width: 180px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--font-xs);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-pane-meta-chip--changed {
-  color: color-mix(in srgb, var(--status-waiting) 76%, var(--text-muted));
-  cursor: pointer;
-}
-
 .agent-pane-actions {
   display: flex;
   align-items: center;
@@ -3124,9 +3100,41 @@ body {
 }
 
 .agent-pane .pane-action-btn {
+  position: relative;
   min-width: 26px;
   min-height: 26px;
   padding: 3px;
+}
+
+.agent-pane .pane-action-btn[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 50;
+  width: max-content;
+  max-width: 240px;
+  padding: 4px 7px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-overlay);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -2px);
+  transition: opacity 0.1s ease, transform 0.1s ease;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.agent-pane .pane-action-btn[data-tooltip]:hover::after,
+.agent-pane .pane-action-btn[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 /* ── File tree node ── */

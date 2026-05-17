@@ -20,6 +20,7 @@ const terminals = new Map<string, Terminal>()
 const fitAddons = new Map<string, FitAddon>()
 const paused = new Set<string>()
 const activeReplays = new Set<string>()
+const replayLiveBacklogs = new Map<string, string[]>()
 const pausedBacklogs = new Map<string, string[]>()
 const pausedBacklogBytes = new Map<string, number>()
 
@@ -65,7 +66,7 @@ function appendHistory(paneId: string, data: string): void {
   }
 }
 
-function enqueueTerminalWrite(paneId: string, data: string): void {
+function enqueueTerminalWrite(paneId: string, data: string, options: { immediate?: boolean } = {}): void {
   if (paused.has(paneId)) {
     let backlog = pausedBacklogs.get(paneId)
     if (!backlog) {
@@ -82,6 +83,12 @@ function enqueueTerminalWrite(paneId: string, data: string): void {
       bytes -= removed?.length || 0
       pausedBacklogBytes.set(paneId, bytes)
     }
+    return
+  }
+
+  const writer = writers.get(paneId)
+  if (writer && options.immediate) {
+    writer(data)
     return
   }
 
@@ -107,6 +114,24 @@ function flushWrites(): void {
   pendingWrites.clear()
 }
 
+function flushPendingWritesForPane(paneId: string): void {
+  const chunks = pendingWrites.get(paneId)
+  if (!chunks || chunks.length === 0) return
+
+  pendingWrites.delete(paneId)
+  if (pendingWrites.size === 0) rafScheduled = false
+
+  if (paused.has(paneId)) {
+    enqueueTerminalWrite(paneId, chunks.join(''))
+    return
+  }
+
+  const writer = writers.get(paneId)
+  if (writer) {
+    writer(chunks.join(''))
+  }
+}
+
 // ─── Public API ─────────────────────────────────────────────
 
 export function registerTerminalWriter(
@@ -118,14 +143,6 @@ export function registerTerminalWriter(
   writers.set(paneId, writeFn)
   terminals.set(paneId, term)
   fitAddons.set(paneId, fitAddon)
-
-  // Replay history into newly mounted terminal (only if not paused)
-  if (!paused.has(paneId)) {
-    const history = histories.get(paneId)
-    if (history && history.length > 0) {
-      writeFn(history.join(''))
-    }
-  }
 }
 
 export function unregisterTerminalWriter(paneId: string): void {
@@ -135,6 +152,7 @@ export function unregisterTerminalWriter(paneId: string): void {
   pendingWrites.delete(paneId)
   paused.delete(paneId)
   activeReplays.delete(paneId)
+  replayLiveBacklogs.delete(paneId)
   pausedBacklogs.delete(paneId)
   pausedBacklogBytes.delete(paneId)
   // Note: don't delete history here — pane may re-mount (collapse/expand)
@@ -142,23 +160,17 @@ export function unregisterTerminalWriter(paneId: string): void {
 
 export function writeToTerminal(paneId: string, data: string): void {
   if (activeReplays.has(paneId)) {
-    activeReplays.delete(paneId)
-    pendingWrites.delete(paneId)
-    histories.set(paneId, [data])
-    historyBytes.set(paneId, data.length)
-    pausedBacklogs.set(paneId, [data])
-    pausedBacklogBytes.set(paneId, data.length)
-    const writer = writers.get(paneId)
-    if (writer && !paused.has(paneId)) {
-      pausedBacklogs.delete(paneId)
-      pausedBacklogBytes.delete(paneId)
-      writer(data)
+    let backlog = replayLiveBacklogs.get(paneId)
+    if (!backlog) {
+      backlog = []
+      replayLiveBacklogs.set(paneId, backlog)
     }
+    backlog.push(data)
     return
   }
 
   appendHistory(paneId, data)
-  enqueueTerminalWrite(paneId, data)
+  enqueueTerminalWrite(paneId, data, { immediate: true })
 }
 
 export function writeReplayToTerminal(paneId: string, data: string): void {
@@ -169,6 +181,16 @@ export function writeReplayToTerminal(paneId: string, data: string): void {
 
 export function finishTerminalReplay(paneId: string): void {
   activeReplays.delete(paneId)
+  flushPendingWritesForPane(paneId)
+
+  const liveBacklog = replayLiveBacklogs.get(paneId)
+  if (!liveBacklog || liveBacklog.length === 0) return
+
+  replayLiveBacklogs.delete(paneId)
+  for (const chunk of liveBacklog) {
+    appendHistory(paneId, chunk)
+  }
+  enqueueTerminalWrite(paneId, liveBacklog.join(''), { immediate: true })
 }
 
 export function clearTerminalHistory(paneId: string): void {
@@ -178,6 +200,7 @@ export function clearTerminalHistory(paneId: string): void {
   if (pendingWrites.size === 0) rafScheduled = false
   paused.delete(paneId)
   activeReplays.delete(paneId)
+  replayLiveBacklogs.delete(paneId)
   pausedBacklogs.delete(paneId)
   pausedBacklogBytes.delete(paneId)
 }
@@ -187,7 +210,6 @@ export function resetTerminalForReplay(paneId: string): void {
   activeReplays.add(paneId)
   const term = terminals.get(paneId)
   if (term) {
-    term.reset()
     term.clear()
   }
 }
@@ -203,6 +225,7 @@ export function clearAllHistories(): void {
   rafScheduled = false
   paused.clear()
   activeReplays.clear()
+  replayLiveBacklogs.clear()
   pausedBacklogs.clear()
   pausedBacklogBytes.clear()
 }
@@ -231,26 +254,25 @@ export function unpauseTerminal(paneId: string): void {
 }
 
 export function resumeTerminal(paneId: string): void {
-  paused.delete(paneId)
-  // Reset xterm buffer and replay history with correct dimensions
-  const term = terminals.get(paneId)
-  const writer = writers.get(paneId)
-  if (term) {
-    term.reset()
-    const history = histories.get(paneId)
-    if (writer && history && history.length > 0) {
-      // Join all history into a single write to minimize rendering passes
-      writer(history.join(''))
-    }
-  }
+  unpauseTerminal(paneId)
+  refitTerminal(paneId)
+  scrollTerminalToBottom(paneId)
 }
 
 // ─── External Control ────────────────────────────────────────
 
 export function scrollTerminalToBottom(paneId: string): void {
   const term = terminals.get(paneId)
-  if (term) {
-    term.scrollToBottom()
+  try {
+    if (!term) return
+
+    term.scrollToBottom?.()
+    const baseY = term.buffer?.active?.baseY
+    if (typeof baseY === 'number') {
+      term.scrollToLine?.(baseY)
+    }
+  } catch {
+    // scrollToBottom can fail if the terminal is detached or partially mocked.
   }
 }
 

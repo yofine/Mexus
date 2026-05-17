@@ -61,8 +61,11 @@ export class TuiTerminalSession implements TuiTerminalSessionContract {
     this.fitAddon = fitAddon ?? null
     this.visibility = 'visible'
     this.writeBuffer.setWriter((data) => {
+      const shouldFollowOutput = this.shouldFollowOutput()
       this.xterm?.write(data, () => {
-        this.xterm?.scrollToBottom()
+        if (shouldFollowOutput) {
+          this.xterm?.scrollToBottom()
+        }
       })
     })
     this.writeBuffer.setVisible(true)
@@ -198,6 +201,13 @@ export class TuiTerminalSession implements TuiTerminalSessionContract {
         this.xterm?.clear?.()
       },
     }
+  }
+
+  private shouldFollowOutput(): boolean {
+    const activeBuffer = this.xterm?.buffer?.active
+    if (!activeBuffer) return true
+
+    return activeBuffer.viewportY >= activeBuffer.baseY
   }
 
   private isSnapshotCompatible(

@@ -32,6 +32,7 @@ export interface EventHandlers {
   onConversationEvent?: (paneId: string, event: ConversationEvent) => void
   onPaneStatus?: (paneId: string, status: PaneStatus) => void
   onPaneMeta?: (paneId: string, meta: PaneMeta) => void
+  onTerminalInput?: (paneId: string, data: string) => void
   onTerminalData?: (paneId: string, data: string) => void
   onPaneActivity?: (paneId: string, activity: FileActivity) => void
   onFileActivity?: (activity: FileActivity) => void
@@ -62,6 +63,7 @@ export class WorkspaceManager {
     onConversationEvent: new Set(),
     onPaneStatus: new Set(),
     onPaneMeta: new Set(),
+    onTerminalInput: new Set(),
     onTerminalData: new Set(),
     onPaneActivity: new Set(),
     onFileActivity: new Set(),
@@ -290,6 +292,7 @@ export class WorkspaceManager {
   writeToPane(paneId: string, data: string): void {
     const pane = this.panes.get(paneId)
     if (!pane) return
+    this.emit('onTerminalInput', paneId, data)
     this.ptyManager.write(paneId, data)
   }
 

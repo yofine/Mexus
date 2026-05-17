@@ -66,6 +66,48 @@ function AirSegment({
   )
 }
 
+export function BottomTerminalHeader({
+  isMaximized,
+  onClose,
+  onToggleMaximize,
+  airline,
+}: {
+  isMaximized: boolean
+  onClose: () => void
+  onToggleMaximize: () => void
+  airline: ReactNode
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: 'var(--space-xs) var(--space-lg)',
+        gap: 'var(--space-md)',
+        background: 'var(--bg-surface)',
+        borderBottom: '1px solid var(--border-subtle)',
+        flexShrink: 0,
+      }}
+    >
+      <TerminalIcon className="icon-sm" style={{ color: 'var(--text-primary)' }} />
+      <span style={{ fontSize: 'var(--font-sm)', color: 'var(--text-primary)', fontWeight: 600 }}>Terminal</span>
+      <div style={{ marginLeft: 'var(--space-lg)', minWidth: 0 }}>
+        {airline}
+      </div>
+      <button type="button" className="pane-action-btn bottom-terminal-instance-action" title={isMaximized ? 'Restore terminal' : 'Maximize terminal'} aria-label={isMaximized ? 'Restore terminal' : 'Maximize terminal'} data-label={isMaximized ? 'Restore' : 'Maximize'} onClick={onToggleMaximize} style={{ marginLeft: 'auto' }}>
+        {isMaximized ? (
+          <Minimize2 className="icon-xs" style={{ color: 'var(--accent-primary)' }} />
+        ) : (
+          <Maximize2 className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
+        )}
+      </button>
+      <button type="button" className="pane-action-btn bottom-terminal-instance-action" title="Minimize terminal" aria-label="Minimize terminal" data-label="Minimize" onClick={onClose}>
+        <ChevronDown className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
+      </button>
+    </div>
+  )
+}
+
 export function BottomTerminal({ send }: BottomTerminalProps) {
   const initialPrefs = loadLayoutPreferences()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -564,33 +606,12 @@ export function BottomTerminal({ send }: BottomTerminalProps) {
         title="Drag to resize terminal"
       />
       {/* Header bar */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          padding: 'var(--space-xs) var(--space-lg)',
-          gap: 'var(--space-md)',
-          background: 'var(--bg-surface)',
-          borderBottom: '1px solid var(--border-subtle)',
-          flexShrink: 0,
-        }}
-      >
-        <TerminalIcon className="icon-sm" style={{ color: 'var(--text-primary)' }} />
-        <span style={{ fontSize: 'var(--font-sm)', color: 'var(--text-primary)', fontWeight: 600 }}>Terminal</span>
-        <button type="button" className="pane-action-btn bottom-terminal-instance-action" title="Minimize terminal" aria-label="Minimize terminal" data-label="Minimize" onClick={handleClose}>
-          <ChevronDown className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
-        </button>
-        <div style={{ marginLeft: 'var(--space-lg)', minWidth: 0 }}>
-          {renderAirline()}
-        </div>
-        <button type="button" className="pane-action-btn bottom-terminal-instance-action" title={isMaximized ? 'Restore terminal' : 'Maximize terminal'} aria-label={isMaximized ? 'Restore terminal' : 'Maximize terminal'} data-label={isMaximized ? 'Restore' : 'Maximize'} onClick={handleToggleMaximize} style={{ marginLeft: 'auto' }}>
-          {isMaximized ? (
-            <Minimize2 className="icon-xs" style={{ color: 'var(--accent-primary)' }} />
-          ) : (
-            <Maximize2 className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
-          )}
-        </button>
-      </div>
+      <BottomTerminalHeader
+        isMaximized={isMaximized}
+        onClose={handleClose}
+        onToggleMaximize={handleToggleMaximize}
+        airline={renderAirline()}
+      />
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         {renderShellList()}

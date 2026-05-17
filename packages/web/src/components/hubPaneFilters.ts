@@ -17,6 +17,14 @@ export function filterHubPanes(panes: PaneState[], missionFilter: string, agentF
   })
 }
 
+export function orderPinnedPaneFirst(panes: PaneState[], pinnedPaneId: string | null): PaneState[] {
+  if (!pinnedPaneId) return panes
+  const pinnedIndex = panes.findIndex((pane) => pane.id === pinnedPaneId)
+  if (pinnedIndex <= 0) return panes
+  const pinned = panes[pinnedIndex]
+  return [pinned, ...panes.slice(0, pinnedIndex), ...panes.slice(pinnedIndex + 1)]
+}
+
 export function getExclusiveExpandedPaneId(panes: PaneState[], activePaneId: string | null): string | null {
   if (!activePaneId) return null
   return panes.some((pane) => pane.id === activePaneId) ? activePaneId : null

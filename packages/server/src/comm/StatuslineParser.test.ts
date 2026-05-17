@@ -30,11 +30,27 @@ describe('StatuslineParser', () => {
     expect(cleanData).toBe('Hello world\n')
   })
 
-  it('should pass through partial lines (no newline)', () => {
+  it('should pass through non-statusline partial lines without buffering them for replay', () => {
     const parser = new StatuslineParser()
     const { cleanData, meta } = parser.parse('partial output')
     expect(meta).toBeNull()
     expect(cleanData).toBe('partial output')
+
+    const next = parser.parse(' next\n')
+    expect(next.meta).toBeNull()
+    expect(next.cleanData).toBe(' next\n')
+  })
+
+  it('should pass through non-statusline trailing content after a newline immediately', () => {
+    const parser = new StatuslineParser()
+    const first = parser.parse('ready\nclaude prompt')
+
+    expect(first.meta).toBeNull()
+    expect(first.cleanData).toBe('ready\nclaude prompt')
+
+    const next = parser.parse(' continues')
+    expect(next.meta).toBeNull()
+    expect(next.cleanData).toBe(' continues')
   })
 
   // --- Hardened validation ---
@@ -105,7 +121,7 @@ describe('StatuslineParser', () => {
     expect(cleanData).not.toContain('claude-opus-4-6')
   })
 
-  it('should handle statusline split across chunks via buffer', () => {
+  it('should pass through statusline-looking partial chunks instead of risking terminal stalls', () => {
     const parser = new StatuslineParser()
     const json = JSON.stringify({ model: 'opus', session_id: 'x', cost_usd: 1 })
 
@@ -116,8 +132,18 @@ describe('StatuslineParser', () => {
 
     // Second chunk: rest of JSON + newline
     const r2 = parser.parse(json.slice(10) + '\n')
-    expect(r2.meta).not.toBeNull()
-    expect(r2.meta!.model).toBe('opus')
+    expect(r2.meta).toBeNull()
+    expect(r2.cleanData).toBe(json.slice(10) + '\n')
+  })
+
+  it('does not swallow later no-newline TUI output after a statusline-looking partial', () => {
+    const parser = new StatuslineParser()
+
+    expect(parser.parse('{"model":"opus"').cleanData).toBe('{"model":"opus"')
+    expect(parser.parse('\x1b[?25l\x1b[?2004h')).toEqual({
+      cleanData: '\x1b[?25l\x1b[?2004h',
+      meta: null,
+    })
   })
 
   // --- Fast path ---
@@ -140,7 +166,7 @@ describe('StatuslineParser', () => {
   it('should clear buffer on reset()', () => {
     const parser = new StatuslineParser()
 
-    // Leave partial data in buffer
+    // Non-newline data is passed through immediately and should not leave buffered state.
     parser.parse('partial')
 
     parser.reset()

@@ -16,8 +16,6 @@ import {
   Trash2,
   Minus,
   Upload,
-  MessageSquarePlus,
-  Send,
   Eye,
   EyeOff,
   Users,
@@ -25,6 +23,7 @@ import {
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { getPaneColorById } from './AgentIcon'
 import type { ClientEvent, FileDiff } from '@/types'
+import { MexusDiffViewer } from '@mexus/diff-viewer'
 
 interface GitDiffPanelProps {
   send: (event: ClientEvent) => void
@@ -45,272 +44,19 @@ const statusColors: Record<string, string> = {
   renamed: 'var(--accent-primary)',
 }
 
-interface InlineCommentFormProps {
-  file: string
-  line: number
-  onSubmit: (paneId: string, content: string) => void
-  onCancel: () => void
-}
-
-function InlineCommentForm({ file, line, onSubmit, onCancel }: InlineCommentFormProps) {
-  const [content, setContent] = useState('')
-  const [targetPaneId, setTargetPaneId] = useState('')
-  const panes = useWorkspaceStore((s) => s.panes)
-  const activePanes = panes.filter((p) => p.status !== 'stopped' && p.status !== 'error')
-
-  // Auto-select if only one pane
-  if (!targetPaneId && activePanes.length === 1) {
-    setTargetPaneId(activePanes[0].id)
-  }
-
-  return (
-    <div
-      style={{
-        padding: 'var(--space-sm) var(--space-lg)',
-        background: 'var(--bg-elevated)',
-        borderTop: '1px solid var(--accent-primary)',
-        borderBottom: '1px solid var(--accent-primary)',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-sm)' }}>
-        <MessageSquarePlus className="icon-xs" style={{ color: 'var(--accent-primary)' }} />
-        <span style={{ fontSize: 'var(--font-xs)', color: 'var(--text-secondary)' }}>
-          Comment on line {line}
-        </span>
-        {activePanes.length > 1 && (
-          <select
-            value={targetPaneId}
-            onChange={(e) => setTargetPaneId(e.target.value)}
-            style={{
-              marginLeft: 'auto',
-              background: 'var(--bg-primary)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '2px var(--space-sm)',
-              fontSize: 'var(--font-xs)',
-              fontFamily: 'var(--font-mono)',
-            }}
-          >
-            <option value="">Send to...</option>
-            {activePanes.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
-        <textarea
-          autoFocus
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Write a review comment to send to the agent..."
-          rows={2}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && content.trim() && targetPaneId) {
-              e.preventDefault()
-              onSubmit(targetPaneId, content.trim())
-            }
-            if (e.key === 'Escape') {
-              e.preventDefault()
-              onCancel()
-            }
-          }}
-          style={{
-            flex: 1,
-            background: 'var(--bg-primary)',
-            color: 'var(--text-primary)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-sm)',
-            padding: 'var(--space-sm)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 'var(--font-xs)',
-            resize: 'vertical',
-            outline: 'none',
-          }}
-          onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent-primary)' }}
-          onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border-subtle)' }}
-        />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-          <button
-            onClick={() => {
-              if (content.trim() && targetPaneId) onSubmit(targetPaneId, content.trim())
-            }}
-            disabled={!content.trim() || !targetPaneId}
-            title="Send (⌘Enter)"
-            style={{
-              background: content.trim() && targetPaneId ? 'var(--accent-primary)' : 'var(--bg-overlay)',
-              color: content.trim() && targetPaneId ? 'var(--fg-on-accent)' : 'var(--text-muted)',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              padding: 'var(--space-sm)',
-              cursor: content.trim() && targetPaneId ? 'pointer' : 'not-allowed',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <Send className="icon-xs" />
-          </button>
-          <button
-            onClick={onCancel}
-            title="Cancel (Esc)"
-            style={{
-              background: 'none',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-sm)',
-              padding: 'var(--space-sm)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              color: 'var(--text-muted)',
-            }}
-          >
-            <X className="icon-xs" />
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DiffHunks({ hunks, file, send }: { hunks: string; file: string; send: (event: ClientEvent) => void }) {
+function DiffHunks({ hunks, file }: { hunks: string; file: string }) {
   if (!hunks) return null
 
-  const lines = hunks.split('\n')
-  const [commentLine, setCommentLine] = useState<number | null>(null)
-  const [hoveredLine, setHoveredLine] = useState<number | null>(null)
-
-  // Parse line numbers from hunk headers
-  const lineNumbers = useMemo(() => {
-    let currentLine = 0
-    return lines.map((line) => {
-      if (line.startsWith('@@')) {
-        const match = line.match(/@@ -\d+(?:,\d+)? \+(\d+)/)
-        currentLine = match ? parseInt(match[1], 10) : 0
-        return 0
-      }
-      if (line.startsWith('-') && !line.startsWith('---')) return 0 // deleted lines don't have new line numbers
-      if (line.startsWith('diff') || line.startsWith('index') || line.startsWith('---') || line.startsWith('+++')) return 0
-      return currentLine++
-    })
-  }, [lines])
-
-  const handleSubmitComment = useCallback((paneId: string, content: string) => {
-    if (commentLine === null) return
-    send({
-      type: 'review.comment',
-      paneId,
-      comment: { file, line: commentLine, content },
-    })
-    setCommentLine(null)
-  }, [send, file, commentLine])
-
   return (
     <div
       style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--font-xs)',
-        lineHeight: 1.6,
-        overflow: 'auto',
         borderTop: '1px solid var(--border-subtle)',
       }}
     >
-      {lines.map((line, i) => {
-        let bg = 'transparent'
-        let color = 'var(--text-code)'
-        const isCodeLine = !line.startsWith('diff') && !line.startsWith('index') &&
-          !line.startsWith('---') && !line.startsWith('+++') && !line.startsWith('@@')
-
-        if (line.startsWith('+') && !line.startsWith('+++')) {
-          bg = 'var(--diff-added-bg)'
-          color = 'var(--status-running)'
-        } else if (line.startsWith('-') && !line.startsWith('---')) {
-          bg = 'var(--diff-removed-bg)'
-          color = 'var(--status-error)'
-        } else if (line.startsWith('@@')) {
-          color = 'var(--accent-primary)'
-        } else if (!isCodeLine) {
-          color = 'var(--text-muted)'
-        }
-
-        const lineNum = lineNumbers[i]
-
-        return (
-          <div key={i}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                background: bg,
-                color,
-                minHeight: 'var(--font-xl)',
-              }}
-              onMouseEnter={() => isCodeLine && setHoveredLine(i)}
-              onMouseLeave={() => setHoveredLine(null)}
-            >
-              {/* Line number gutter */}
-              <span
-                style={{
-                  width: 40,
-                  textAlign: 'right',
-                  paddingRight: 'var(--space-sm)',
-                  color: 'var(--text-muted)',
-                  fontSize: 'var(--font-xs)',
-                  userSelect: 'none',
-                  flexShrink: 0,
-                  opacity: 0.6,
-                }}
-              >
-                {lineNum > 0 ? lineNum : ''}
-              </span>
-
-              {/* Comment button gutter */}
-              <span
-                style={{
-                  width: 20,
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {isCodeLine && hoveredLine === i && (
-                  <button
-                    onClick={() => setCommentLine(lineNum || i + 1)}
-                    title="Add review comment"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 0,
-                      display: 'flex',
-                      color: 'var(--accent-primary)',
-                      opacity: 0.7,
-                    }}
-                  >
-                    <MessageSquarePlus size={12} />
-                  </button>
-                )}
-              </span>
-
-              {/* Code content */}
-              <span style={{ whiteSpace: 'pre', paddingRight: 'var(--space-md)' }}>
-                {line}
-              </span>
-            </div>
-
-            {/* Inline comment form */}
-            {commentLine !== null && commentLine === (lineNum || i + 1) && (
-              <InlineCommentForm
-                file={file}
-                line={commentLine}
-                onSubmit={handleSubmitComment}
-                onCancel={() => setCommentLine(null)}
-              />
-            )}
-          </div>
-        )
-      })}
+      <MexusDiffViewer
+        file={file}
+        hunks={hunks}
+      />
     </div>
   )
 }
@@ -350,7 +96,6 @@ function ActionButton({ icon: Icon, title, onClick, color }: {
 interface DiffFileItemProps {
   diff: FileDiff
   mode: 'unstaged' | 'staged'
-  send: (event: ClientEvent) => void
   onStage?: (file: string) => void
   onUnstage?: (file: string) => void
   onDiscard?: (file: string) => void
@@ -361,7 +106,7 @@ interface DiffFileItemProps {
   importRefCount?: number     // number of files that import this file
 }
 
-function DiffFileItem({ diff, mode, send, onStage, onUnstage, onDiscard, isReviewed, onToggleReviewed, agentColors, agentNames, importRefCount }: DiffFileItemProps) {
+function DiffFileItem({ diff, mode, onStage, onUnstage, onDiscard, isReviewed, onToggleReviewed, agentColors, agentNames, importRefCount }: DiffFileItemProps) {
   const [expanded, setExpanded] = useState(false)
   const openFileTab = useWorkspaceStore((s) => s.openFileTab)
   const Icon = statusIcons[diff.status] || FileEdit
@@ -518,7 +263,7 @@ function DiffFileItem({ diff, mode, send, onStage, onUnstage, onDiscard, isRevie
         </span>
       </div>
 
-      {expanded && diff.hunks && <DiffHunks hunks={diff.hunks} file={diff.file} send={send} />}
+      {expanded && diff.hunks && <DiffHunks hunks={diff.hunks} file={diff.file} />}
     </div>
   )
 }
@@ -987,7 +732,6 @@ export function GitDiffPanel({ send, paneId }: GitDiffPanelProps) {
                           key={`staged-${diff.file}`}
                           diff={diff}
                           mode="staged"
-                          send={send}
                           onUnstage={handleUnstageFile}
                           isReviewed={diff.file in reviewedFiles}
                           onToggleReviewed={() => toggleFileReviewed(diff.file, diff.hunks || '')}
@@ -1086,7 +830,6 @@ export function GitDiffPanel({ send, paneId }: GitDiffPanelProps) {
                   key={`unstaged-${diff.file}`}
                   diff={diff}
                   mode="unstaged"
-                  send={send}
                   onStage={handleStageFile}
                   onDiscard={handleDiscardFile}
                   isReviewed={diff.file in reviewedFiles}

@@ -346,7 +346,7 @@ function TurnPlayer({ turn }: { turn: ReplayTurn }) {
 
   // Precompute terminal events list (stable reference)
   const terminalEvents = useMemo(() => {
-    return turn.events.filter(e => e.type === 'terminal')
+    return turn.events.filter(e => e.type === 'terminal' || e.type === 'input')
   }, [turn.events])
 
   // Initialize xterm instance
@@ -420,7 +420,10 @@ function TurnPlayer({ turn }: { turn: ReplayTurn }) {
 
     // Write any new events
     for (let i = writtenCountRef.current; i < targetCount; i++) {
-      const data = terminalEvents[i].data
+      const event = terminalEvents[i]
+      const data = event.type === 'input'
+        ? formatReplayInput(event.data || '')
+        : event.data
       if (data) term.write(data)
     }
     writtenCountRef.current = targetCount
@@ -615,6 +618,12 @@ function TurnPlayer({ turn }: { turn: ReplayTurn }) {
       </div>
     </div>
   )
+}
+
+function formatReplayInput(data: string): string {
+  const text = data.replace(/\s+/g, ' ').trim()
+  if (!text) return ''
+  return `\r\n\x1b[2m› ${text}\x1b[22m\r\n`
 }
 
 // ─── Main Component ─────────────────────────────────────────

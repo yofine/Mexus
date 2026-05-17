@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { deriveGitStatus, flattenFileNodes } from './adapters'
+import { collectDirectoryPaths, deriveGitStatus, flattenFileNodes } from './adapters'
 import type { FileDiff, FileNode } from './types'
 
 describe('flattenFileNodes', () => {
-  it('flattens nested file nodes into stable canonical paths', () => {
+  it('flattens nested file nodes into stable canonical file paths', () => {
     const nodes: FileNode[] = [
       {
         name: 'src',
@@ -25,9 +25,7 @@ describe('flattenFileNodes', () => {
     ]
 
     expect(flattenFileNodes(nodes)).toEqual([
-      'src',
       'src/App.tsx',
-      'src/components',
       'src/components/FileTree.tsx',
       'package.json',
     ])
@@ -44,6 +42,54 @@ describe('flattenFileNodes', () => {
     ]
 
     expect(flattenFileNodes(nodes)).toEqual(['README.md'])
+  })
+
+  it('does not include directory paths that would collide with inferred directories', () => {
+    const nodes: FileNode[] = [
+      {
+        name: '.claude',
+        path: '.claude',
+        type: 'directory',
+        children: [
+          {
+            name: 'skills',
+            path: '.claude/skills',
+            type: 'directory',
+            children: [
+              {
+                name: 'README.md',
+                path: '.claude/skills/README.md',
+                type: 'file',
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    expect(flattenFileNodes(nodes)).toEqual(['.claude/skills/README.md'])
+  })
+})
+
+describe('collectDirectoryPaths', () => {
+  it('collects nested directory paths for expansion state without mixing them into file paths', () => {
+    const nodes: FileNode[] = [
+      {
+        name: '.claude',
+        path: '.claude',
+        type: 'directory',
+        children: [
+          {
+            name: 'skills',
+            path: '.claude/skills',
+            type: 'directory',
+            children: [{ name: 'README.md', path: '.claude/skills/README.md', type: 'file' }],
+          },
+        ],
+      },
+    ]
+
+    expect(collectDirectoryPaths(nodes)).toEqual(['.claude', '.claude/skills'])
   })
 })
 

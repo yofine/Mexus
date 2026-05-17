@@ -33,7 +33,8 @@ export class TerminalWriteBuffer {
   private visible = true
   private disposed = false
   private pending = ''
-  private backlog = ''
+  private backlog: string[] = []
+  private backlogBytes = 0
   private scheduled = false
   private scheduledHandle: FrameHandle | null = null
   private scheduleToken = 0
@@ -68,10 +69,6 @@ export class TerminalWriteBuffer {
       return
     }
 
-    if (this.backlog.length > 0) {
-      this.pending += this.backlog
-      this.backlog = ''
-    }
     this.scheduleVisibleFlush()
   }
 
@@ -89,7 +86,8 @@ export class TerminalWriteBuffer {
 
   clear(): void {
     this.pending = ''
-    this.backlog = ''
+    this.backlog = []
+    this.backlogBytes = 0
     this.unschedule()
   }
 
@@ -102,7 +100,12 @@ export class TerminalWriteBuffer {
   }
 
   private scheduleVisibleFlush(): void {
-    if (this.disposed || !this.visible || this.scheduled || this.pending.length === 0) {
+    if (
+      this.disposed ||
+      !this.visible ||
+      this.scheduled ||
+      (this.pending.length === 0 && this.backlog.length === 0)
+    ) {
       return
     }
 
@@ -118,29 +121,71 @@ export class TerminalWriteBuffer {
   }
 
   private flushPending(): void {
-    if (this.disposed || !this.visible || this.pending.length === 0) return
+    if (this.disposed || !this.visible) return
 
-    const data = this.pending
-    this.pending = ''
+    const data = this.backlog.length > 0
+      ? this.shiftBacklog()
+      : this.shiftPending()
+
+    if (!data) return
 
     if (!this.writer) {
-      this.pending = data + this.pending
+      this.unshiftBacklog(data)
       return
     }
 
     this.writer(data)
+    this.scheduleVisibleFlush()
   }
 
   private pushBacklog(data: string): void {
     if (this.maxBacklogBytes === 0) {
-      this.backlog = ''
+      this.backlog = []
+      this.backlogBytes = 0
       return
     }
 
-    this.backlog += data
-    if (this.backlog.length > this.maxBacklogBytes) {
-      this.backlog = this.backlog.slice(this.backlog.length - this.maxBacklogBytes)
+    let nextData = data
+    if (nextData.length > this.maxBacklogBytes) {
+      nextData = nextData.slice(nextData.length - this.maxBacklogBytes)
     }
+
+    this.backlog.push(nextData)
+    this.backlogBytes += nextData.length
+
+    this.trimBacklog()
+  }
+
+  private unshiftBacklog(data: string): void {
+    this.backlog.unshift(data)
+    this.backlogBytes += data.length
+    this.trimBacklog()
+  }
+
+  private trimBacklog(): void {
+    while (this.backlogBytes > this.maxBacklogBytes && this.backlog.length > 1) {
+      const removed = this.backlog.shift()
+      this.backlogBytes -= removed?.length || 0
+    }
+
+    if (this.backlogBytes > this.maxBacklogBytes && this.backlog.length === 1) {
+      const current = this.backlog[0]!
+      const trimmed = current.slice(current.length - this.maxBacklogBytes)
+      this.backlog[0] = trimmed
+      this.backlogBytes = trimmed.length
+    }
+  }
+
+  private shiftBacklog(): string {
+    const data = this.backlog.shift() ?? ''
+    this.backlogBytes = Math.max(0, this.backlogBytes - data.length)
+    return data
+  }
+
+  private shiftPending(): string {
+    const data = this.pending
+    this.pending = ''
+    return data
   }
 
   private unschedule(): void {

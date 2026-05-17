@@ -18,6 +18,9 @@ export function buildInitialPrompt(config: PaneConfig): string | null {
 
 export function buildAgentCommand(config: PaneConfig, agentDef: AgentDefinition): string {
   const args: string[] = [agentDef.bin]
+  if (agentDef.default_args?.length) {
+    args.push(...agentDef.default_args)
+  }
 
   if (config.restore === 'resume') {
     if (!config.sessionId) {

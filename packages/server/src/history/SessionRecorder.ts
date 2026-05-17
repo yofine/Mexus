@@ -36,6 +36,7 @@ const MAX_SESSIONS = 50
 interface ActiveTurn {
   turn: ReplayTurn
   terminalBuffer: string
+  inputBuffer: string
   terminalFlushTimer: ReturnType<typeof setTimeout> | null
   terminalBytes: number
   filesRead: Set<string>
@@ -139,6 +140,33 @@ export class SessionRecorder {
       active.terminalFlushTimer = setTimeout(() => {
         this.flushTerminalBuffer(paneId)
       }, TERMINAL_BATCH_MS)
+    }
+  }
+
+  onTerminalInput(paneId: string, data: string): void {
+    const active = this.activeTurns.get(paneId)
+    if (!active) return
+
+    for (const char of data) {
+      if (char === '\r' || char === '\n') {
+        this.flushInputBuffer(paneId)
+        continue
+      }
+
+      if (char === '\u0003') {
+        this.flushInputBuffer(paneId)
+        this.recordInputEvent(paneId, '^C')
+        continue
+      }
+
+      if (char === '\u007f' || char === '\b') {
+        active.inputBuffer = active.inputBuffer.slice(0, -1)
+        continue
+      }
+
+      if (char >= ' ' && char !== '\u007f') {
+        active.inputBuffer += char
+      }
     }
   }
 
@@ -374,6 +402,7 @@ export class SessionRecorder {
     this.activeTurns.set(paneId, {
       turn,
       terminalBuffer: '',
+      inputBuffer: '',
       terminalFlushTimer: null,
       terminalBytes: 0,
       filesRead: new Set(),
@@ -388,6 +417,7 @@ export class SessionRecorder {
 
     // Flush any remaining terminal buffer
     this.flushTerminalBuffer(paneId)
+    this.flushInputBuffer(paneId)
 
     const turn = active.turn
     turn.endedAt = Date.now()
@@ -439,6 +469,29 @@ export class SessionRecorder {
       data: active.terminalBuffer,
     })
     active.terminalBuffer = ''
+  }
+
+  private flushInputBuffer(paneId: string): void {
+    const active = this.activeTurns.get(paneId)
+    if (!active || !active.inputBuffer.trim()) {
+      if (active) active.inputBuffer = ''
+      return
+    }
+
+    this.recordInputEvent(paneId, active.inputBuffer)
+    active.inputBuffer = ''
+  }
+
+  private recordInputEvent(paneId: string, data: string): void {
+    const active = this.activeTurns.get(paneId)
+    if (!active) return
+
+    active.turn.events.push({
+      t: Date.now() - active.turn.startedAt,
+      type: 'input',
+      paneId,
+      data,
+    })
   }
 
   /** Capture git diff for a single file. Returns unified diff string or null. */

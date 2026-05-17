@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, memo } from 'react'
 import {
   Check,
-  ChevronDown,
   ChevronRight,
   Pencil,
   GitMerge,
+  Pin,
   RotateCcw,
   Square,
   X,
@@ -25,14 +25,85 @@ import { canResumePane, createRestartPaneEvent, getResumeMode } from '@/stores/p
 interface AgentPaneProps {
   pane: PaneState
   paneIndex: number
+  paneColor?: string
   isExpanded: boolean
   isHidden?: boolean
+  isPinned?: boolean
   onToggle: () => void
+  onTogglePin?: () => void
   send: (event: ClientEvent) => void
 }
 
-export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, isHidden = false, onToggle, send }: AgentPaneProps) {
-  const paneColor = getPaneColor(paneIndex)
+export const EXPANDED_TERMINAL_SYNC_DELAY_MS = 240
+export const EXPANDED_TERMINAL_FINAL_SYNC_DELAY_MS = 520
+export const EXPANDED_TERMINAL_SCROLL_SETTLE_DELAYS_MS = [120, 360, 760] as const
+export const HIDDEN_TERMINAL_PARKING_WIDTH = '100vw'
+export const HIDDEN_TERMINAL_PARKING_HEIGHT = '100vh'
+
+export function syncExpandedTerminalLayout(
+  paneId: string,
+  send: (event: ClientEvent) => void,
+  previousDimensions?: { current: { cols: number; rows: number } | null },
+): void {
+  refitTerminal(paneId)
+  const dims = getTerminalDimensions(paneId)
+  if (dims) {
+    const previous = previousDimensions?.current
+    if (!previous || previous.cols !== dims.cols || previous.rows !== dims.rows) {
+      send({ type: 'terminal.resize', paneId, cols: dims.cols, rows: dims.rows })
+      if (previousDimensions) {
+        previousDimensions.current = dims
+      }
+    }
+  }
+  scrollTerminalToBottom(paneId)
+}
+
+export function scheduleExpandedTerminalLayoutSync(
+  paneId: string,
+  send: (event: ClientEvent) => void,
+): () => void {
+  let disposed = false
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  let finalTimeoutId: ReturnType<typeof setTimeout> | null = null
+  const scrollTimeoutIds: Array<ReturnType<typeof setTimeout>> = []
+  const lastSentDimensions = { current: null as { cols: number; rows: number } | null }
+
+  const run = () => {
+    if (disposed) return
+    syncExpandedTerminalLayout(paneId, send, lastSentDimensions)
+  }
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(run)
+  })
+
+  timeoutId = setTimeout(run, EXPANDED_TERMINAL_SYNC_DELAY_MS)
+  finalTimeoutId = setTimeout(run, EXPANDED_TERMINAL_FINAL_SYNC_DELAY_MS)
+  for (const delay of EXPANDED_TERMINAL_SCROLL_SETTLE_DELAYS_MS) {
+    scrollTimeoutIds.push(setTimeout(() => {
+      if (!disposed) {
+        scrollTerminalToBottom(paneId)
+      }
+    }, delay))
+  }
+
+  return () => {
+    disposed = true
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+    if (finalTimeoutId) {
+      clearTimeout(finalTimeoutId)
+    }
+    for (const id of scrollTimeoutIds) {
+      clearTimeout(id)
+    }
+  }
+}
+
+export const AgentPane = memo(function AgentPane({ pane, paneIndex, paneColor: paneColorOverride, isExpanded, isHidden = false, isPinned = false, onToggle, onTogglePin, send }: AgentPaneProps) {
+  const paneColor = paneColorOverride || getPaneColor(paneIndex)
   const paneDiffs = useWorkspaceStore((s) => s.paneDiffs[pane.id])
   const mergeResult = useWorkspaceStore((s) => s.mergeResults[pane.id])
   const conversation = useWorkspaceStore((s) => s.conversationByPane[pane.id] || [])
@@ -54,19 +125,10 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
     unpauseTerminal(pane.id)
 
     if (isExpanded && !wasExpanded) {
-      // Expanding: refit after layout settles, then notify the PTY.
-      // Use double-rAF to ensure the container has laid out with real dimensions
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          refitTerminal(pane.id)
-          // Send resize to server immediately (don't wait for debounced ResizeObserver)
-          const dims = getTerminalDimensions(pane.id)
-          if (dims) {
-            send({ type: 'terminal.resize', paneId: pane.id, cols: dims.cols, rows: dims.rows })
-          }
-          scrollTerminalToBottom(pane.id)
-        })
-      })
+      // Expanding: sync once after the immediate layout pass and once after the
+      // pane height transition settles, otherwise xterm can refresh against an
+      // intermediate height and appear blank when switching back.
+      return scheduleExpandedTerminalLayoutSync(pane.id, send)
     }
   }, [isExpanded, pane.id, send])
 
@@ -137,6 +199,11 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
     send({ type: 'terminal.input', paneId: pane.id, data: '\u0003' })
   }
 
+  const handleTogglePin = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onTogglePin?.()
+  }
+
   const hasSessionId = canResumePane(pane)
   const previewParts = [
     pane.mission
@@ -165,9 +232,7 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
         className="agent-pane-header"
       >
         <div className="agent-pane-header__main">
-          {isExpanded ? (
-            <ChevronDown className="agent-pane-expand-icon icon-sm" />
-          ) : (
+          {!isExpanded && (
             <ChevronRight className="agent-pane-expand-icon icon-sm" />
           )}
 
@@ -191,10 +256,10 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
                   autoFocus
                   className="pane-title-input"
                 />
-                <button type="submit" className="pane-action-btn" title="Save title">
+                <button type="submit" className="pane-action-btn" title="Save title" data-tooltip="Save title">
                   <Check size={13} />
                 </button>
-                <button type="button" onClick={handleCancelRename} className="pane-action-btn" title="Cancel title edit">
+                <button type="button" onClick={handleCancelRename} className="pane-action-btn" title="Cancel title edit" data-tooltip="Cancel title edit">
                   <X size={13} />
                 </button>
               </form>
@@ -215,6 +280,7 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
               <button
                 onClick={handleStartRename}
                 title="Edit title"
+                data-tooltip="Edit title"
                 className="pane-action-btn"
               >
                 <Pencil size={13} />
@@ -225,6 +291,7 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
               <button
                 onClick={handleMerge}
                 title={`Merge ${pane.branch || 'branch'} into base branch`}
+                data-tooltip={`Merge ${pane.branch || 'branch'} into base branch`}
                 className="pane-action-btn"
                 style={{ color: 'var(--status-waiting)' }}
               >
@@ -236,6 +303,9 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
               <button
                 onClick={handleResume}
                 title={hasSessionId
+                  ? `Resume session ${(pane.meta.sessionId || pane.sessionId || '').slice(0, 12)}`
+                  : 'Resume session'}
+                data-tooltip={hasSessionId
                   ? `Resume session ${(pane.meta.sessionId || pane.sessionId || '').slice(0, 12)}`
                   : 'Resume session'}
                 className="pane-action-btn"
@@ -252,6 +322,7 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
             <button
               onClick={handleInterrupt}
               title="Send Ctrl+C (interrupt)"
+              data-tooltip="Send Ctrl+C (interrupt)"
               className="pane-action-btn"
             >
               <Square className="icon-sm" style={{ color: 'var(--text-muted)' }} />
@@ -259,6 +330,7 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
             <button
               onClick={handleRestart}
               title="Restart (new session)"
+              data-tooltip="Restart (new session)"
               className="pane-action-btn"
             >
               <RotateCcw className="icon-sm" style={{ color: 'var(--text-muted)' }} />
@@ -266,9 +338,18 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
             <button
               onClick={handleClose}
               title="Close"
+              data-tooltip="Close"
               className="pane-action-btn"
             >
               <X className="icon-sm" style={{ color: 'var(--text-muted)' }} />
+            </button>
+            <button
+              onClick={handleTogglePin}
+              title={isPinned ? 'Unpin from top' : 'Pin to top'}
+              data-tooltip={isPinned ? 'Unpin from top' : 'Pin to top'}
+              className={`pane-action-btn ${isPinned ? 'pane-action-btn--active' : ''}`}
+            >
+              <Pin size={13} fill={isPinned ? 'currentColor' : 'none'} />
             </button>
           </div>
         </div>
@@ -295,17 +376,20 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, isExpanded, 
         minHeight: 0,
         overflow: 'hidden',
       } : {
-        position: 'absolute',
+        position: 'fixed',
         top: 0,
-        left: -10000,
-        width: '100%',
-        height: 360,
+        left: 0,
+        width: HIDDEN_TERMINAL_PARKING_WIDTH,
+        height: HIDDEN_TERMINAL_PARKING_HEIGHT,
         overflow: 'hidden',
         pointerEvents: 'none',
-        visibility: 'hidden',
+        opacity: 0,
+        visibility: 'visible',
       }}>
         <Terminal
           paneId={pane.id}
+          visible={isExpanded}
+          bufferWhenHidden={false}
           onData={handleTerminalData}
           onResize={handleTerminalResize}
         />

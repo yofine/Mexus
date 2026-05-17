@@ -39,6 +39,7 @@ const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
     },
     codex: {
       bin: 'codex',
+      default_args: ['--no-alt-screen'],
       continue_flag: '',
       resume_command: 'resume',
       resume_flag: '',
@@ -279,9 +280,9 @@ export class ConfigManager {
   private async detectAgentsAsync(): Promise<Record<string, AgentDefinition>> {
     const agents: Record<string, AgentDefinition> = {}
 
-    const agentBins: Array<{ key: string; bin: string; flag: string; resumeCommand?: string; statusline: boolean; transport: 'pty' | 'acp' }> = [
+    const agentBins: Array<{ key: string; bin: string; flag: string; defaultArgs?: string[]; resumeCommand?: string; statusline: boolean; transport: 'pty' | 'acp' }> = [
       { key: 'claudecode', bin: 'claude', flag: '--continue', statusline: true, transport: 'pty' },
-      { key: 'codex', bin: 'codex', flag: '', resumeCommand: 'resume', statusline: false, transport: 'pty' },
+      { key: 'codex', bin: 'codex', flag: '', defaultArgs: ['--no-alt-screen'], resumeCommand: 'resume', statusline: false, transport: 'pty' },
       { key: 'opencode', bin: 'opencode', flag: '--continue', statusline: false, transport: 'pty' },
       { key: 'kimi-cli', bin: 'kimi', flag: '--continue', statusline: false, transport: 'pty' },
       { key: 'qodercli', bin: 'qodercli', flag: '-c', statusline: false, transport: 'pty' },
@@ -299,6 +300,7 @@ export class ConfigManager {
         const agent = result.value
         agents[agent.key] = {
           bin: agent.bin,
+          default_args: agent.defaultArgs,
           continue_flag: agent.flag,
           resume_command: 'resumeCommand' in agent ? agent.resumeCommand : undefined,
           statusline: agent.statusline,

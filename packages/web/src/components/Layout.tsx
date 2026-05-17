@@ -8,6 +8,7 @@ import { FileTree } from './FileTree'
 import { EditorTabs } from './EditorTabs'
 import { BottomTerminal } from './BottomTerminal'
 import { BrandLockup } from './BrandMark'
+import { getPaneColorById } from './AgentIcon'
 import { Button } from './ui'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
@@ -26,7 +27,7 @@ import {
   type LayoutPanel,
   type PanelWidths,
 } from '@/lib/layoutPreferences'
-import { filterHubPanes, getExclusiveExpandedPaneId, getHubPaneFilterOptions } from './hubPaneFilters'
+import { filterHubPanes, getExclusiveExpandedPaneId, getHubPaneFilterOptions, orderPinnedPaneFirst } from './hubPaneFilters'
 
 interface LayoutProps {
   send: (event: ClientEvent) => void
@@ -112,6 +113,7 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
   const [showSettings, setShowSettings] = useState(false)
   const [missionFilter, setMissionFilter] = useState('all')
   const [agentFilter, setAgentFilter] = useState('all')
+  const [pinnedPaneId, setPinnedPaneId] = useState<string | null>(null)
   const [paneFiltersOpen, setPaneFiltersOpen] = useState(false)
   const [openPaneFilterMenu, setOpenPaneFilterMenu] = useState<'mission' | 'agent' | null>(null)
   const [filesCollapsed, setFilesCollapsed] = useState(false)
@@ -223,9 +225,13 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
     ...agentFilterOptions.map((agentType) => ({ value: agentType, label: agentType })),
   ], [agentFilterOptions])
   const filteredPanes = useMemo(() => filterHubPanes(panes, missionFilter, agentFilter), [agentFilter, missionFilter, panes])
+  const orderedFilteredPanes = useMemo(
+    () => orderPinnedPaneFirst(filteredPanes, pinnedPaneId),
+    [filteredPanes, pinnedPaneId],
+  )
   const exclusiveExpandedPaneId = useMemo(
-    () => getExclusiveExpandedPaneId(filteredPanes, activePaneId),
-    [activePaneId, filteredPanes],
+    () => getExclusiveExpandedPaneId(orderedFilteredPanes, activePaneId),
+    [activePaneId, orderedFilteredPanes],
   )
   const paneFilterActive = missionFilter !== 'all' || agentFilter !== 'all'
   const paneFilterSummary = [
@@ -237,6 +243,16 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
     setAgentFilter('all')
     setOpenPaneFilterMenu(null)
   }, [])
+
+  const handleTogglePinnedPane = useCallback((paneId: string) => {
+    setPinnedPaneId((current) => (current === paneId ? null : paneId))
+  }, [])
+
+  useEffect(() => {
+    if (pinnedPaneId && !panes.some((pane) => pane.id === pinnedPaneId)) {
+      setPinnedPaneId(null)
+    }
+  }, [panes, pinnedPaneId])
 
   useEffect(() => {
     if (!paneFiltersOpen || !openPaneFilterMenu) return
@@ -445,14 +461,17 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
                   </div>
                 )}
 
-                {filteredPanes.map((pane, index) => (
+                {orderedFilteredPanes.map((pane, index) => (
                   <AgentPane
                     key={pane.id}
                     pane={pane}
                     paneIndex={index}
+                    paneColor={getPaneColorById(pane.id, panes)}
                     isExpanded={activePaneId === pane.id}
                     isHidden={Boolean(exclusiveExpandedPaneId && exclusiveExpandedPaneId !== pane.id)}
                     onToggle={() => handleTogglePane(pane.id)}
+                    isPinned={pinnedPaneId === pane.id}
+                    onTogglePin={() => handleTogglePinnedPane(pane.id)}
                     send={send}
                   />
                 ))}

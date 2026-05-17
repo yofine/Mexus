@@ -28,12 +28,7 @@ const KNOWN_FIELDS: Record<string, string> = {
 // Minimum number of known fields required to classify as statusline
 const MIN_KNOWN_FIELDS = 2
 
-// Max buffer size — if a line exceeds this without a newline, discard buffer
-const MAX_BUFFER_SIZE = 64 * 1024 // 64KB
-
 export class StatuslineParser {
-  private buffer = ''
-
   /**
    * Process raw PTY output data.
    * Returns { cleanData, meta } where cleanData has statusline JSON stripped
@@ -42,27 +37,17 @@ export class StatuslineParser {
   parse(data: string): { cleanData: string; meta: PaneMeta | null } {
     let meta: PaneMeta | null = null
 
-    // Fast path: no newline means partial chunk (keystroke echo, prompt).
-    // Buffer it but pass through immediately.
+    // Fast path: no newline means a live TUI/control chunk or prompt fragment.
+    // Never buffer it. A terminal parser must not withhold output while waiting
+    // for a possible future statusline newline; that can stall Claude/Codex TUIs.
     if (!data.includes('\n')) {
-      this.buffer += data
-      // Prevent unbounded buffer growth (e.g., binary output without newlines)
-      if (this.buffer.length > MAX_BUFFER_SIZE) {
-        this.buffer = ''
-      }
       return { cleanData: data, meta: null }
     }
 
-    const combined = this.buffer + data
-    this.buffer = ''
-
-    const lines = combined.split('\n')
+    const lines = data.split('\n')
 
     // Last element is trailing content (empty if data ended with \n)
     const trailing = lines.pop() || ''
-    if (trailing) {
-      this.buffer = trailing
-    }
 
     const cleanLines: string[] = []
 
@@ -111,6 +96,9 @@ export class StatuslineParser {
     if (cleanLines.length > 0) {
       cleanData += '\n'
     }
+    if (trailing) {
+      cleanData += trailing
+    }
 
     return { cleanData, meta }
   }
@@ -119,7 +107,7 @@ export class StatuslineParser {
    * Reset internal buffer state. Useful when restarting a pane.
    */
   reset(): void {
-    this.buffer = ''
+    // Parser is intentionally stateless on partial chunks.
   }
 
   private isStatuslineJson(obj: Record<string, unknown>): boolean {

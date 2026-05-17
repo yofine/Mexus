@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   MexusFileTree,
@@ -117,8 +117,4 @@ function DemoApp() {
   )
 }
 
-createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <DemoApp />
-  </React.StrictMode>,
-)
+createRoot(document.getElementById('root')!).render(<DemoApp />)

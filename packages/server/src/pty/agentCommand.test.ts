@@ -50,6 +50,25 @@ describe('buildAgentCommand', () => {
     )).toBe('codex resume sess-2')
   })
 
+  it('adds configured default args before restore and prompt args', () => {
+    expect(buildAgentCommand(
+      {
+        ...baseConfig,
+        agent: 'codex',
+        restore: 'restart',
+        task: 'Render all numbered lines',
+      },
+      {
+        ...baseAgent,
+        bin: 'codex',
+        default_args: ['--no-alt-screen'],
+        continue_flag: '',
+        resume_command: 'resume',
+        resume_flag: '',
+      },
+    )).toBe("codex --no-alt-screen 'Task:\nRender all numbered lines'")
+  })
+
   it('throws when resume is requested for an agent without resume support', () => {
     expect(() => buildAgentCommand(
       { ...baseConfig, restore: 'resume', sessionId: 'sess-3' },

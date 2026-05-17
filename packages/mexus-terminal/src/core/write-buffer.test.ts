@@ -43,7 +43,7 @@ describe('TerminalWriteBuffer', () => {
     expect(writes).toEqual(['hello world'])
   })
 
-  it('buffers hidden output and flushes it when visible again', () => {
+  it('buffers hidden output and flushes it chunk by chunk when visible again', () => {
     const frames = createFrameScheduler()
     const writes: string[] = []
     const buffer = new TerminalWriteBuffer({ scheduleFrame: frames.scheduleFrame })
@@ -64,7 +64,11 @@ describe('TerminalWriteBuffer', () => {
 
     frames.flushFrame()
 
-    expect(writes).toEqual(['hidden output'])
+    expect(writes).toEqual(['hidden '])
+
+    frames.flushFrame()
+
+    expect(writes).toEqual(['hidden ', 'output'])
   })
 
   it('flushes later live output after clear cancels pending work', () => {
@@ -102,7 +106,8 @@ describe('TerminalWriteBuffer', () => {
     buffer.writeLive('abcde')
     buffer.setVisible(true)
     frames.flushFrame()
+    frames.flushFrame()
 
-    expect(writes).toEqual(['67890abcde'])
+    expect(writes).toEqual(['67890', 'abcde'])
   })
 })

@@ -213,6 +213,7 @@ export interface GlobalConfig {
 
 export interface AgentDefinition {
   bin: string
+  default_args?: string[]
   continue_flag: string
   resume_flag?: string
   resume_command?: string
@@ -301,7 +302,7 @@ export interface SessionInfo {
 
 // ─── Replay Types ────────────────────────────────────────────
 
-export type ReplayEventType = 'terminal' | 'status' | 'meta' | 'activity'
+export type ReplayEventType = 'terminal' | 'input' | 'status' | 'meta' | 'activity'
 
 export interface ReplayEvent {
   /** Milliseconds since turn start */

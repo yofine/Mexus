@@ -4,28 +4,40 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { registerTerminalWriter, unregisterTerminalWriter } from '@/stores/terminalRegistry'
+import { createTuiTerminalRuntime, type TuiTerminalSession } from '@mexus/terminal'
 
 interface TerminalProps {
   paneId: string
+  visible?: boolean
+  bufferWhenHidden?: boolean
   onData: (data: string) => void
   onResize: (cols: number, rows: number) => void
 }
+
+const terminalRuntime = createTuiTerminalRuntime()
 
 function resolveCssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
-export function Terminal({ paneId, onData, onResize }: TerminalProps) {
+export function Terminal({ paneId, visible = true, bufferWhenHidden = true, onData, onResize }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<XTerm | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const sessionRef = useRef<TuiTerminalSession | null>(null)
   const onDataRef = useRef(onData)
   const onResizeRef = useRef(onResize)
+  const visibleRef = useRef(visible)
   const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Keep refs up to date without re-running the effect
   onDataRef.current = onData
   onResizeRef.current = onResize
+  visibleRef.current = visible
+
+  useEffect(() => {
+    sessionRef.current?.setVisibility(!bufferWhenHidden || visible ? 'visible' : 'hidden')
+  }, [bufferWhenHidden, visible])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -51,9 +63,13 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
     term.loadAddon(webLinksAddon)
     term.open(containerRef.current)
 
+    const session = terminalRuntime.getTerminal(paneId) ?? terminalRuntime.createTerminal({ id: paneId })
+    session.attach(term, fitAddon)
+    session.setVisibility(!bufferWhenHidden || visibleRef.current ? 'visible' : 'hidden')
+
     // Initial fit — only if container is visible (not collapsed)
     requestAnimationFrame(() => {
-      if (containerRef.current && containerRef.current.clientHeight > 0) {
+      if (visibleRef.current && containerRef.current && containerRef.current.clientHeight > 0) {
         fitAddon.fit()
         term.refresh(0, Math.max(0, term.rows - 1))
         onResizeRef.current(term.cols, term.rows)
@@ -69,13 +85,16 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
     // Register write function + xterm + fitAddon for external control
     registerTerminalWriter(
       paneId,
-      (data: string) => { term.write(data) },
+      (data: string) => {
+        session.writeLive(data)
+      },
       term,
       fitAddon,
     )
 
     termRef.current = term
     fitRef.current = fitAddon
+    sessionRef.current = session
 
     const handleTerminalFontChanged = () => {
       const fontFamily = resolveCssVar('--font-mono')
@@ -83,7 +102,7 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
 
       term.options.fontFamily = fontFamily
       requestAnimationFrame(() => {
-        if (!containerRef.current || containerRef.current.clientHeight <= 0) return
+        if (!visibleRef.current || !containerRef.current || containerRef.current.clientHeight <= 0) return
         fitAddon.fit()
         term.refresh(0, Math.max(0, term.rows - 1))
         onResizeRef.current(term.cols, term.rows)
@@ -98,7 +117,7 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
         clearTimeout(resizeTimerRef.current)
       }
       resizeTimerRef.current = setTimeout(() => {
-        if (fitRef.current && containerRef.current && containerRef.current.clientHeight > 0) {
+        if (visibleRef.current && fitRef.current && containerRef.current && containerRef.current.clientHeight > 0) {
           fitRef.current.fit()
           if (termRef.current) {
             termRef.current.refresh(0, Math.max(0, termRef.current.rows - 1))
@@ -117,9 +136,11 @@ export function Terminal({ paneId, onData, onResize }: TerminalProps) {
         clearTimeout(resizeTimerRef.current)
       }
       unregisterTerminalWriter(paneId)
+      session.detach()
       term.dispose()
       termRef.current = null
       fitRef.current = null
+      sessionRef.current = null
     }
   }, [paneId])
 
