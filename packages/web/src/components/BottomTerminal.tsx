@@ -94,15 +94,15 @@ export function BottomTerminalHeader({
       <div style={{ marginLeft: 'var(--space-lg)', minWidth: 0 }}>
         {airline}
       </div>
+      <button type="button" className="pane-action-btn bottom-terminal-instance-action" title="Minimize terminal" aria-label="Minimize terminal" data-label="Minimize" onClick={onClose}>
+        <ChevronDown className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
+      </button>
       <button type="button" className="pane-action-btn bottom-terminal-instance-action" title={isMaximized ? 'Restore terminal' : 'Maximize terminal'} aria-label={isMaximized ? 'Restore terminal' : 'Maximize terminal'} data-label={isMaximized ? 'Restore' : 'Maximize'} onClick={onToggleMaximize} style={{ marginLeft: 'auto' }}>
         {isMaximized ? (
           <Minimize2 className="icon-xs" style={{ color: 'var(--accent-primary)' }} />
         ) : (
           <Maximize2 className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
         )}
-      </button>
-      <button type="button" className="pane-action-btn bottom-terminal-instance-action" title="Minimize terminal" aria-label="Minimize terminal" data-label="Minimize" onClick={onClose}>
-        <ChevronDown className="icon-xs" style={{ color: 'var(--text-secondary)' }} />
       </button>
     </div>
   )

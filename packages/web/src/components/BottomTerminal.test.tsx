@@ -7,7 +7,7 @@ vi.mock('./Terminal', () => ({
 }))
 
 describe('BottomTerminalHeader', () => {
-  it('renders the minimize action as the rightmost header button', () => {
+  it('renders the minimize action immediately after the status strip', () => {
     const html = renderToStaticMarkup(
       <BottomTerminalHeader
         isMaximized={false}
@@ -17,6 +17,7 @@ describe('BottomTerminalHeader', () => {
       />,
     )
 
-    expect(html.indexOf('data-label="Maximize"')).toBeLessThan(html.indexOf('data-label="Minimize"'))
+    expect(html.indexOf('status')).toBeLessThan(html.indexOf('data-label="Minimize"'))
+    expect(html.indexOf('data-label="Minimize"')).toBeLessThan(html.indexOf('data-label="Maximize"'))
   })
 })

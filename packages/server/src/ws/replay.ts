@@ -11,12 +11,13 @@ export function buildTerminalReplayEvents(
 ): ServerEvent[] {
   if (!scrollback) return []
 
+  const replayId = `${paneId}:history`
   const replayScrollback = maxBytes > 0 && scrollback.length > maxBytes
     ? scrollback.slice(-maxBytes)
     : scrollback
 
   const events: ServerEvent[] = [
-    { type: 'terminal.replay.start', paneId, bytes: replayScrollback.length },
+    { type: 'terminal.replay.start', paneId, bytes: replayScrollback.length, kind: 'history', replayId },
   ]
   let chunks = 0
   for (let i = 0; i < replayScrollback.length; i += chunkSize) {
@@ -25,9 +26,11 @@ export function buildTerminalReplayEvents(
       paneId,
       data: replayScrollback.slice(i, i + chunkSize),
       seq: chunks,
+      kind: 'history',
+      replayId,
     })
     chunks += 1
   }
-  events.push({ type: 'terminal.replay.end', paneId, chunks })
+  events.push({ type: 'terminal.replay.end', paneId, chunks, kind: 'history', replayId })
   return events
 }

@@ -17,15 +17,19 @@ function task(
   }
 }
 
-function createWriter(): ReplayWriter & { writes: string[]; resets: number } {
+function createWriter(): ReplayWriter & { writes: string[]; resets: number; completes: number } {
   return {
     writes: [],
     resets: 0,
+    completes: 0,
     write(data: string) {
       this.writes.push(data)
     },
     reset() {
       this.resets += 1
+    },
+    complete() {
+      this.completes += 1
     },
   }
 }
@@ -106,6 +110,17 @@ describe('TerminalReplayScheduler', () => {
 
     expect(writer.resets).toBe(1)
     expect(writer.writes).toEqual(['ab', 'cd', 'ef'])
+  })
+
+  it('notifies the writer after replay finishes normally', async () => {
+    const scheduler = new TerminalReplayScheduler({ sliceBytes: 2, schedule: async () => {} })
+    const writer = createWriter()
+
+    scheduler.enqueue('terminal-a', task('complete', ['abcd']), writer)
+    await flush()
+
+    expect(writer.writes).toEqual(['ab', 'cd'])
+    expect(writer.completes).toBe(1)
   })
 
   it('stops writing remaining chunks after cancel', async () => {

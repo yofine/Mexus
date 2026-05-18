@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { AgentPane } from './AgentPane'
+import { AgentTerminalStage } from './AgentTerminalStage'
 import { AddPaneDialog } from './AddPaneDialog'
 import { SettingsDialog } from './SettingsDialog'
 import { CommandPalette } from './CommandPalette'
@@ -15,19 +16,14 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import type { ClientEvent } from '@/types'
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Monitor, PanelsTopLeft, FolderTree, FolderMinus, Plus, Settings, SlidersHorizontal, X } from 'lucide-react'
 import {
-  AGENT_WIDTH_STEPS,
-  DEFAULT_WIDTHS,
-  FILE_WIDTH_STEPS,
   LAYOUT_EVENT,
-  cycleStep,
   loadLayoutPreferences,
-  resetModeWidths,
   saveModeWidths,
   type LayoutMode,
   type LayoutPanel,
   type PanelWidths,
 } from '@/lib/layoutPreferences'
-import { filterHubPanes, getExclusiveExpandedPaneId, getHubPaneFilterOptions, orderPinnedPaneFirst } from './hubPaneFilters'
+import { filterHubPanes, getHubPaneFilterOptions, orderPinnedPaneFirst } from './hubPaneFilters'
 
 interface LayoutProps {
   send: (event: ClientEvent) => void
@@ -174,38 +170,6 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
     persistWidths(widthsRef.current)
   }, [persistWidths])
 
-  const handleCycleAgentsWidth = useCallback(() => {
-    setWidths((w) => {
-      const next = { ...w, agents: cycleStep(AGENT_WIDTH_STEPS, w.agents) }
-      persistWidths(next)
-      return next
-    })
-  }, [persistWidths])
-
-  const handleCycleFilesWidth = useCallback(() => {
-    setWidths((w) => {
-      const next = { ...w, files: cycleStep(FILE_WIDTH_STEPS, w.files) }
-      persistWidths(next)
-      return next
-    })
-  }, [persistWidths])
-
-  const handleResetAgentsWidth = useCallback(() => {
-    setWidths((w) => {
-      const next = { ...w, agents: DEFAULT_WIDTHS[mode].agents }
-      persistWidths(next)
-      return next
-    })
-  }, [mode, persistWidths])
-
-  const handleResetFilesWidth = useCallback(() => {
-    setWidths((w) => {
-      const next = { ...w, files: DEFAULT_WIDTHS[mode].files }
-      persistWidths(next)
-      return next
-    })
-  }, [mode, persistWidths])
-
   const handleToggleMaximize = useCallback((panel: Exclude<LayoutPanel, 'terminal'>) => {
     if (panel !== 'editor') return
     setMaximizedPanel((current) => (current === 'editor' ? null : 'editor'))
@@ -229,10 +193,10 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
     () => orderPinnedPaneFirst(filteredPanes, pinnedPaneId),
     [filteredPanes, pinnedPaneId],
   )
-  const exclusiveExpandedPaneId = useMemo(
-    () => getExclusiveExpandedPaneId(orderedFilteredPanes, activePaneId),
-    [activePaneId, orderedFilteredPanes],
+  const activePaneVisibleInStack = Boolean(
+    activePaneId && orderedFilteredPanes.some((pane) => pane.id === activePaneId),
   )
+  const shouldMountTerminalStage = panes.some((pane) => pane.agent !== '__shell__')
   const paneFilterActive = missionFilter !== 'all' || agentFilter !== 'all'
   const paneFilterSummary = [
     missionFilter === 'all' ? null : missionFilter === '__none__' ? 'No mission' : missionFilter,
@@ -429,60 +393,70 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
                 </div>
               )}
               <div
-                className={`pane-stack ${exclusiveExpandedPaneId ? 'pane-stack--exclusive-expanded' : ''}`}
+                className={`pane-stack ${activePaneVisibleInStack ? 'pane-stack--stage-active' : ''}`}
               >
-                {!workspaceLoaded && (
-                  <div className="pane-stack-loading" aria-hidden="true" />
-                )}
-
-                {workspaceLoaded && panes.length === 0 && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      height: '100%',
-                      gap: 'var(--space-lg)',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    <Monitor className="icon-hero" />
-                    <span style={{ fontSize: 'var(--font-lg)' }}>No execution panes yet</span>
-                    <Button variant="primary" onClick={handleOpenAddPane}>
-                        Create execution pane
-                    </Button>
+                {shouldMountTerminalStage && (
+                  <div className="pane-terminal-stage-layer">
+                    <AgentTerminalStage
+                      panes={panes}
+                      activePaneId={activePaneVisibleInStack ? activePaneId : null}
+                      send={send}
+                    />
                   </div>
                 )}
 
-                {panes.length > 0 && filteredPanes.length === 0 && (
-                  <div className="pane-filter-empty">
-                    No panes match the current filters.
-                  </div>
-                )}
+                <div className={`pane-list-layer ${activePaneVisibleInStack ? 'pane-list-layer--stage-active' : ''}`}>
+                  {!workspaceLoaded && (
+                    <div className="pane-stack-loading" aria-hidden="true" />
+                  )}
 
-                {orderedFilteredPanes.map((pane, index) => (
-                  <AgentPane
-                    key={pane.id}
-                    pane={pane}
-                    paneIndex={index}
-                    paneColor={getPaneColorById(pane.id, panes)}
-                    isExpanded={activePaneId === pane.id}
-                    isHidden={Boolean(exclusiveExpandedPaneId && exclusiveExpandedPaneId !== pane.id)}
-                    onToggle={() => handleTogglePane(pane.id)}
-                    isPinned={pinnedPaneId === pane.id}
-                    onTogglePin={() => handleTogglePinnedPane(pane.id)}
-                    send={send}
-                  />
-                ))}
+                  {workspaceLoaded && panes.length === 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '100%',
+                        gap: 'var(--space-lg)',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      <Monitor className="icon-hero" />
+                      <span style={{ fontSize: 'var(--font-lg)' }}>No execution panes yet</span>
+                      <Button variant="primary" onClick={handleOpenAddPane}>
+                          Create execution pane
+                      </Button>
+                    </div>
+                  )}
+
+                  {panes.length > 0 && filteredPanes.length === 0 && (
+                    <div className="pane-filter-empty">
+                      No panes match the current filters.
+                    </div>
+                  )}
+
+                  {orderedFilteredPanes.map((pane, index) => (
+                    <AgentPane
+                      key={pane.id}
+                      pane={pane}
+                      paneIndex={index}
+                      paneColor={getPaneColorById(pane.id, panes)}
+                      isExpanded={activePaneId === pane.id}
+                      isHidden={Boolean(activePaneVisibleInStack && activePaneId !== pane.id)}
+                      onToggle={() => handleTogglePane(pane.id)}
+                      isPinned={pinnedPaneId === pane.id}
+                      onTogglePin={() => handleTogglePinnedPane(pane.id)}
+                      send={send}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
 
             <ResizeHandle
               onResize={handleResizeAgents}
               onResizeEnd={handleSaveWidths}
-              onCycleWidth={handleCycleAgentsWidth}
-              onResetWidth={handleResetAgentsWidth}
             />
           </>
         )}
@@ -510,8 +484,6 @@ export function Layout({ send, hideHeader = false, hubMode = false }: LayoutProp
               <ResizeHandle
                 onResize={handleResizeFiles}
                 onResizeEnd={handleSaveWidths}
-                onCycleWidth={handleCycleFilesWidth}
-                onResetWidth={handleResetFilesWidth}
               />
             )}
 

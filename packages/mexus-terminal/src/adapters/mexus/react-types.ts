@@ -7,6 +7,7 @@ export interface MexusPaneTerminalProps {
   paneId: TerminalId
   runtime: TuiTerminalRuntime
   visible?: boolean
+  active?: boolean
   options?: ITerminalOptions
   className?: string
   style?: CSSProperties

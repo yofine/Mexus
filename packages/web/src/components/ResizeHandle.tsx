@@ -3,20 +3,16 @@ import { useCallback, useRef } from 'react'
 interface ResizeHandleProps {
   onResize: (delta: number) => void
   onResizeEnd?: () => void
-  onCycleWidth?: () => void
-  onResetWidth?: () => void
 }
 
-export function ResizeHandle({ onResize, onResizeEnd, onCycleWidth, onResetWidth }: ResizeHandleProps) {
+export function ResizeHandle({ onResize, onResizeEnd }: ResizeHandleProps) {
   const dragging = useRef(false)
   const lastX = useRef(0)
-  const moved = useRef(false)
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault()
     dragging.current = true
     lastX.current = e.clientX
-    moved.current = false
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
     e.currentTarget.setPointerCapture?.(e.pointerId)
@@ -24,9 +20,6 @@ export function ResizeHandle({ onResize, onResizeEnd, onCycleWidth, onResetWidth
     const handlePointerMove = (ev: PointerEvent) => {
       if (!dragging.current) return
       const delta = ev.clientX - lastX.current
-      if (Math.abs(delta) > 2) {
-        moved.current = true
-      }
       lastX.current = ev.clientX
       onResize(delta)
     }
@@ -49,10 +42,6 @@ export function ResizeHandle({ onResize, onResizeEnd, onCycleWidth, onResetWidth
       data-resize-handle
       className="resize-handle"
       onPointerDown={handlePointerDown}
-      onClick={() => {
-        if (!moved.current) onCycleWidth?.()
-      }}
-      onDoubleClick={() => onResetWidth?.()}
       style={{
         cursor: 'col-resize',
         flexShrink: 0,

@@ -54,7 +54,7 @@ describe('terminalRegistry', () => {
     expect(rafCallbacks).toEqual([])
   })
 
-  it('does not replay local terminal history when a writer is registered again', () => {
+  it('replays stored shell history when a writer is registered again', () => {
     const firstWrites: string[] = []
     const secondWrites: string[] = []
 
@@ -80,7 +80,26 @@ describe('terminalRegistry', () => {
     )
 
     expect(firstWrites).toEqual(['history-with-tui-controls'])
-    expect(secondWrites).toEqual([])
+    expect(secondWrites).toEqual(['history-with-tui-controls'])
+  })
+
+  it('does not duplicate pending replay chunks when a writer registers before the next frame', () => {
+    const writes: string[] = []
+
+    resetTerminalForReplay('pane-1')
+    writeReplayToTerminal('pane-1', 'old-history')
+
+    registerTerminalWriter(
+      'pane-1',
+      (data) => {
+        writes.push(data)
+      },
+      { reset: vi.fn(), clear: vi.fn() } as never,
+      {} as never,
+    )
+    flushAnimationFrames()
+
+    expect(writes).toEqual(['old-history'])
   })
 
   it('preserves replay output when live output arrives during replay', () => {

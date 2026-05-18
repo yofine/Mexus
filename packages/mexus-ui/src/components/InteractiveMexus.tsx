@@ -3,6 +3,7 @@ import type {
   MockActivityCard,
   MockFile,
   MockHubInstance,
+  MockKanbanCard,
   MockKanbanCol,
   MockPane,
 } from '../mocks/types';
@@ -47,6 +48,7 @@ interface WorkspaceState {
   port: number;
   cwd: string;
   selectedPaneId?: string;
+  expandedPaneIds: string[];
   tab: Tab;
   subtabActivity: SubtabActivity;
   subtabTeam: SubtabTeam;
@@ -59,6 +61,7 @@ function makeWorkspaceState(inst: MockHubInstance): WorkspaceState {
     port: inst.port,
     cwd: inst.cwd,
     selectedPaneId: undefined,
+    expandedPaneIds: [],
     tab: 'Activity',
     subtabActivity: 'Agent',
     subtabTeam: 'Kanban',
@@ -78,14 +81,23 @@ export function InteractiveMexus({
   const [workspaces, setWorkspaces] = useState<Record<string, WorkspaceState>>(() =>
     Object.fromEntries(initialInstances.map((i) => [i.id, makeWorkspaceState(i)]))
   );
+  const [panesByWs, setPanesByWs] = useState<Record<string, MockPane[]>>(() =>
+    Object.fromEntries(initialInstances.map((i) => [i.id, initialPanes]))
+  );
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(
     initialInstances[0]?.id ?? null
   );
   const [view, setView] = useState<'hub' | 'workspace'>('workspace');
+  const [toast, setToast] = useState<string | null>(null);
 
   // Hub form state (controlled so "Create server" picks current values).
   const [newPath, setNewPath] = useState('~/projects/my-app');
   const [newPort, setNewPort] = useState('Auto assign');
+
+  const flash = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast((cur) => (cur === msg ? null : cur)), 2200);
+  };
 
   const tabs: AppTab[] = useMemo(
     () => instances.map((inst) => ({
@@ -110,7 +122,6 @@ export function InteractiveMexus({
   const closeTab = (id: string) => {
     setInstances((prev) => {
       const next = prev.filter((i) => i.id !== id);
-      // If we just closed the active tab, fall back to Hub or another tab.
       if (activeWorkspaceId === id) {
         const fallback = next[0]?.id ?? null;
         setActiveWorkspaceId(fallback);
@@ -123,6 +134,12 @@ export function InteractiveMexus({
       delete next[id];
       return next;
     });
+    setPanesByWs((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    flash(`Closed tab "${id}"`);
   };
 
   const removeInstance = (id: string) => closeTab(id);
@@ -151,12 +168,33 @@ export function InteractiveMexus({
     };
     setInstances((prev) => [...prev, fresh]);
     setWorkspaces((prev) => ({ ...prev, [fresh.id]: makeWorkspaceState(fresh) }));
+    setPanesByWs((prev) => ({ ...prev, [fresh.id]: initialPanes }));
     setActiveWorkspaceId(fresh.id);
     setView('workspace');
+    flash(`Created server "${fresh.projectName}" on :${port}`);
   };
 
   const stopInstance = (id: string) => {
     setInstances((prev) => prev.map((i) => i.id === id ? { ...i, status: 'idle' } : i));
+    flash(`Stopped "${id}"`);
+  };
+
+  const addPane = () => {
+    if (!activeWorkspaceId) return;
+    const base = panesByWs[activeWorkspaceId] ?? [];
+    const n = base.length + 1;
+    const palette = [270, 20, 200, 320, 45, 5];
+    const agents = ['claude', 'codex', 'gemini', 'opencode'];
+    const fresh: MockPane = {
+      id: `pane-${Date.now().toString(36)}`,
+      name: `New pane ${n}`,
+      desc: 'Fresh tab — assign work to start',
+      agent: agents[n % agents.length],
+      hue: palette[n % palette.length],
+      status: 'idle',
+    };
+    setPanesByWs((prev) => ({ ...prev, [activeWorkspaceId]: [...base, fresh] }));
+    flash(`Added pane "${fresh.name}"`);
   };
 
   const updateWs = (patch: Partial<WorkspaceState>) => {
@@ -167,15 +205,31 @@ export function InteractiveMexus({
     }));
   };
 
+  const togglePaneExpand = (paneId: string) => {
+    if (!activeWorkspaceId) return;
+    setWorkspaces((prev) => {
+      const ws = prev[activeWorkspaceId];
+      if (!ws) return prev;
+      const has = ws.expandedPaneIds.includes(paneId);
+      const expandedPaneIds = has
+        ? ws.expandedPaneIds.filter((id) => id !== paneId)
+        : [...ws.expandedPaneIds, paneId];
+      return { ...prev, [activeWorkspaceId]: { ...ws, expandedPaneIds } };
+    });
+  };
+
   // ── Render ──────────────────────────────────────────────────
+  const wsPanes = activeWorkspaceId ? (panesByWs[activeWorkspaceId] ?? initialPanes) : initialPanes;
+
   return (
-    <div className="mx-root mx-frame">
+    <div className="mx-root mx-frame" style={{ position: 'relative' }}>
       <AppTopBar
         hubActive={view === 'hub'}
         tabs={tabs}
         onHubClick={() => setView('hub')}
         onTabClick={openTab}
         onTabClose={closeTab}
+        onSettingsClick={() => flash('Settings panel (not implemented in demo)')}
       />
 
       {view === 'hub' || !activeWs ? (
@@ -193,13 +247,40 @@ export function InteractiveMexus({
       ) : (
         <WorkspaceView
           ws={activeWs}
-          panes={initialPanes}
+          panes={wsPanes}
           activity={initialActivity}
           kanban={initialKanban}
           files={initialFiles}
           assetsBase={assetsBase}
           updateWs={updateWs}
+          onAddPane={addPane}
+          onFilter={() => flash('Filter (not implemented in demo)')}
+          onMissionSelectorClick={() => flash('Mission switcher (not implemented in demo)')}
+          onNewMission={() => flash('New Mission wizard (not implemented in demo)')}
+          onAgentClick={(id) => flash(`Selected mission agent "${id}"`)}
+          onKanbanCardClick={(card) => flash(`Opened kanban card ${card.id}`)}
+          onFileClick={(name) => flash(`Open file "${name}"`)}
+          onTogglePaneExpand={togglePaneExpand}
         />
+      )}
+
+      {toast && (
+        <div style={{
+          position: 'absolute',
+          right: 14,
+          bottom: 14,
+          padding: '8px 12px',
+          borderRadius: 'var(--mx-radius-md)',
+          background: 'var(--mx-bg-elevated)',
+          border: '1px solid var(--mx-border-default)',
+          color: 'var(--mx-text-primary)',
+          fontFamily: 'var(--mx-font-mono)',
+          fontSize: 11.5,
+          zIndex: 30,
+          pointerEvents: 'none',
+        }}>
+          {toast}
+        </div>
       )}
     </div>
   );
@@ -297,6 +378,8 @@ function ControlledField({ label, value, onChange }: { label: string; value: str
 
 function WorkspaceView({
   ws, panes, activity, kanban, files, assetsBase, updateWs,
+  onAddPane, onFilter, onMissionSelectorClick, onNewMission, onAgentClick,
+  onKanbanCardClick, onFileClick, onTogglePaneExpand,
 }: {
   ws: WorkspaceState;
   panes: MockPane[];
@@ -305,6 +388,14 @@ function WorkspaceView({
   files: MockFile[];
   assetsBase?: string;
   updateWs: (patch: Partial<WorkspaceState>) => void;
+  onAddPane: () => void;
+  onFilter: () => void;
+  onMissionSelectorClick: () => void;
+  onNewMission: () => void;
+  onAgentClick: (id: string) => void;
+  onKanbanCardClick: (card: MockKanbanCard) => void;
+  onFileClick: (name: string) => void;
+  onTogglePaneExpand: (id: string) => void;
 }) {
   return (
     <>
@@ -318,8 +409,12 @@ function WorkspaceView({
           <PanesColumn
             panes={panes}
             selectedId={ws.selectedPaneId}
+            expandedIds={ws.expandedPaneIds}
             assetsBase={assetsBase}
             onSelect={(id) => updateWs({ selectedPaneId: id })}
+            onToggleExpand={onTogglePaneExpand}
+            onAdd={onAddPane}
+            onFilter={onFilter}
           />
         </section>
 
@@ -331,6 +426,24 @@ function WorkspaceView({
               activeSubtab={ws.subtabTeam}
               onTabChange={(t) => updateWs({ tab: t })}
               onSubtabChange={(s) => updateWs({ subtabTeam: s })}
+              onMissionSelectorClick={onMissionSelectorClick}
+              onNewMission={onNewMission}
+              onAgentClick={onAgentClick}
+              onCardClick={onKanbanCardClick}
+            />
+          ) : ws.tab === 'Review' ? (
+            <PlaceholderPanel
+              activeTab={ws.tab}
+              onTabChange={(t) => updateWs({ tab: t })}
+              title="Review"
+              hint="Patch review, diff browsing, approve / request changes — coming online."
+            />
+          ) : ws.tab === 'Replay' ? (
+            <PlaceholderPanel
+              activeTab={ws.tab}
+              onTabChange={(t) => updateWs({ tab: t })}
+              title="Replay"
+              hint="Time-travel through a pane's runs. Pick a session to scrub."
             />
           ) : (
             <ActivityPanel
@@ -346,7 +459,7 @@ function WorkspaceView({
           )}
         </section>
 
-        <FilesPanel files={files} />
+        <FilesPanel files={files} onFileClick={onFileClick} />
       </div>
 
       <StatusBar
@@ -357,5 +470,48 @@ function WorkspaceView({
         shells={3}
       />
     </>
+  );
+}
+
+/* ── Placeholder panel for Review / Replay so tab clicks have feedback ── */
+
+function PlaceholderPanel({
+  activeTab, onTabChange, title, hint,
+}: {
+  activeTab: Tab;
+  onTabChange: (t: Tab) => void;
+  title: string;
+  hint: string;
+}) {
+  const TABS: Tab[] = ['Activity', 'Team', 'Review', 'Replay'];
+  const TAB_ICONS = { Activity: 'activity', Team: 'team', Review: 'review', Replay: 'replay' } as const;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--mx-bg-base)' }}>
+      <div className="mx-tabs">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={`mx-tab ${t === activeTab ? 'mx-tab--active' : ''}`}
+            onClick={() => onTabChange(t)}
+            style={{ background: 'transparent', border: 0, cursor: 'pointer', height: '100%' }}
+          >
+            <Icon name={TAB_ICONS[t]} size={12} />
+            <span>{t}</span>
+          </button>
+        ))}
+        <span style={{ flex: 1 }} />
+      </div>
+      <div style={{
+        padding: '40px 24px',
+        color: 'var(--mx-text-muted)',
+        fontFamily: 'var(--mx-font-mono)',
+        fontSize: 12,
+        textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 14, color: 'var(--mx-text-primary)', marginBottom: 8 }}>{title}</div>
+        {hint}
+      </div>
+    </div>
   );
 }

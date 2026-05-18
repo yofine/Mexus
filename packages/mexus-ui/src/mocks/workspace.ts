@@ -57,16 +57,68 @@ export const defaultActivityCards: MockActivityCard[] = [
 
 export const defaultTimeline: MockTimelineEntry[] = [];
 
+export interface MockMissionAgent {
+  id: string;
+  name: string;
+  initial: string;
+  hue: number;
+  role: string;
+  toClaim: number;
+  active: number;
+  done: number;
+  tasks: number;
+  summary: string;
+}
+
+export const defaultMissionAgents: MockMissionAgent[] = [
+  { id: 'orion',    name: 'Orion',    initial: 'O', hue: 20,  role: 'Backend implementer',
+    toClaim: 0, active: 1, done: 17, tasks: 17,
+    summary: 'Cart store refactor, typed reducer + selectors. Service layer migration on track.' },
+  { id: 'meridian', name: 'Meridian', initial: 'M', hue: 320, role: 'Payments specialist',
+    toClaim: 0, active: 1, done: 2,  tasks: 2,
+    summary: 'Stripe webhook handler with idempotency keys; receipt mailer integration ready for review.' },
+  { id: 'zephyr',   name: 'Zephyr',   initial: 'Z', hue: 45,  role: 'Frontend reviewer',
+    toClaim: 0, active: 0, done: 13, tasks: 13,
+    summary: 'Reviewing payments PR #214; awaiting follow-up on idempotency edge cases.' },
+  { id: 'tessera',  name: 'Tessera',  initial: 'T', hue: 290, role: 'Design system',
+    toClaim: 0, active: 1, done: 4,  tasks: 4,
+    summary: 'Storybook rebuild on design-token pipeline; tokens.ts diff under review.' },
+  { id: 'halcyon',  name: 'Halcyon',  initial: 'H', hue: 5,   role: 'UX prototyping',
+    toClaim: 0, active: 0, done: 5,  tasks: 5,
+    summary: 'Product-list virtualization landed; resting until next ask from Squad Lead.' },
+];
+
+export interface MockSquadLeadLogEntry { time: string; actor: string; text: string; }
+export const defaultSquadLeadLog: MockSquadLeadLogEntry[] = [
+  { time: '14:02', actor: 'Squad Lead', text: 'Routed cart-store refactor to Orion; created Stripe webhook task for Meridian.' },
+  { time: '13:48', actor: 'Reviewer',   text: 'Approved Tessera token diff; flagged a stray hue value in tokens.ts:142.' },
+  { time: '13:21', actor: 'Squad Lead', text: 'Paused Zephyr; PR #214 needs idempotency follow-up before merge.' },
+  { time: '12:47', actor: 'Orion',      text: 'Cart-store reducer types extracted into @app/cart-store; selectors next.' },
+  { time: '12:30', actor: 'Squad Lead', text: 'Mission `checkout-revamp-v2` opened. Initial kanban populated from agents.md.' },
+];
+
 export const defaultKanban: MockKanbanCol[] = [
   {
     name: 'To Claim',
-    count: '0/0',
-    cards: [],
+    count: '2/41',
+    cards: [
+      { id: 'c4e1f99', title: 'Migrate legacy address-validation flow off the deprecated geo endpoint and onto the new typed API.',
+        assignTo: 'Orion', assignFrom: 'Squad Lead' },
+      { id: 'd72a013', title: 'Add per-pane diff badges in the Review panel header to summarise unstaged changes at a glance.',
+        assignTo: 'Tessera', assignFrom: 'Squad Lead' },
+    ],
   },
   {
     name: 'In Progress',
-    count: '0/0',
-    cards: [],
+    count: '3/41',
+    cards: [
+      { id: '9f2c8a1', title: 'Stripe webhook handler with idempotency keys and retry budget; receipts mailer wiring next.',
+        assignTo: 'Meridian', assignFrom: 'Squad Lead' },
+      { id: 'a18b6e7', title: 'Cart store refactor: extract typed reducer, selectors, and migrate touch points.',
+        assignTo: 'Orion', assignFrom: 'Squad Lead' },
+      { id: 'e504c22', title: 'Storybook rebuild on the new design-token pipeline; verify Figma sync.',
+        assignTo: 'Tessera', assignFrom: 'Squad Lead' },
+    ],
   },
   {
     name: 'Done',

@@ -13,6 +13,7 @@ export function MexusPaneTerminal({
   paneId,
   runtime,
   visible = true,
+  active = visible,
   options,
   className,
   style,
@@ -25,10 +26,12 @@ export function MexusPaneTerminal({
   const onInputRef = useRef(onInput)
   const onResizeRef = useRef(onResize)
   const visibleRef = useRef(visible)
+  const activeRef = useRef(active)
 
   onInputRef.current = onInput
   onResizeRef.current = onResize
   visibleRef.current = visible
+  activeRef.current = active
 
   useEffect(() => {
     const session = sessionRef.current
@@ -36,6 +39,26 @@ export function MexusPaneTerminal({
 
     session.setVisibility(visible ? 'visible' : 'hidden')
   }, [visible])
+
+  useEffect(() => {
+    const session = sessionRef.current
+    const term = termRef.current
+    const container = containerRef.current
+    if (!active || !session || !term || !container) return
+
+    requestAnimationFrame(() => {
+      if (!activeRef.current || !hasSize(container)) return
+
+      session.fit()
+      session.refresh()
+      term.focus()
+
+      const viewport = session.getViewport()
+      if (viewport) {
+        onResizeRef.current?.(viewport)
+      }
+    })
+  }, [active])
 
   useEffect(() => {
     const container = containerRef.current
@@ -51,7 +74,9 @@ export function MexusPaneTerminal({
     session.setVisibility(visibleRef.current ? 'visible' : 'hidden')
 
     const inputDisposable = term.onData((data) => {
-      onInputRef.current?.(data)
+      if (activeRef.current) {
+        onInputRef.current?.(data)
+      }
     })
 
     termRef.current = term

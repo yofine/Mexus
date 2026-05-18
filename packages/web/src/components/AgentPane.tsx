@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, memo } from 'react'
+import { useLayoutEffect, useState, memo } from 'react'
 import {
   Check,
   ChevronRight,
@@ -10,15 +10,8 @@ import {
   X,
   Play,
 } from 'lucide-react'
-import { Terminal } from './Terminal'
 import { AgentIcon, getPaneColor } from './AgentIcon'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
-import {
-  refitTerminal,
-  scrollTerminalToBottom,
-  getTerminalDimensions,
-  unpauseTerminal,
-} from '@/stores/terminalRegistry'
 import type { PaneState, ClientEvent } from '@/types'
 import { canResumePane, createRestartPaneEvent, getResumeMode } from '@/stores/paneStoreUtils'
 
@@ -34,74 +27,6 @@ interface AgentPaneProps {
   send: (event: ClientEvent) => void
 }
 
-export const EXPANDED_TERMINAL_SYNC_DELAY_MS = 240
-export const EXPANDED_TERMINAL_FINAL_SYNC_DELAY_MS = 520
-export const EXPANDED_TERMINAL_SCROLL_SETTLE_DELAYS_MS = [120, 360, 760] as const
-export const HIDDEN_TERMINAL_PARKING_WIDTH = '100vw'
-export const HIDDEN_TERMINAL_PARKING_HEIGHT = '100vh'
-
-export function syncExpandedTerminalLayout(
-  paneId: string,
-  send: (event: ClientEvent) => void,
-  previousDimensions?: { current: { cols: number; rows: number } | null },
-): void {
-  refitTerminal(paneId)
-  const dims = getTerminalDimensions(paneId)
-  if (dims) {
-    const previous = previousDimensions?.current
-    if (!previous || previous.cols !== dims.cols || previous.rows !== dims.rows) {
-      send({ type: 'terminal.resize', paneId, cols: dims.cols, rows: dims.rows })
-      if (previousDimensions) {
-        previousDimensions.current = dims
-      }
-    }
-  }
-  scrollTerminalToBottom(paneId)
-}
-
-export function scheduleExpandedTerminalLayoutSync(
-  paneId: string,
-  send: (event: ClientEvent) => void,
-): () => void {
-  let disposed = false
-  let timeoutId: ReturnType<typeof setTimeout> | null = null
-  let finalTimeoutId: ReturnType<typeof setTimeout> | null = null
-  const scrollTimeoutIds: Array<ReturnType<typeof setTimeout>> = []
-  const lastSentDimensions = { current: null as { cols: number; rows: number } | null }
-
-  const run = () => {
-    if (disposed) return
-    syncExpandedTerminalLayout(paneId, send, lastSentDimensions)
-  }
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(run)
-  })
-
-  timeoutId = setTimeout(run, EXPANDED_TERMINAL_SYNC_DELAY_MS)
-  finalTimeoutId = setTimeout(run, EXPANDED_TERMINAL_FINAL_SYNC_DELAY_MS)
-  for (const delay of EXPANDED_TERMINAL_SCROLL_SETTLE_DELAYS_MS) {
-    scrollTimeoutIds.push(setTimeout(() => {
-      if (!disposed) {
-        scrollTerminalToBottom(paneId)
-      }
-    }, delay))
-  }
-
-  return () => {
-    disposed = true
-    if (timeoutId) {
-      clearTimeout(timeoutId)
-    }
-    if (finalTimeoutId) {
-      clearTimeout(finalTimeoutId)
-    }
-    for (const id of scrollTimeoutIds) {
-      clearTimeout(id)
-    }
-  }
-}
-
 export const AgentPane = memo(function AgentPane({ pane, paneIndex, paneColor: paneColorOverride, isExpanded, isHidden = false, isPinned = false, onToggle, onTogglePin, send }: AgentPaneProps) {
   const paneColor = paneColorOverride || getPaneColor(paneIndex)
   const paneDiffs = useWorkspaceStore((s) => s.paneDiffs[pane.id])
@@ -110,41 +35,10 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, paneColor: p
   const [isEditingName, setIsEditingName] = useState(false)
   const [draftName, setDraftName] = useState(pane.name)
   const diffCount = paneDiffs?.length ?? 0
-  const prevExpandedRef = useRef(isExpanded)
 
   useLayoutEffect(() => {
     if (!isEditingName) setDraftName(pane.name)
   }, [isEditingName, pane.name])
-
-  // Keep xterm mounted and live. The dedicated terminal runtime will own hidden
-  // rendering optimization later; for now responsiveness is more important than
-  // pausing hidden output.
-  useEffect(() => {
-    const wasExpanded = prevExpandedRef.current
-    prevExpandedRef.current = isExpanded
-    unpauseTerminal(pane.id)
-
-    if (isExpanded && !wasExpanded) {
-      // Expanding: sync once after the immediate layout pass and once after the
-      // pane height transition settles, otherwise xterm can refresh against an
-      // intermediate height and appear blank when switching back.
-      return scheduleExpandedTerminalLayoutSync(pane.id, send)
-    }
-  }, [isExpanded, pane.id, send])
-
-  const handleTerminalData = useCallback(
-    (data: string) => {
-      send({ type: 'terminal.input', paneId: pane.id, data })
-    },
-    [pane.id, send],
-  )
-
-  const handleTerminalResize = useCallback(
-    (cols: number, rows: number) => {
-      send({ type: 'terminal.resize', paneId: pane.id, cols, rows })
-    },
-    [pane.id, send],
-  )
 
   const handleClose = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -232,9 +126,7 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, paneColor: p
         className="agent-pane-header"
       >
         <div className="agent-pane-header__main">
-          {!isExpanded && (
-            <ChevronRight className="agent-pane-expand-icon icon-sm" />
-          )}
+          <ChevronRight className="agent-pane-expand-icon icon-sm" />
 
           <span className="agent-pane-avatar" aria-hidden="true">
             <AgentIcon agent={pane.agent} size={22} />
@@ -370,30 +262,6 @@ export const AgentPane = memo(function AgentPane({ pane, paneIndex, paneColor: p
         </div>
       )}
 
-      {/* Terminal body — always mounted to keep xterm instance alive */}
-      <div style={isExpanded ? {
-        flex: 1,
-        minHeight: 0,
-        overflow: 'hidden',
-      } : {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: HIDDEN_TERMINAL_PARKING_WIDTH,
-        height: HIDDEN_TERMINAL_PARKING_HEIGHT,
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        opacity: 0,
-        visibility: 'visible',
-      }}>
-        <Terminal
-          paneId={pane.id}
-          visible={isExpanded}
-          bufferWhenHidden={false}
-          onData={handleTerminalData}
-          onResize={handleTerminalResize}
-        />
-      </div>
     </div>
   )
 })

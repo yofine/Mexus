@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
 import { useConnectionStore } from '@/stores/connectionStore'
@@ -9,6 +9,12 @@ import {
   resetTerminalForReplay,
   clearAllHistories,
 } from '@/stores/terminalRegistry'
+import {
+  handleAgentTerminalEvent,
+  resetAgentTerminalRuntime,
+  setAgentTerminalActivePane,
+  getAgentTerminalAdapter,
+} from '@/lib/agentTerminalRuntime'
 import { Layout } from '@/components/Layout'
 import { debugLog, summarizeShells } from '@/lib/debugLog'
 import type { ConnectionTarget, ServerEvent } from '@/types'
@@ -40,19 +46,29 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
   const clearMergeResult = useWorkspaceStore((s) => s.clearMergeResult)
   const applyConversationEvent = useWorkspaceStore((s) => s.applyConversationEvent)
   const ensureReplayTabPinned = useWorkspaceStore((s) => s.ensureReplayTabPinned)
+  const activePaneId = useWorkspaceStore((s) => s.activePaneId)
+  const workspaceKey = target.serverId
+  const [terminalRuntimeKey, setTerminalRuntimeKey] = useState<string | null>(null)
 
   useEffect(() => {
     debugLog('workspace-app', 'mount-target', { serverId: target.serverId, hubMode, hideHeader })
     useConnectionStore.getState().setActiveTarget(target)
+    resetAgentTerminalRuntime(workspaceKey, useWorkspaceStore.getState().activePaneId)
     clearAllHistories()
     resetWorkspace()
     if (hubMode) ensureReplayTabPinned()
+    setTerminalRuntimeKey(workspaceKey)
     return () => {
       debugLog('workspace-app', 'unmount-target', { serverId: target.serverId, hubMode })
+      resetAgentTerminalRuntime(workspaceKey, null)
       clearAllHistories()
       resetWorkspace()
     }
-  }, [target, resetWorkspace, hubMode, ensureReplayTabPinned])
+  }, [target, resetWorkspace, hubMode, ensureReplayTabPinned, workspaceKey])
+
+  useEffect(() => {
+    setAgentTerminalActivePane(activePaneId)
+  }, [activePaneId])
 
   const handleMessage = useCallback(
     (event: ServerEvent) => {
@@ -80,22 +96,36 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
               bytes: event.data.length,
             })
           }
-          writeToTerminal(event.paneId, event.data)
           if (event.paneId.startsWith('__shell__')) {
+            writeToTerminal(event.paneId, event.data)
             window.dispatchEvent(new CustomEvent('shell-output', { detail: { paneId: event.paneId } }))
+          } else {
+            handleAgentTerminalEvent(workspaceKey, useWorkspaceStore.getState().activePaneId, event)
           }
           break
 
         case 'terminal.replay.start':
-          resetTerminalForReplay(event.paneId)
+          if (event.paneId.startsWith('__shell__')) {
+            resetTerminalForReplay(event.paneId)
+          } else {
+            handleAgentTerminalEvent(workspaceKey, useWorkspaceStore.getState().activePaneId, event)
+          }
           break
 
         case 'terminal.replay.chunk':
-          writeReplayToTerminal(event.paneId, event.data)
+          if (event.paneId.startsWith('__shell__')) {
+            writeReplayToTerminal(event.paneId, event.data)
+          } else {
+            handleAgentTerminalEvent(workspaceKey, useWorkspaceStore.getState().activePaneId, event)
+          }
           break
 
         case 'terminal.replay.end':
-          finishTerminalReplay(event.paneId)
+          if (event.paneId.startsWith('__shell__')) {
+            finishTerminalReplay(event.paneId)
+          } else {
+            handleAgentTerminalEvent(workspaceKey, useWorkspaceStore.getState().activePaneId, event)
+          }
           break
 
         case 'conversation.event':
@@ -127,6 +157,9 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
 
         case 'pane.removed':
           debugLog('workspace-app', 'event:pane.removed', { serverId: target.serverId, paneId: event.paneId })
+          if (!event.paneId.startsWith('__shell__')) {
+            getAgentTerminalAdapter(workspaceKey, useWorkspaceStore.getState().activePaneId).disposePane(event.paneId)
+          }
           removePane(event.paneId)
           break
 
@@ -182,7 +215,7 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
           break
       }
     },
-    [target.serverId, setWorkspace, addPane, removePane, renamePane, updatePaneStatus, updatePaneMeta, setConnectionStatus, setFileTree, setGitAllDiffs, setGitBranchInfo, setPaneDiffs, addActivity, addFileActivity, setMergeResult, clearMergeResult, applyConversationEvent],
+    [target.serverId, workspaceKey, setWorkspace, addPane, removePane, renamePane, updatePaneStatus, updatePaneMeta, setConnectionStatus, setFileTree, setGitAllDiffs, setGitBranchInfo, setPaneDiffs, addActivity, addFileActivity, setMergeResult, clearMergeResult, applyConversationEvent],
   )
 
   const { send, status } = useWebSocket({ onMessage: handleMessage, target })
@@ -191,6 +224,10 @@ export function WorkspaceApp({ target, hideHeader = false, hubMode = false }: Wo
     debugLog('workspace-app', 'status:update', { serverId: target.serverId, status })
     setConnectionStatus(status)
   }, [target.serverId, status, setConnectionStatus])
+
+  if (terminalRuntimeKey !== workspaceKey) {
+    return null
+  }
 
   return <Layout send={send} hideHeader={hideHeader} hubMode={hubMode} />
 }

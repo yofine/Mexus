@@ -2,6 +2,7 @@
 
 export type PaneStatus = 'running' | 'waiting' | 'idle' | 'stopped' | 'error'
 export type RestoreMode = 'continue' | 'restart' | 'manual' | 'resume'
+export type ReplayKind = 'head' | 'tail' | 'history'
 export type AgentType = 'claudecode' | 'codex' | 'opencode' | 'kimi-cli' | 'qodercli' | '__shell__'
 export type IsolationMode = 'shared' | 'worktree'
 export type AgentTransport = 'pty' | 'acp'
@@ -108,9 +109,9 @@ export type ClientEvent =
 // Server → Client
 export type ServerEvent =
   | { type: 'terminal.output'; paneId: string; data: string }
-  | { type: 'terminal.replay.start'; paneId: string; bytes: number }
-  | { type: 'terminal.replay.chunk'; paneId: string; data: string; seq: number }
-  | { type: 'terminal.replay.end'; paneId: string; chunks: number }
+  | { type: 'terminal.replay.start'; paneId: string; bytes: number; kind?: ReplayKind; replayId?: string }
+  | { type: 'terminal.replay.chunk'; paneId: string; data: string; seq: number; kind?: ReplayKind; replayId?: string }
+  | { type: 'terminal.replay.end'; paneId: string; chunks: number; kind?: ReplayKind; replayId?: string }
   | { type: 'conversation.event'; paneId: string; event: ConversationEvent }
   | { type: 'pane.status'; paneId: string; status: PaneStatus }
   | { type: 'pane.meta'; paneId: string; meta: PaneMeta }

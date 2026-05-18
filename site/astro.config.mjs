@@ -10,5 +10,25 @@ export default defineConfig({
     ssr: {
       noExternal: ['@mexus/ui'],
     },
+    server: {
+      watch: {
+        usePolling: false,
+        ignored: [
+          '**/node_modules/**',
+          '**/.git/**',
+          '**/dist/**',
+          '**/packages/server/**',
+          '**/packages/web/**',
+          '**/packages/mexus-terminal/**',
+        ],
+      },
+      fs: {
+        allow: [
+          '/root/workspace/Nexus/site',
+          '/root/workspace/Nexus/packages/mexus-ui',
+          '/root/workspace/Nexus/node_modules',
+        ],
+      },
+    },
   },
 });

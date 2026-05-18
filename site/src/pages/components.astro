@@ -24,6 +24,8 @@ import {
   KanbanColumn,
   MissionSelector,
   MissionHeader,
+  MissionAgentCard,
+  SquadLeadLogEntry,
   FileRow,
   HubInstanceCard,
   HubCreateForm,
@@ -36,6 +38,8 @@ import {
   defaultKanban,
   defaultFiles,
   defaultHubInstances,
+  defaultMissionAgents,
+  defaultSquadLeadLog,
 } from '@mexus/ui';
 
 const groups = [
@@ -217,6 +221,32 @@ const oneInstance = defaultHubInstances[0];
     </SubBlock>
     <SubBlock id="G5.5" name="KanbanColumn — empty (To Claim)">
       <div class="pane" style="padding: 14px; max-width: 320px;"><KanbanColumn client:only="react" column={defaultKanban[0]} /></div>
+    </SubBlock>
+    <SubBlock id="G5.6" name="MissionAgentCard">
+      <div class="pane" style="padding: 14px; max-width: 320px;">
+        <MissionAgentCard
+          client:only="react"
+          initial={defaultMissionAgents[0].initial}
+          name={defaultMissionAgents[0].name}
+          role={defaultMissionAgents[0].role}
+          hue={defaultMissionAgents[0].hue}
+          toClaim={defaultMissionAgents[0].toClaim}
+          active={defaultMissionAgents[0].active}
+          done={defaultMissionAgents[0].done}
+          tasks={defaultMissionAgents[0].tasks}
+          summary={defaultMissionAgents[0].summary}
+        />
+      </div>
+    </SubBlock>
+    <SubBlock id="G5.7" name="SquadLeadLogEntry">
+      <div class="pane" style="padding: 14px; max-width: 640px;">
+        <SquadLeadLogEntry
+          client:only="react"
+          time={defaultSquadLeadLog[0].time}
+          actor={defaultSquadLeadLog[0].actor}
+          text={defaultSquadLeadLog[0].text}
+        />
+      </div>
     </SubBlock>
   </section>
 

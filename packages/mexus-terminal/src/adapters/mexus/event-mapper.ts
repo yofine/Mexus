@@ -9,11 +9,11 @@ export interface MexusReplayPriorityOptions {
 export function mapMexusReplayPriority(options: MexusReplayPriorityOptions): ReplayPriority {
   const isActivePane = options.activePaneId === options.paneId
 
-  if (options.kind === 'head' && isActivePane) {
+  if ((options.kind === 'head' || options.kind === 'tail') && isActivePane) {
     return 'critical'
   }
 
-  if (options.kind === 'head') {
+  if (options.kind === 'head' || options.kind === 'tail') {
     return 'normal'
   }
 

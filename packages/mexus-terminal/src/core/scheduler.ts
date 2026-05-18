@@ -3,6 +3,7 @@ import type { ReplayPriority, ReplayTask, ReplayTaskHandle, TerminalId } from '.
 export interface ReplayWriter {
   write(data: string): void | Promise<void>
   reset?(): void | Promise<void>
+  complete?(): void | Promise<void>
 }
 
 export interface TerminalReplaySchedulerOptions {
@@ -143,6 +144,7 @@ export class TerminalReplayScheduler {
 
   private async runReplay(replay: QueuedReplay): Promise<void> {
     let reset = false
+    let completed = false
 
     try {
       for await (const data of replay.task.source) {
@@ -170,7 +172,11 @@ export class TerminalReplayScheduler {
           }
         }
       }
+      completed = true
     } finally {
+      if (completed && !replay.cancelled) {
+        await replay.writer.complete?.()
+      }
       this.active.delete(replay)
       this.drain()
     }

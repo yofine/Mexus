@@ -19,11 +19,53 @@ select {
 
 .demo-shell {
   box-sizing: border-box;
-  display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   height: 100%;
   padding: 14px;
+}
+
+.demo-module {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+}
+
+.demo-module--stage {
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+}
+
+.demo-mode-tabs {
+  align-items: center;
+  border: 1px solid #2a2926;
+  background: #1b1a18;
+  display: flex;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px;
+}
+
+.demo-mode-tabs button {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #aaa59d;
+  height: 28px;
+  padding: 0 10px;
+}
+
+.demo-mode-tabs button:hover {
+  background: #22211f;
+  border-color: #34322e;
+  color: #d5d1c8;
+}
+
+.demo-mode-tabs button.active {
+  background: rgba(42, 184, 154, 0.12);
+  border-color: #3ccfab;
+  color: #e7e5df;
 }
 
 .demo-header {
@@ -65,6 +107,10 @@ h1 {
   padding: 10px;
 }
 
+.demo-toolbar--stage {
+  grid-template-columns: 150px minmax(0, 1fr) auto auto auto auto;
+}
+
 .demo-toolbar input,
 .demo-toolbar select {
   background: #111110;
@@ -97,6 +143,46 @@ h1 {
   background: #3ccfab;
   border-color: #3ccfab;
   color: #0f0f0f;
+}
+
+.session-strip {
+  align-items: center;
+  border: 1px solid #2a2926;
+  background: #191817;
+  display: flex;
+  gap: 8px;
+  min-height: 42px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 7px 10px;
+}
+
+.session-strip button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid #34322e;
+  color: #c8c3b9;
+  display: inline-flex;
+  gap: 9px;
+  height: 30px;
+  padding: 0 10px;
+}
+
+.session-strip button.active {
+  background: rgba(42, 184, 154, 0.12);
+  border-color: #3ccfab;
+  color: #e7e5df;
+}
+
+.session-strip button strong {
+  font-size: 12px;
+  font-weight: 560;
+}
+
+.session-strip button span {
+  color: #8f8a82;
+  font-family: "JetBrains Mono", SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
 }
 
 .diagnostic-strip {
@@ -138,6 +224,10 @@ h1 {
   background: #0f0f0f;
   min-height: 0;
   overflow: hidden;
+}
+
+.terminal-stage {
+  height: 100%;
 }
 
 .terminal-host {

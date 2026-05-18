@@ -67,23 +67,27 @@ export function ActivityPanel({
         ))}
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-        gap: 12,
-        padding: 14,
-        overflow: 'auto',
-      }}>
-        {cards.map((c) => (
-          <ActivityCard
-            key={c.id}
-            card={c}
-            agent={agentFor(c.id)}
-            assetsBase={assetsBase}
-            onClick={onCardClick ? () => onCardClick(c.id) : undefined}
-          />
-        ))}
-      </div>
+      {activeSubtab === 'Agent' ? (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+          gap: 12,
+          padding: 14,
+          overflow: 'auto',
+        }}>
+          {cards.map((c) => (
+            <ActivityCard
+              key={c.id}
+              card={c}
+              agent={agentFor(c.id)}
+              assetsBase={assetsBase}
+              onClick={onCardClick ? () => onCardClick(c.id) : undefined}
+            />
+          ))}
+        </div>
+      ) : (
+        <SubtabEmpty subtab={activeSubtab} count={cards.length} />
+      )}
 
       <div style={{
         padding: '10px 14px',
@@ -101,6 +105,27 @@ export function ActivityPanel({
           No activity yet
         </div>
       </div>
+    </div>
+  );
+}
+
+function SubtabEmpty({ subtab, count }: { subtab: string; count: number }) {
+  const hints: Record<string, string> = {
+    Modules: 'Module map for active panes — coming online.',
+    Imports: 'Import graph view — coming online.',
+    Conflicts: 'No conflicts detected across active panes.',
+    Files: `Files touched by the ${count} active agent run${count === 1 ? '' : 's'} will land here.`,
+  };
+  return (
+    <div style={{
+      padding: '48px 24px',
+      color: 'var(--mx-text-muted)',
+      fontFamily: 'var(--mx-font-mono)',
+      fontSize: 12,
+      textAlign: 'center',
+    }}>
+      <div style={{ fontSize: 14, color: 'var(--mx-text-primary)', marginBottom: 8 }}>{subtab}</div>
+      {hints[subtab] ?? 'Section content coming online.'}
     </div>
   );
 }

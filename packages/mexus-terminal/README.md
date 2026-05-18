@@ -5,6 +5,7 @@
 The package is currently a private workspace package, but its internal shape is intentionally split so the reusable runtime can be extracted later:
 
 - `core`: a generic Web TUI terminal runtime with no Mexus business concepts.
+- `react`: stage-level React primitives for mounting multiple terminal sessions in a stable layered surface.
 - `adapters/mexus`: Mexus-specific integration for panes, workspace events, replay priority, and Agent launch coordination.
 - `demo`: a standalone real node-pty demo for validating TUI rendering behavior.
 
@@ -43,6 +44,7 @@ packages/mexus-terminal/
 +-- src/
 |   +-- core/
 |   |   +-- runtime.ts             # Runtime factory and session registry
+|   |   +-- stage.ts               # Multi-session stage controller
 |   |   +-- terminal-session.ts    # Single terminal session
 |   |   +-- scheduler.ts           # Replay queue, priority, and chunked writes
 |   |   +-- write-buffer.ts        # Visibility buffering and frame batching
@@ -57,6 +59,9 @@ packages/mexus-terminal/
 |   |       +-- event-mapper.ts       # Mexus replay priority mapping
 |   |       +-- cache-key.ts          # Snapshot cache keys
 |   |       +-- types.ts              # Mexus adapter types
+|   +-- react/
+|   |   +-- TuiTerminalStage.tsx      # Layered multi-session terminal stage
+|   |   +-- stage-layout.ts           # Stage layer style helpers
 |   +-- index.ts
 +-- demo/
 |   +-- server.ts       # Vite + WebSocket + node-pty demo server
@@ -295,6 +300,63 @@ Responsibilities:
 - Observe container resize, fit/refresh xterm, and notify the integration layer.
 - Stop wheel propagation to avoid conflicts with outer pane scrolling.
 
+## Multi-Session Stage
+
+The Stage model is used when multiple Agent panes exist at the same time.
+
+The product model is:
+
+```text
+Pane list = a stack of records
+Terminal stage = the player
+Active pane = the record currently on the player
+Inactive pane = still mounted and rendering, but not visible or interactive
+```
+
+This replaces the older hidden parking approach where collapsed panes moved their xterm surface into a hidden offscreen area. That approach is fragile for Agent TUIs because Codex and Claude Code frequently repaint the screen with cursor movement, clear-screen sequences, and prompt/status redraws. If the xterm surface is zero-sized, detached, or refit while hidden, restored scrollback can miss lines or show stale prompt blocks.
+
+Stage rules:
+
+- Every session keeps a stable terminal surface while the stage is mounted.
+- Switching sessions changes layer order and pointer/input ownership.
+- Inactive layers remain `visibility: visible` and full-size, but have `opacity: 0` and `pointer-events: none`.
+- Input is only forwarded for the active session.
+- Resize notifications are only sent for the active session.
+- Session switching must not recreate xterm, replay history, or resize hidden terminals.
+
+Core stage controller:
+
+```ts
+import { TerminalStageController, createTuiTerminalRuntime } from '@mexus/terminal'
+
+const runtime = createTuiTerminalRuntime()
+const stage = new TerminalStageController(runtime)
+
+stage.setSessions(['pane-a', 'pane-b'])
+stage.setActiveSession('pane-a')
+stage.writeLive('pane-b', 'background output')
+```
+
+React stage:
+
+```tsx
+import { TuiTerminalStage } from '@mexus/terminal'
+
+<TuiTerminalStage
+  sessionIds={['pane-a', 'pane-b']}
+  activeSessionId="pane-a"
+  runtime={runtime}
+  onInput={(sessionId, data) => {
+    send({ type: 'terminal.input', paneId: sessionId, data })
+  }}
+  onResize={(sessionId, viewport) => {
+    send({ type: 'terminal.resize', paneId: sessionId, ...viewport })
+  }}
+/>
+```
+
+Mexus Web currently uses the stage layout with its existing terminal registry compatibility layer so WebSocket output can continue to bypass React.
+
 ### Launch Adapter
 
 `MexusTerminalLaunchAdapter` coordinates Agent command launch after terminal readiness.
@@ -348,6 +410,8 @@ The demo includes:
 - WebSocket `/pty`
 - node-pty shell
 - xterm terminal
+- `Single session` module for validating the original one-terminal runtime path.
+- `Stage stack` module for validating three independent terminal sessions and the layered multi-session stage.
 - local mock full-screen TUI
 - Claude Code preset
 - Codex preset
@@ -366,7 +430,25 @@ The demo includes:
 
 Diagnostic buttons only insert prompts into the active TUI input. They do not press Enter automatically.
 
-Recommended flow:
+Recommended multi-session flow:
+
+1. Click `Connect all`.
+2. Select a pane record and start an Agent preset.
+3. Start another pane or send `BG burst B/C` to validate background output.
+4. Switch between pane records while output is running.
+5. Click a diagnostic button.
+6. Confirm the inserted prompt in the active Agent TUI.
+7. Press Enter manually.
+
+Expected results:
+
+- Only the active pane accepts keyboard input.
+- Background panes keep receiving output while invisible.
+- Switching panes does not recreate xterm or replay history.
+- Long sequential output should not lose numbered lines because of pane switching.
+- The active pane should keep its TUI input area anchored after switching.
+
+Agent diagnostic flow:
 
 1. Start an Agent preset.
 2. Click a diagnostic button.
@@ -505,6 +587,8 @@ pnpm --filter @mexus/terminal typecheck
 Current coverage includes:
 
 - Runtime session creation, replacement, and disposal.
+- Multi-session stage registration, active switching, inactive session output, and disposal.
+- Stage layer style guarantees for full-size invisible inactive terminals.
 - attach/detach buffering.
 - visible/hidden switching.
 - live output interrupting replay.
@@ -522,9 +606,9 @@ Current coverage includes:
 
 `restoreSnapshot()` and `TerminalSnapshotStore` can read and restore snapshots, but `scheduleSnapshotWrite()` is still a placeholder. The next step is to wire `@xterm/addon-serialize` and write first-screen snapshots to IndexedDB during idle time.
 
-### Core Does Not Include a Generic React Layer
+### React Layer Is Stage-Oriented
 
-Core defines runtime, session, and protocol primitives. The current React component lives in the Mexus adapter layer because it is shaped around Mexus pane usage. If core is extracted later, a separate generic React adapter can be added, or consumers can attach xterm directly.
+The package includes a small React stage component for Mexus' multi-pane use case. It is intentionally thin: it owns DOM layering, not PTY transport or business state. If core is extracted later, this React layer can either remain Mexus-specific or be replaced by a consumer-owned UI layer.
 
 ### PTY and Transport Are External
 

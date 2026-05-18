@@ -32,6 +32,8 @@ export {
   KanbanColumn,
   MissionSelector,
   MissionHeader,
+  MissionAgentCard,
+  SquadLeadLogEntry,
   FileRow,
   HubInstanceCard,
   HubCreateForm,
@@ -49,6 +51,8 @@ export type {
   KanbanColumnProps,
   MissionSelectorProps,
   MissionHeaderProps,
+  MissionAgentCardProps,
+  SquadLeadLogEntryProps,
   FileRowProps,
   HubInstanceCardProps,
   HubCreateFormProps,
@@ -67,7 +71,10 @@ export {
   defaultTimeline,
   defaultKanban,
   defaultFiles,
+  defaultMissionAgents,
+  defaultSquadLeadLog,
 } from './mocks/workspace';
+export type { MockMissionAgent, MockSquadLeadLogEntry } from './mocks/workspace';
 export { defaultHubInstances } from './mocks/hub';
 
 export type {

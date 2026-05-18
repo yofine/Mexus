@@ -15,6 +15,11 @@ export type {
 } from './core/types'
 export { createTuiTerminalRuntime } from './core/runtime'
 export { TuiTerminalSession as TuiTerminalSessionImpl } from './core/terminal-session'
+export { TerminalStageController } from './core/stage'
+export type { TerminalStageSnapshot } from './core/stage'
+export { TuiTerminalStage } from './react/TuiTerminalStage'
+export type { TuiTerminalStageProps, TuiTerminalStageRenderProps } from './react/TuiTerminalStage'
+export { getTerminalStageLayerStyle, getTerminalStageRootStyle } from './react/stage-layout'
 export { MexusPaneTerminal } from './adapters/mexus/MexusPaneTerminal'
 export type { MexusPaneTerminalProps } from './adapters/mexus/react-types'
 export type {

@@ -2284,11 +2284,11 @@ body {
   position: absolute;
   left: 0;
   top: 50%;
-  z-index: 5;
+  z-index: 40;
   display: grid;
   place-items: center;
-  width: 12px;
-  height: 58px;
+  width: 24px;
+  height: 64px;
   border: 1px solid var(--border-subtle);
   border-right: 0;
   border-radius: 2px 0 0 2px;
@@ -2296,6 +2296,7 @@ body {
   color: var(--text-muted);
   cursor: pointer;
   transform: translate(-100%, -50%);
+  touch-action: manipulation;
   transition: width 0.18s ease, height 0.18s ease, background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 
@@ -2324,16 +2325,69 @@ body {
 
 .pane-stack {
   flex: 1;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.pane-stack--exclusive-expanded,
+.pane-stack--stage-active {
+  overflow: hidden;
+}
+
+.pane-terminal-stage-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  background: var(--term-bg);
+}
+
+.pane-stack--stage-active .pane-terminal-stage-layer {
+  top: 40px;
+}
+
+.pane-list-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 0;
   min-height: 0;
   overflow: auto;
-  padding: 0;
+  background: var(--bg-base);
 }
 
-.pane-stack--exclusive-expanded {
+.pane-list-layer--stage-active {
+  z-index: 3;
   overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+}
+
+.pane-list-layer--stage-active .agent-pane {
+  pointer-events: auto;
+}
+
+.pane-list-layer--stage-active .agent-pane--expanded {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 2;
+  transform: none;
+}
+
+.pane-list-layer--stage-active .agent-pane--hidden {
+  display: none;
+}
+
+.agent-terminal-stage {
+  width: 100%;
+  height: 100%;
+  background: var(--term-bg);
 }
 
 .pane-stack-loading {
@@ -2914,16 +2968,17 @@ body {
   transition:
     background 0.16s ease,
     border-color 0.16s ease,
-    flex-basis 0.2s ease,
-    max-height 0.2s ease,
+    flex-basis 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    min-height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    max-height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.16s ease,
-    transform 0.18s ease;
+    transform 0.2s ease;
 }
 
 .agent-pane--expanded {
-  flex: 1 1 0;
-  min-height: 0;
-  max-height: none;
+  flex: 0 0 40px;
+  min-height: 40px;
+  max-height: 40px;
   background: var(--bg-base);
 }
 
@@ -2952,19 +3007,22 @@ body {
   flex-direction: column;
   cursor: pointer;
   user-select: none;
+  height: 60px;
   min-height: 60px;
   padding: 10px 10px;
   gap: 0;
   border-bottom: 1px solid transparent;
   background: var(--bg-base);
   transition:
-    min-height 0.18s ease,
-    padding 0.18s ease,
+    height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    min-height 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    padding 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
     background 0.16s ease,
     border-color 0.16s ease;
 }
 
 .agent-pane--expanded .agent-pane-header {
+  height: 40px;
   min-height: 40px;
   padding: 7px 9px;
   border-bottom-color: color-mix(in srgb, var(--border-default) 72%, transparent);
@@ -2975,22 +3033,28 @@ body {
 
 .agent-pane-header__main {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-sm);
   min-width: 0;
   width: 100%;
+  height: 100%;
 }
 
 .agent-pane-expand-icon {
   color: var(--text-muted);
   flex: 0 0 auto;
-  align-self: flex-start;
-  margin-top: 10px;
+  align-self: center;
+  margin-top: 0;
+  opacity: 0.78;
+  transform: rotate(0deg);
+  transition:
+    opacity 0.16s ease,
+    transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .agent-pane--expanded .agent-pane-expand-icon {
-  align-self: center;
-  margin-top: 0;
+  opacity: 0.62;
+  transform: rotate(90deg);
 }
 
 .agent-pane-avatar {
@@ -3004,9 +3068,9 @@ body {
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--pane-color) 72%, var(--bg-base));
   transition:
-    width 0.18s ease,
-    height 0.18s ease,
-    flex-basis 0.18s ease,
+    width 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+    flex-basis 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
     background 0.16s ease,
     border-color 0.16s ease;
 }
@@ -3075,21 +3139,24 @@ body {
   gap: 2px;
   margin-left: auto;
   flex-shrink: 0;
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 0.14s ease,
+    transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .agent-pane--collapsed .agent-pane-actions {
-  position: absolute;
-  top: 9px;
-  right: 8px;
-  z-index: 1;
   padding-left: 0;
   background: transparent;
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
+  transform: translateX(4px);
   transition:
     opacity 0.12s ease,
-    visibility 0.12s ease;
+    visibility 0.12s ease,
+    transform 0.16s ease;
 }
 
 .agent-pane--collapsed:hover .agent-pane-actions,

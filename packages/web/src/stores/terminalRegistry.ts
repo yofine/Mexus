@@ -143,6 +143,12 @@ export function registerTerminalWriter(
   writers.set(paneId, writeFn)
   terminals.set(paneId, term)
   fitAddons.set(paneId, fitAddon)
+  pendingWrites.delete(paneId)
+
+  const history = histories.get(paneId)
+  if (history && history.length > 0) {
+    writeFn(history.join(''))
+  }
 }
 
 export function unregisterTerminalWriter(paneId: string): void {

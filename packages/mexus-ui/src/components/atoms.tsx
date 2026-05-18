@@ -110,25 +110,55 @@ export function SubtabPill({ icon, label, active, onClick }: SubtabItemProps) {
 export interface PaneRowProps {
   pane: MockPane;
   selected?: boolean;
+  expanded?: boolean;
   assetsBase?: string;
   onClick?: () => void;
+  onToggleExpand?: () => void;
+  children?: ReactNode;
 }
-export function PaneRow({ pane, selected, assetsBase, onClick }: PaneRowProps) {
+export function PaneRow({
+  pane, selected, expanded, assetsBase, onClick, onToggleExpand, children,
+}: PaneRowProps) {
+  const handleChevClick = (e: MouseEvent<HTMLSpanElement>) => {
+    e.stopPropagation();
+    if (onToggleExpand) onToggleExpand();
+    else if (onClick) onClick();
+  };
   return (
-    <div
-      className="mx-pane-row"
-      onClick={onClick}
-      style={selected ? { background: 'var(--mx-bg-elevated)', cursor: 'pointer' } : { cursor: 'pointer' }}
-    >
-      <span className="mx-pane-row__chev">
-        {selected ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-      </span>
-      <PaneAvatar hue={pane.hue} agent={pane.agent} size={32} assetsBase={assetsBase} />
-      <div className="mx-pane-row__main">
-        <div className="mx-pane-row__name">{pane.name}</div>
-        {pane.desc && <div className="mx-pane-row__desc">{pane.desc}</div>}
+    <div>
+      <div
+        className="mx-pane-row"
+        onClick={onClick}
+        style={{
+          background: selected || expanded ? 'var(--mx-bg-elevated)' : 'transparent',
+          cursor: 'pointer',
+        }}
+      >
+        <span
+          className="mx-pane-row__chev"
+          onClick={handleChevClick}
+          role="button"
+          aria-label={expanded ? `Collapse ${pane.name}` : `Expand ${pane.name}`}
+          style={{ cursor: 'pointer' }}
+        >
+          {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        </span>
+        <PaneAvatar hue={pane.hue} agent={pane.agent} size={32} assetsBase={assetsBase} />
+        <div className="mx-pane-row__main">
+          <div className="mx-pane-row__name">{pane.name}</div>
+          {pane.desc && <div className="mx-pane-row__desc">{pane.desc}</div>}
+        </div>
+        <StatusDot status={pane.status} />
       </div>
-      <StatusDot status={pane.status} />
+      {expanded && children && (
+        <div style={{
+          padding: '10px 12px 14px',
+          background: 'var(--mx-bg-base)',
+          borderBottom: '1px solid var(--mx-border-subtle)',
+        }}>
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -278,9 +308,12 @@ export interface FileRowProps {
   file: MockFile;
   expanded?: boolean;
   onToggle?: () => void;
+  onFileClick?: (name: string) => void;
 }
-export function FileRow({ file, expanded = false, onToggle }: FileRowProps) {
-  const onClick = file.isDir ? onToggle : undefined;
+export function FileRow({ file, expanded = false, onToggle, onFileClick }: FileRowProps) {
+  const onClick = file.isDir
+    ? onToggle
+    : (onFileClick ? () => onFileClick(file.name) : undefined);
   return (
     <div
       className={`mx-file-row ${file.isDir ? 'mx-file-row--dir' : 'mx-file-row--file'}`}
@@ -402,6 +435,96 @@ export function FormField({ label, defaultValue, name }: FormFieldProps) {
     <div className="mx-form-field">
       <label className="mx-form-field__label">{label}</label>
       <input className="mx-form-field__input" defaultValue={defaultValue} name={name} />
+    </div>
+  );
+}
+
+/* ── Mission Agents ─────────────────────────────────────────── */
+
+export interface MissionAgentCardProps {
+  initial: string;
+  name: string;
+  role?: string;
+  hue: number;
+  toClaim: number;
+  active: number;
+  done: number;
+  tasks: number;
+  summary?: string;
+  onClick?: () => void;
+}
+export function MissionAgentCard({
+  initial, name, role = 'Mission Agent', hue, toClaim, active, done, tasks, summary, onClick,
+}: MissionAgentCardProps) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        border: '1px solid var(--mx-border-default)',
+        borderRadius: 'var(--mx-radius-md)',
+        padding: 14,
+        background: 'var(--mx-bg-elevated)',
+        display: 'flex', flexDirection: 'column', gap: 10,
+        cursor: onClick ? 'pointer' : 'default',
+        minWidth: 0,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <span style={{
+          display: 'inline-grid', placeItems: 'center',
+          width: 28, height: 28,
+          borderRadius: 'var(--mx-radius-sm)',
+          background: `hsl(${hue}, 60%, 30%)`,
+          color: '#fff',
+          fontFamily: 'var(--mx-font-mono)',
+          fontSize: 13, fontWeight: 700,
+        }}>{initial}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--mx-text-primary)' }}>{name}</span>
+            <span style={{ fontFamily: 'var(--mx-font-mono)', fontSize: 11, color: 'var(--mx-text-muted)' }}>{tasks} tasks</span>
+          </div>
+          <div style={{ fontFamily: 'var(--mx-font-mono)', fontSize: 11, color: 'var(--mx-text-muted)', marginTop: 2 }}>{role}</div>
+        </div>
+      </div>
+      {summary && (
+        <div style={{ fontSize: 12, color: 'var(--mx-text-secondary)', lineHeight: 1.55 }}>{summary}</div>
+      )}
+      <div style={{
+        display: 'flex', gap: 14,
+        fontFamily: 'var(--mx-font-mono)', fontSize: 11,
+        color: 'var(--mx-text-muted)',
+        borderTop: '1px solid var(--mx-border-subtle)',
+        paddingTop: 8,
+      }}>
+        <span>{toClaim} to claim</span>
+        <span>{active} active</span>
+        <span>{done} done</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Squad Lead Log ────────────────────────────────────────── */
+
+export interface SquadLeadLogEntryProps {
+  time: string;
+  actor: string;
+  text: string;
+}
+export function SquadLeadLogEntry({ time, actor, text }: SquadLeadLogEntryProps) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '88px 110px 1fr',
+      gap: 12,
+      padding: '8px 0',
+      borderBottom: '1px solid var(--mx-border-subtle)',
+      fontSize: 12,
+    }}>
+      <span style={{ fontFamily: 'var(--mx-font-mono)', color: 'var(--mx-text-muted)' }}>{time}</span>
+      <span style={{ fontFamily: 'var(--mx-font-mono)', color: 'var(--mx-text-secondary)' }}>{actor}</span>
+      <span style={{ color: 'var(--mx-text-primary)', lineHeight: 1.55 }}>{text}</span>
     </div>
   );
 }

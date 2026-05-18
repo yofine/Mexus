@@ -7,9 +7,10 @@ interface Props {
   files: MockFile[];
   /** Set of file names that start expanded. Defaults to all dirs expanded. */
   initialExpanded?: string[];
+  onFileClick?: (name: string) => void;
 }
 
-export function FilesPanel({ files, initialExpanded }: Props) {
+export function FilesPanel({ files, initialExpanded, onFileClick }: Props) {
   // Each directory tracks its own expanded state. Default to "all open" so the
   // tree mirrors the screenshot.
   const initialSet = new Set<string>(
@@ -57,6 +58,7 @@ export function FilesPanel({ files, initialExpanded }: Props) {
             file={f}
             expanded={expanded.has(f.name)}
             onToggle={() => toggle(f.name)}
+            onFileClick={onFileClick}
           />
         ))}
       </div>

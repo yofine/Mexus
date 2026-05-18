@@ -226,6 +226,36 @@ describe('TuiTerminalSession', () => {
     expect(terminal.scrollToBottom).not.toHaveBeenCalled()
   })
 
+  it('settles to the latest screen when replay completes', async () => {
+    const frames = createFrameScheduler()
+    const session = new TuiTerminalSession('terminal-a', {
+      writeBufferOptions: { scheduleFrame: frames.scheduleFrame },
+    })
+    const { terminal, writes } = createTerminal({ baseY: 20, viewportY: 0 })
+    session.attach(terminal)
+
+    session.enqueueReplay({
+      id: 'restore-history',
+      kind: 'history',
+      priority: 'critical',
+      source: ['history'],
+      resetBeforeWrite: true,
+      interruptible: false,
+    })
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
+    await tick()
+    frames.flushFrame()
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0)
+    })
+    await tick()
+
+    expect(writes).toEqual(['history'])
+    expect(terminal.scrollToBottom).toHaveBeenCalled()
+  })
+
   it('writes compatible snapshots to the attached terminal', async () => {
     const frames = createFrameScheduler()
     const session = new TuiTerminalSession('terminal-a', {

@@ -200,6 +200,10 @@ export class TuiTerminalSession implements TuiTerminalSessionContract {
         this.writeBuffer.clear()
         this.xterm?.clear?.()
       },
+      complete: () => {
+        this.xterm?.scrollToBottom?.()
+        this.refresh()
+      },
     }
   }
 

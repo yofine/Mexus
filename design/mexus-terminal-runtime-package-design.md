@@ -694,3 +694,47 @@ The core layer is reusable and Mexus-free. It handles xterm attachment, live out
 The Mexus adapter maps pane/workspace/WebSocket concepts into generic runtime operations, keeping Mexus web integration small and reducing future replacement risk.
 
 The package should prioritize responsiveness over exhaustive replay. Live output is always the highest-priority path. Snapshot and replay are recovery aids, not sources of truth.
+
+## 17. Multi-Session Stage Update
+
+The Pane switching model has changed from "collapse hides the terminal" to "all terminals are stacked on a stable stage".
+
+Product metaphor:
+
+```text
+Pane list = a stack of records
+Terminal stage = the player
+Expanded pane = the record currently playing
+Inactive panes = records still present in the stack
+```
+
+This matters because Agent TUIs such as Codex and Claude Code are not append-only logs. They repaint the screen, move the cursor, clear regions, and redraw prompt/status blocks. If an inactive terminal is moved to a zero-height container, detached, or refit while hidden, xterm can produce missing lines, stale prompt blocks, or a floating input area when the pane is shown again.
+
+The Stage model therefore uses these rules:
+
+- Pane rows are switcher/list items, not terminal containers.
+- Terminal rendering lives in one `TerminalStage` surface.
+- Each session keeps a full-size terminal layer while the stage is mounted.
+- Active session layer is visible and interactive.
+- Inactive session layers remain mounted and `visibility: visible`, but use `opacity: 0` and `pointer-events: none`.
+- The terminal stage stays in the Pane area at its original size. Collapse does not move it to a fixed offscreen parking area.
+- Collapsed state is implemented by moving the Pane List layer above the Terminal Stage layer. The user cannot see the stage because it is covered, not because the stage is hidden or relocated.
+- Switching active session changes layer state only; it must not recreate xterm, replay scrollback, or resize hidden terminals.
+- Input is forwarded only for the active session.
+- Resize events are sent only for the active session.
+
+Implementation mapping:
+
+- Core owns `TerminalStageController` for generic session registration, active switching, and disposal.
+- React owns `TuiTerminalStage` and stage layer styles.
+- Mexus Web should route Agent pane terminal output/replay through `MexusTerminalAdapter`; `terminalRegistry` is only a compatibility path for BottomTerminal until it is replaced separately.
+- `AgentPane` becomes a pane row/header component and no longer renders the xterm surface directly.
+
+Demo requirements:
+
+- The standalone `@mexus/terminal` demo must expose multiple real node-pty sessions.
+- The demo must allow switching active sessions while background sessions keep outputting.
+- Diagnostic buttons should insert prompts into the active Agent TUI only.
+- Manual validation should confirm no missing sequential lines after session switching, stable input anchoring, and no xterm recreation on switch.
+
+This update does not remove hidden/backlog support from the core. Hidden visibility is still useful for detached or explicitly paused terminals. It is no longer the preferred strategy for normal Mexus Agent pane switching.

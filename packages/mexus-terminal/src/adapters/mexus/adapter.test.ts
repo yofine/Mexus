@@ -75,7 +75,7 @@ describe('Mexus terminal adapter', () => {
     expect(sessions.get('pane-a')?.writeLive).toHaveBeenCalledWith('live')
   })
 
-  it('uses writeLive for live output while replay is pending so the session can interrupt it', () => {
+  it('uses writeLive for live output while replay is pending without dropping restore replay', () => {
     const { runtime, sessions } = createRuntime()
     const adapter = createMexusTerminalAdapter({
       runtime,
@@ -101,7 +101,7 @@ describe('Mexus terminal adapter', () => {
         id: 'replay-a',
         kind: 'head',
         priority: 'critical',
-        interruptible: true,
+        interruptible: false,
         resetBeforeWrite: true,
       }),
     )
@@ -123,6 +123,22 @@ describe('Mexus terminal adapter', () => {
     expect(sessionB?.cancelAllReplay).toHaveBeenCalledTimes(1)
     expect(runtime.disposeTerminal).toHaveBeenCalledWith('pane-a')
     expect(runtime.disposeTerminal).toHaveBeenCalledWith('pane-b')
+  })
+
+  it('disposes a single pane without resetting other terminal sessions', () => {
+    const { runtime, sessions } = createRuntime()
+    const adapter = createMexusTerminalAdapter({ runtime, workspaceKey: 'workspace-a' })
+
+    adapter.handleEvent({ type: 'terminal.output', paneId: 'pane-a', data: 'a' })
+    adapter.handleEvent({ type: 'terminal.output', paneId: 'pane-b', data: 'b' })
+    const sessionA = sessions.get('pane-a')
+    const sessionB = sessions.get('pane-b')
+
+    adapter.disposePane('pane-a')
+
+    expect(sessionA?.cancelAllReplay).toHaveBeenCalledTimes(1)
+    expect(runtime.disposeTerminal).toHaveBeenCalledWith('pane-a')
+    expect(sessionB?.cancelAllReplay).not.toHaveBeenCalled()
   })
 
   it('includes cols in Mexus terminal cache keys', () => {
@@ -163,8 +179,60 @@ describe('Mexus terminal adapter', () => {
       id: 'replay-b',
       kind: 'head',
       priority: 'normal',
-      interruptible: true,
+      interruptible: false,
     })
     expect(await collect(task!.source)).toEqual(['one', 'two'])
+  })
+
+  it('treats active tail replay as the critical visible restore', async () => {
+    const { sessions, runtime } = createRuntime()
+    const adapter = createMexusTerminalAdapter({
+      runtime,
+      workspaceKey: 'workspace-a',
+      activePaneId: 'pane-a',
+    })
+
+    adapter.handleEvent({
+      type: 'terminal.replay.start',
+      paneId: 'pane-a',
+      replayId: 'pane-a:tail',
+      kind: 'tail',
+    })
+    adapter.handleEvent({ type: 'terminal.replay.chunk', paneId: 'pane-a', replayId: 'pane-a:tail', data: 'last screen' })
+    adapter.handleEvent({ type: 'terminal.replay.end', paneId: 'pane-a', replayId: 'pane-a:tail' })
+
+    const task = vi.mocked(sessions.get('pane-a')!.enqueueReplay).mock.calls[0]?.[0]
+    expect(task).toMatchObject({
+      id: 'pane-a:tail',
+      kind: 'tail',
+      priority: 'critical',
+      resetBeforeWrite: true,
+      interruptible: false,
+    })
+    expect(await collect(task!.source)).toEqual(['last screen'])
+  })
+
+  it('does not mark restore replay as interruptible by live output', () => {
+    const { sessions, runtime } = createRuntime()
+    const adapter = createMexusTerminalAdapter({
+      runtime,
+      workspaceKey: 'workspace-a',
+      activePaneId: 'pane-a',
+    })
+
+    adapter.handleEvent({
+      type: 'terminal.replay.start',
+      paneId: 'pane-a',
+      replayId: 'pane-a:tail',
+      kind: 'tail',
+    })
+    adapter.handleEvent({ type: 'terminal.replay.chunk', paneId: 'pane-a', replayId: 'pane-a:tail', data: 'history' })
+    adapter.handleEvent({ type: 'terminal.replay.end', paneId: 'pane-a', replayId: 'pane-a:tail' })
+
+    const task = vi.mocked(sessions.get('pane-a')!.enqueueReplay).mock.calls[0]?.[0]
+    expect(task).toMatchObject({
+      kind: 'tail',
+      interruptible: false,
+    })
   })
 })

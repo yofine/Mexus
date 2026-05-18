@@ -81,6 +81,19 @@ export class MexusTerminalAdapter {
     this.knownPaneIds.clear()
   }
 
+  disposePane(paneId: string): void {
+    this.pendingReplays.delete(this.getReplayId(paneId))
+    for (const [replayId, handle] of this.replayHandles) {
+      if (replayId === this.getReplayId(paneId) || replayId.startsWith(`${paneId}:`)) {
+        handle.cancel()
+        this.replayHandles.delete(replayId)
+      }
+    }
+    this.runtime.getTerminal(paneId)?.cancelAllReplay()
+    this.runtime.disposeTerminal(paneId)
+    this.knownPaneIds.delete(paneId)
+  }
+
   private startReplay(event: MexusTerminalReplayStartEvent): void {
     const replayId = this.getReplayId(event.paneId, event.replayId)
     this.pendingReplays.set(replayId, {
@@ -120,7 +133,7 @@ export class MexusTerminalAdapter {
         kind: pending.kind,
       }),
       source: pending.chunks,
-      interruptible: true,
+      interruptible: false,
       resetBeforeWrite: true,
     }
     this.replayHandles.set(task.id, session.enqueueReplay(task))

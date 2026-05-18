@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createTuiTerminalRuntime } from './runtime'
 import { TerminalStageController } from './stage'
-import type { TuiTerminalSession } from './types'
+import type { TerminalVisibility, TuiTerminalSession } from './types'
 
 function createSession(id: string): TuiTerminalSession {
   return {
@@ -11,7 +11,7 @@ function createSession(id: string): TuiTerminalSession {
     detach: vi.fn(),
     dispose: vi.fn(),
     setVisibility: vi.fn(),
-    getVisibility: vi.fn(() => 'visible'),
+    getVisibility: vi.fn((): TerminalVisibility => 'visible'),
     writeLive: vi.fn(),
     enqueueReplay: vi.fn(),
     cancelReplay: vi.fn(),
