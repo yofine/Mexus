@@ -1,0 +1,20 @@
+{
+  "name": "mexus-skill",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Standalone Markdown-only Agent Team plugin for Claude Code and Codex.",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/standalone-smoke.test.mjs",
+    "board:build": "pnpm --dir skills/board/board-app build",
+    "pack:zip": "node scripts/pack-zip.mjs"
+  },
+  "files": [
+    ".claude-plugin",
+    ".codex-plugin",
+    "README.md",
+    "references",
+    "scripts",
+    "skills"
+  ]
+}

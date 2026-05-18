@@ -11,7 +11,7 @@ Build Agent Team as two related plugin tracks exported by Mexus:
    These are loaded when Mexus starts an agent CLI. They can integrate with Mexus runtime state, panes, hooks, and future internal endpoints.
 
 2. **Standalone Agent Team plugin** under `plugins/mexus-agent-team/`.
-   This is for Claude Code and Codex users who want the Agent Team mechanism without a running Mexus server. It coordinates host CLI subagents through Markdown and provides a local Web board.
+   This is for Claude Code and Codex users who want the Agent Team mechanism without a running Mexus server. It coordinates background Agents through Markdown and provides a local Web board.
 
 These tracks are not replacements for each other. They share the same Agent Team Markdown protocol and reference templates, but they have different runtime contracts.
 
@@ -54,28 +54,36 @@ plugins/mexus-agent-team/
 Purpose:
 
 - Let Claude Code and Codex users start an Agent Team Mission from a short slash command.
-- Coordinate host CLI subagents through the Mexus Agent Team Markdown protocol.
+- Coordinate background Agents through the Mexus Agent Team Markdown protocol.
 - View the Mission Kanban in a local Web board.
 - Work without Mexus panes, Mission Inbox, Hub mode, or Mexus Web.
 
 Runtime assumptions:
 
 - Mexus does not need to be installed or running.
-- Execution belongs to the host CLI and its own subagent system.
+- Execution belongs to the host CLI and its Agent tool for starting background Agents.
 - State lives in `agent-team/` Markdown files.
 
 ## Product Shape
 
-Shared short slash commands:
+Claude Code plugin skills are namespaced by the plugin name. Use `mexus-skill` as the standalone plugin namespace to keep the command shorter than `mexus-agent-team` while still following the official plugin model.
 
 ```text
-/team "<request>"   Start or continue an Agent Team Mission.
-/board              Start or open the local Web Kanban board.
-/team-status        Print active Mission, task counts, and board URL.
-/team-stop          Stop the board preview service.
+/mexus-skill:team "<request>"   Start or continue an Agent Team Mission.
+/mexus-skill:run                Execute the next kanban tasks with background Agents.
+/mexus-skill:board              Start or open the local Web Kanban board.
+/mexus-skill:team-status        Print active Mission, task counts, and board URL.
+/mexus-skill:team-stop          Stop the board preview service.
 ```
 
-`/team` is the primary entry because it is short and natural in both Claude Code and Codex. The plugin name can remain `mexus-agent-team` for discovery and packaging, but daily usage should avoid long prefixes.
+Short un-namespaced commands such as `/team` belong to project-level `.claude/commands` standalone configuration, not to a reusable Claude Code plugin. If that experience is needed later, provide an explicit project command installer instead of promising it from the plugin itself.
+
+The distribution shape should follow the Waza-style marketplace pattern:
+
+- `.claude-plugin/plugin.json` remains for `claude --plugin-dir <path>` local development.
+- `.claude-plugin/marketplace.json` declares a bundle plugin named `mexus-skill` with `source: "./"`, which registers all `skills/*/SKILL.md` under `/mexus-skill:*`.
+- The marketplace may also include per-skill entries such as `mexus-skill-team` with `source: "./skills/team"` for future single-skill installs, but the primary user path is the bundle entry.
+- Starting a new Mission archives the previous active Mission. `run` always targets the current active Mission by default, so one workspace has one execution target.
 
 ## Core Principles
 
@@ -83,10 +91,10 @@ Shared short slash commands:
    `packages/mexus-plugin/` is the Mexus-bundled capability package. `plugins/mexus-agent-team/` is the standalone package. They share protocol assets but should not silently overwrite each other.
 
 2. Kanban is the collaboration source of truth.
-   Agent work is coordinated through `agent-team/missions/<mission>/kanban.md`. Subagents claim tasks, update status, record results, and publish follow-up work by editing Markdown.
+   Agent work is coordinated through `agent-team/missions/<mission>/kanban.md`. Background Agents claim tasks, update status, record results, and publish follow-up work by editing Markdown.
 
 3. Execution belongs to the active runtime.
-   In the standalone track, Claude Code and Codex run their own subagents. In the Mexus-bundled track, Team behavior may integrate with Mexus panes and runtime state when explicitly designed, but the Markdown Kanban remains the coordination layer.
+   In the standalone track, Claude Code and Codex start background Agents through their Agent tool. In the Mexus-bundled track, Team behavior may integrate with Mexus panes and runtime state when explicitly designed, but the Markdown Kanban remains the coordination layer.
 
 4. The board is observational first.
    The first Web board should read Mission files and render state. It should avoid rich mutation controls until the read path is reliable and the Markdown protocol is stable.
@@ -172,16 +180,18 @@ packages/mexus-plugin/
 └── package.json
 ```
 
-The Mexus-bundled copy should use the same user-facing short commands. It may add Mexus-specific behavior later, but phase one should keep parity with the standalone behavior unless a Mexus integration is explicitly required.
+The Mexus-bundled copy may expose shorter Mexus-owned commands inside Mexus-launched panes, but the standalone Claude Code plugin should follow namespaced plugin commands.
 
 ## Slash Commands And Skills
 
-### `/team "<request>"`
+### `/mexus-skill:team "<request>"`
 
 Purpose: start a Mission from the current CLI session.
 
 Responsibilities:
 
+- Archive any other active Mission by changing its lifecycle to `Lifecycle: archived`.
+- Ensure the new or resumed Mission has `Lifecycle: active`.
 - Choose or ask for a Mission name.
 - Create `agent-team/mission-workflow.md` if missing.
 - Create `agent-team/agents.md` if missing.
@@ -192,8 +202,8 @@ Responsibilities:
   - `roundtable.md`
   - `squad-lead.md`
 - Seed a small initial kanban that lets the host CLI's lead agent decompose work.
-- Tell Claude Code or Codex that its own subagents must work through kanban tasks, not through hidden side conversations.
-- Encourage starting `/board` after the Mission files exist.
+- Tell Claude Code or Codex that background Agents must work through kanban tasks, not through hidden side conversations.
+- Encourage starting `/mexus-skill:board` after the Mission files exist.
 
 The initial prompt must include:
 
@@ -206,7 +216,24 @@ The initial prompt must include:
 
 The command should not depend on Mexus being installed or running.
 
-### `/board`
+### `/mexus-skill:run`
+
+Purpose: execute actionable kanban tasks after a Mission exists.
+
+Responsibilities:
+
+- Detect the active Mission, or respect `--name <mission-name>`. If no active lifecycle marker exists, fall back to the newest Mission.
+- Read mission workflow, mission files, mission agents, kanban, roundtable, and squad lead notes.
+- Select the next `To Claim` tasks.
+- Use the Agent tool to start a small safe batch of background Agents in parallel.
+- Include mission name, agent name, responsibility, exact task block, and kanban update requirements in every background Agent prompt.
+- Require background Agents to move tasks through `In Progress` to `Done` and record Result, Files, Verification, and Updated.
+- Reassign tasks that do not fit an agent's responsibility.
+- Publish a Host Agent / Squad Lead clarification task when ownership is unclear.
+
+`/mexus-skill:run` is distinct from `/mexus-skill:team`: `team` creates or resumes Mission setup, while `run` executes existing kanban work.
+
+### `/mexus-skill:board`
 
 Purpose: run the Web Kanban board carried by the plugin.
 
@@ -241,9 +268,9 @@ It must include:
 - A clear rule that the board reads the caller project's `agent-team/`, not files inside the plugin.
 - A clear rule that phase one is observational and should not write task changes.
 
-This separation matters because `/team` creates and operates Mission files, while `/board` owns presentation. A user can restart or share the board skill without re-running Mission creation.
+This separation matters because `/mexus-skill:team` creates and operates Mission files, while `/mexus-skill:board` owns presentation. A user can restart or share the board skill without re-running Mission creation.
 
-### `/team-status`
+### `/mexus-skill:team-status`
 
 Purpose: provide a terminal summary when the board is not visible.
 
@@ -255,7 +282,7 @@ Responsibilities:
 - Print outstanding tasks grouped by `To`.
 - Print the board URL if a board process is known to be running.
 
-### `/team-stop`
+### `/mexus-skill:team-stop`
 
 Purpose: stop the board service.
 
@@ -341,14 +368,14 @@ The parser should be tolerant:
 
 The plugin does not know whether it is running in Claude Code or Codex beyond what the host exposes through skills and slash commands.
 
-The `/team` skill should instruct the current lead agent to use available host subagent mechanisms to assign work. The lead's responsibility is to:
+The `/mexus-skill:team` skill should instruct the current lead Agent to use the Agent tool to start background Agents for assigned work. The lead's responsibility is to:
 
 1. Create or update kanban tasks.
-2. Dispatch subagents with the relevant task block and the required Agent identity.
-3. Require subagents to edit `kanban.md` as the source of truth.
+2. Start background Agents in parallel with the relevant task block and the required Agent identity.
+3. Require background Agents to edit `kanban.md` as the source of truth.
 4. Review completed tasks where `From` is the lead or where the lead owns the acceptance standard.
 
-Each worker subagent must:
+Each background Agent must:
 
 1. Read the workflow, Mission files, and its task.
 2. Claim one assigned task by moving it to `In Progress`.
@@ -383,20 +410,20 @@ Use a plugin-specific hidden directory rather than `.nexus/` because this plugin
 
 ## Error Handling
 
-`/team`:
+`/mexus-skill:team`:
 
 - If `agent-team/missions/<name>/` exists, continue the Mission instead of overwriting files.
 - If required files are missing, repair only missing files and report what was created.
 - If a dirty kanban cannot be parsed, keep raw content and ask the lead to normalize the malformed task block.
 
-`/board`:
+`/mexus-skill:board`:
 
-- If `agent-team/` is missing, tell the user to run `/team "<request>"` first.
+- If `agent-team/` is missing, tell the user to run `/mexus-skill:team "<request>"` first.
 - If dependencies are not installed, run the narrow install command for `plugins/mexus-agent-team/skills/board/board-app/`.
 - If the default port is busy, choose the next available port and print it.
 - If file reads fail, render an error state in the board and keep the server alive.
 
-`/team-stop`:
+`/mexus-skill:team-stop`:
 
 - If no metadata file exists, report that no board process is known.
 - If the process is already gone, remove stale metadata.
@@ -412,7 +439,7 @@ Plugin smoke tests:
 
 Mission generation tests:
 
-- `/team` script creates all required files in a temp repo.
+- `/mexus-skill:team` script creates all required files in a temp repo.
 - Existing files are not overwritten.
 - Initial kanban parses successfully.
 
@@ -432,10 +459,10 @@ Board tests:
 Manual acceptance:
 
 1. In a fresh repo, install or point Codex/Claude Code at `plugins/mexus-agent-team/`.
-2. Run `/team "build a small feature"`.
-3. Run `/board`.
+2. Run `/mexus-skill:team "build a small feature"`.
+3. Run `/mexus-skill:board`.
 4. Confirm the board opens and shows the generated Mission.
-5. Ask the host CLI to run at least two subagents.
+5. Ask the host CLI to start at least two background Agents.
 6. Confirm kanban updates appear on the board without restarting it.
 
 ## Phase One Tasks

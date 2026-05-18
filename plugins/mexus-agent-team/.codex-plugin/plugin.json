@@ -1,0 +1,26 @@
+{
+  "name": "mexus-skill",
+  "version": "0.1.0",
+  "description": "Markdown-only Agent Team workflow for Codex and Claude Code without requiring a Mexus server.",
+  "author": {
+    "name": "Mexus"
+  },
+  "license": "Apache-2.0",
+  "keywords": ["agent-team", "kanban", "markdown", "subagents"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Mexus Agent Team",
+    "shortDescription": "Run Agent Team Missions from Markdown files.",
+    "longDescription": "Start and operate Markdown-backed Agent Team Missions using the current CLI's own subagent mechanism. No Mexus server, panes, inbox, or A2A runtime is required.",
+    "developerName": "Mexus",
+    "category": "Productivity",
+    "capabilities": ["Write", "Interactive"],
+    "defaultPrompt": [
+      "/mexus-skill:team \"Build the next feature\"",
+      "/mexus-skill:run",
+      "/mexus-skill:board",
+      "/mexus-skill:team-status"
+    ],
+    "brandColor": "#3CCFAB"
+  }
+}

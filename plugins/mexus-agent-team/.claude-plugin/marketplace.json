@@ -1,0 +1,79 @@
+{
+  "name": "mexus-skill",
+  "metadata": {
+    "description": "Markdown-only Agent Team workflow for Claude Code and Codex. It starts Agent Team missions, opens a local board, and coordinates work through project Markdown files without requiring Mexus."
+  },
+  "owner": {
+    "name": "Mexus"
+  },
+  "plugins": [
+    {
+      "name": "mexus-skill",
+      "description": "Installs the standalone Agent Team toolkit. Registers team, run, roundtable, board, team-status, and team-stop under the mexus-skill namespace.",
+      "version": "0.1.0",
+      "category": "development",
+      "source": "./",
+      "homepage": "https://github.com/mexus-ai/mexus"
+    },
+    {
+      "name": "mexus-skill-team",
+      "description": "Starts or continues a Markdown-backed Agent Team Mission using the host CLI's own subagent mechanism and kanban.md as the coordination protocol.",
+      "version": "0.1.0",
+      "category": "development",
+      "source": "./skills/team",
+      "homepage": "https://github.com/mexus-ai/mexus",
+      "skills": ["./"],
+      "strict": false
+    },
+    {
+      "name": "mexus-skill-run",
+      "description": "Executes the next actionable tasks from a Markdown-backed Agent Team kanban using the host CLI's own subagent mechanism.",
+      "version": "0.1.0",
+      "category": "development",
+      "source": "./skills/run",
+      "homepage": "https://github.com/mexus-ai/mexus",
+      "skills": ["./"],
+      "strict": false
+    },
+    {
+      "name": "mexus-skill-board",
+      "description": "Starts a local read-only Web board for an existing Markdown-backed Agent Team Mission.",
+      "version": "0.1.0",
+      "category": "development",
+      "source": "./skills/board",
+      "homepage": "https://github.com/mexus-ai/mexus",
+      "skills": ["./"],
+      "strict": false
+    },
+    {
+      "name": "mexus-skill-roundtable",
+      "description": "Opens a RoundTable proposal in the active Markdown-backed Agent Team Mission.",
+      "version": "0.1.0",
+      "category": "development",
+      "source": "./skills/roundtable",
+      "homepage": "https://github.com/mexus-ai/mexus",
+      "skills": ["./"],
+      "strict": false
+    },
+    {
+      "name": "mexus-skill-team-status",
+      "description": "Prints a concise summary of the current Markdown-backed Agent Team Mission and outstanding kanban tasks.",
+      "version": "0.1.0",
+      "category": "development",
+      "source": "./skills/team-status",
+      "homepage": "https://github.com/mexus-ai/mexus",
+      "skills": ["./"],
+      "strict": false
+    },
+    {
+      "name": "mexus-skill-team-stop",
+      "description": "Stops the local Agent Team board process without deleting mission files.",
+      "version": "0.1.0",
+      "category": "development",
+      "source": "./skills/team-stop",
+      "homepage": "https://github.com/mexus-ai/mexus",
+      "skills": ["./"],
+      "strict": false
+    }
+  ]
+}

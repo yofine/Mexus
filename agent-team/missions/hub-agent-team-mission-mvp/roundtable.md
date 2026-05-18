@@ -33,7 +33,33 @@ Scope: path/module/protocol/product area
 
 ## Pending Review
 
-No review items pending.
+Ref: rt-demo
+Topic: Example review: confirm first execution slice
+Opened by: Squad Lead
+Invitees: Agares, Squad Lead
+Scope: agent-team/missions/hub-agent-team-mission-mvp
+- Question: Is the first execution slice scoped tightly enough for a background Agent to claim safely?
+- Context: This sample item shows how RoundTable proposals render on the board. Replace it when a real multi-Agent decision is needed.
+- Options: Keep the first task broad; narrow it to one module; ask the user for clarification before dispatch.
+- Recommendation: Narrow the first task to one verifiable module before dispatch.
+- Votes: Squad Lead: approve - keeps execution observable; Agares: abstain - waiting for concrete files.
+- Decision: Pending.
+- Follow-up: Update kanban task scope before dispatch if the Mission is too broad.
+- Updated: 2026-05-19, Squad Lead
+
+Ref: rt-mock-ui
+Topic: Mock review: board information density
+Opened by: Agares
+Invitees: Squad Lead, Agares
+Scope: agent-team/missions/hub-agent-team-mission-mvp/roundtable.md, board UI
+- Question: Should RoundTable show proposal summaries in the list and full review details on the right?
+- Context: This mock item exists to preview the board split view with more than one proposal.
+- Options: Keep a single markdown feed; split proposal list and detail panel; move roundtable back into the Mission summary.
+- Recommendation: Use the split proposal list and detail panel so RoundTable can grow without crowding kanban.
+- Votes: Agares: approve - improves scanning; Squad Lead: approve - keeps decisions observable.
+- Decision: Pending.
+- Follow-up: No kanban task needed for this mock item.
+- Updated: 2026-05-19, Agares
 
 ## Approved
 

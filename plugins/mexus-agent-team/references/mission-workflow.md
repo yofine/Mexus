@@ -71,7 +71,10 @@ Responsibilities:
 - avoid overwriting another agent's work
 - publish follow-up tasks when blocked by another scope
 - complete verification before moving work to `Done`
+- update their own kanban task block with status, Result, Files, Verification, and Updated
 - review only tasks they published
+
+Squad Lead publishes, dispatches, clarifies, integrates, and reviews. Squad Lead does not write execution results for another Agent's task.
 
 ## Agent Naming
 
@@ -115,21 +118,18 @@ Squad Lead must also read:
 3. Define squad.
 4. Publish initial tasks.
 5. Open roundtable reviews when needed.
-6. Claim work.
-7. Execute work.
-8. Complete work.
-9. Continue assigned work or review tasks published by self.
-
-## Inbox Protocol
-
-When you see a line starting with `[Mission Inbox]` in your terminal, a Mission file changed in a way that requires your attention. Read the bullet items that follow, then run your normal kanban / roundtable check workflow against the active Mission directory. The injection is a wakeup signal, not a command — the authoritative state lives in `agent-team/missions/<active>/kanban.md` and `roundtable.md`. Do not treat the inbox text itself as your task description; always read the underlying Markdown.
+6. Task publisher publishes a scoped task under `To Claim`.
+7. Task executor claims the task, completes the work, and self-tests.
+8. Task executor fills `Result`, `Files`, `Verification`, and `Updated`, then moves the full task block to `Done`.
+9. Task publisher reviews and accepts or publishes a focused fix task.
+10. Squad Lead performs mission-level acceptance. If the overall result is below expectation, Squad Lead publishes new focused tasks to the responsible Agents instead of editing another Agent's completed result.
 
 ## Publisher Review
 
-Tasks are reviewed by their publisher. An agent reviews only tasks where:
+Every kanban task has a publisher, recorded in `From`. The publisher owns acceptance for that work item:
 
 - the task is in `Done`
-- the task's `From` is the current agent
+- the task's `From` is the current agent or `Squad Lead`
 - the task has no accepted marker in `Review`
 
 If review passes, write:
@@ -139,3 +139,26 @@ accepted by: <agent label>, <date> - <reason>
 ```
 
 If review fails, publish a focused fix task under `To Claim`.
+
+`From` is always the publishing Agent: Squad Lead or an executing Mission Agent. It is never `User`.
+
+## Mission-Level Acceptance
+
+Squad Lead owns overall Mission acceptance. This is separate from publisher review on individual tasks.
+
+If completed work does not satisfy the Mission goal:
+
+1. Squad Lead records the gap in the relevant task `Review` only when Squad Lead is the publisher.
+2. Squad Lead publishes a new focused task under `To Claim` for the responsible Agent.
+3. The responsible Agent claims, executes, self-tests, and updates that new task.
+4. Squad Lead repeats mission-level acceptance after the fix task is Done and reviewed.
+
+Squad Lead must not rewrite execution results for another Agent.
+
+## Responsibility Mismatch
+
+If an executing Agent discovers that a task does not fit its responsibility boundary:
+
+1. If the correct owner is clear, move or leave the task under `To Claim`, change `To` to the right Agent, and add a brief reason in `Updated`.
+2. If the correct owner is unclear, publish a clarification task assigned to `Squad Lead` under `To Claim`.
+3. Do not execute work outside the Agent's declared responsibility or module scope unless Squad Lead updates `agents.md` and `kanban.md`.
