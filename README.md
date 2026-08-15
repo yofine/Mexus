@@ -1,3 +1,5 @@
+
+
 # Mexus
 
 **M.E.X.U.S. = Multi-agent Execution Unified System**
@@ -36,7 +38,7 @@ https://github.com/user-attachments/assets/1bde703f-dda8-4a83-9421-40e212c6aba1
 ### ⌨️ Shortcuts & Command Palette
 - `Cmd/Ctrl+K` — Open command palette
 - `Cmd/Ctrl+N` — New agent pane
-- `Cmd/Ctrl+1-9` — Switch between panes
+- `Cmd/Ctrl/1-9` — Switch between panes
 - `Cmd/Ctrl+G` — Open Git diff
 - Theme switching via command palette
 
@@ -93,6 +95,7 @@ pnpm install
 pnpm dev
 
 # Full dev mode (frontend + backend hot reload in parallel)
+# Default ports: backend 7700, frontend 7701
 pnpm dev:full
 
 # Production build
